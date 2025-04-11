@@ -35,7 +35,7 @@ class Player {
     // Set references to managers needed for actions
     // Added particleSystem and powerupManager parameters
     setManagers(projectileManager, networkManager, playerManager, particleSystem, powerupManager) {
-        this.projectile = projectileManager;
+        this.projectileManager = projectileManager; 
         this.networkManager = networkManager;
         this.playerManager = playerManager; 
         this.particleSystem = particleSystem; 
@@ -43,7 +43,7 @@ class Player {
     }
 
     // --- Getters to access state properties easily ---
-    get id()  return this.state.id ;
+    get id() { return this.state.id; } 
     get x() { return this.state.x; }
     get y() { return this.state.y; }
     get isLocalPlayer() { return this.state.isLocalPlayer; }
@@ -53,7 +53,7 @@ class Player {
 
     // --- Network Synchronization ---
     updateFromServer(serverStateData, timestamp) {
-        updatePlayerFromServer(this.state, serverStateData,timestamp);
+        updatePlayerFromServer(this.state, serverStateData, timestamp);
 
         // Handle lifecycle state sync for remote players
         if (!this.state.isLocalPlayer && serverStateData.lifecycleState !== undefined && serverStateData.lifecycleState !== this.state.lifecycleState) {
@@ -112,7 +112,7 @@ class Player {
         // 3. Handle Local Player Actions (Charging & Firing) - Only if ACTIVE
         if (this.state.isLocalPlayer && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
             const boundGetVisualCenter = () => getVisualCenter(this.state, this.renderScale);
-            const boundGetVisualNosePosition = () => getVisualNosePosition(this.state, this.renderScale));
+            const boundGetVisualNosePosition = () => getVisualNosePosition(this.state, this.renderScale); 
             updatePlayerCharging(
                 this.state,
                 deltaTime,
@@ -227,7 +227,7 @@ class Player {
              }
              return true; // Transition occurred
          }
-         return; // No transition needed
+         return false; // No transition needed 
     }
 
     // Resets the player state for spawning
