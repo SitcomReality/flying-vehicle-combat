@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multiplayer Crayon Racer</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cabin+Sketch:wght@400;700&family=Irish+Grover&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script type="importmap">
     {
@@ -25,32 +22,14 @@
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="debug"></div>
-    <div id="scoreboard" class="ui-panel"></div>
-    <div id="leaderboard" class="ui-panel"></div>
 
-    <!-- Vehicle Selector UI - Reworked Structure -->
-    <div id="vehicleSelector" style="display: none;">
-         <h2 class="selector-title">Select Your Vehicle</h2>
-        <div class="selector-carousel">
-            <button id="cycleLeft" class="cycle-button">◄</button>
-            <div class="vehicle-display-area">
-                 <div id="vehicleSlotLeft" class="vehicle-slot slot-side">
-                     <!-- Preview canvas will be added here -->
-                 </div>
-                <div id="vehicleSlotCenter" class="vehicle-slot slot-center">
-                     <!-- Preview canvas will be added here -->
-                     <h3 class="vehicle-name"></h3>
-                </div>
-                <div id="vehicleSlotRight" class="vehicle-slot slot-side">
-                     <!-- Preview canvas will be added here -->
-                </div>
-            </div>
-            <button id="cycleRight" class="cycle-button">►</button>
+    <!-- Vehicle Selector UI -->
+    <div id="vehicleSelector" class="ui-overlay" style="display: none;">
+        <h2>Select Your Vehicle</h2>
+        <div id="vehicleOptions">
+            <!-- Options will be populated by JS -->
         </div>
-        <div id="selectedVehicleStats" class="stats-display">
-            <!-- Stats will be populated here -->
-        </div>
-        <button id="confirmSelection" class="confirm-button">Confirm</button>
+        <button id="confirmSelection">Confirm</button>
     </div>
 
     <script type="module" src="/game.js"></script>
