@@ -7,25 +7,25 @@ This plan outlines the steps to refactor large player-related files into smaller
 *   `entities/player-manager.js`
 *   `entities/player-physics.js`
 *   `entities/player.js`
-*   `player-manager.js` (Duplicate)
-*   `player-physics.js` (Duplicate)
+*   ~~`player-manager.js` (Duplicate)~~
+*   ~~`player-physics.js` (Duplicate)~~
 
 **Refactoring Steps:**
 
-1.  **Delete `player-manager.js` (Root):**
+1.  **[X] Delete `player-manager.js` (Root):**
     *   **Action:** Delete the `player-manager.js` file located in the root directory.
     *   **Reasoning:** This file appears unused, as imports point to `entities/player-manager.js`. This removes redundancy.
 
-2.  **Delete `player-physics.js` (Root):**
+2.  **[X] Delete `player-physics.js` (Root):**
     *   **Action:** Delete the `player-physics.js` file located in the root directory.
     *   **Reasoning:** This file appears unused, as imports point to `entities/player-physics.js`. This removes redundancy.
 
 3.  **Refactor `entities/player-manager.js` - Extract Collision Logic:**
     *   **Action:**
-        *   Create a new file `entities/combat/combat-manager.js`.
-        *   Move the `handleCollisions` method logic from `entities/player-manager.js` into a method within `CombatManager`.
-        *   The `CombatManager` will need references to `PlayerManager`, `ProjectileManager`, `PowerupManager`, `ParticleSystem`, `renderScale`, `calculateCollisionDamage`, and the collision checking functions.
-        *   Update `game.js` to instantiate `CombatManager` and call its collision handling method in the `update` loop instead of `playerManager.handleCollisions`.
+        *   Create a new file `entities/combat/collision-manager.js`.
+        *   Move the `handleCollisions` method logic from `entities/player-manager.js` into a method within `CollisionManager`.
+        *   The `CollisionManager` will need references to `PlayerManager`, `ProjectileManager`, `PowerupManager`, `ParticleSystem`, `renderScale`, `calculateCollisionDamage`, and the collision checking functions.
+        *   Update `game.js` to instantiate `CollisionManager` and call its collision handling method in the `update` loop instead of `playerManager.handleCollisions`.
         *   Remove the `handleCollisions` method from `entities/player-manager.js`.
     *   **Goal:** Isolate collision detection logic into its own manager.
 
@@ -59,7 +59,6 @@ This plan outlines the steps to refactor large player-related files into smaller
 *   `entities/player-manager.js` focuses on managing the collection of `Player` instances (creation, removal, lookup, basic update loop trigger).
 *   `entities/player.js` acts as an orchestrator for an individual player's state and systems.
 *   `entities/player-physics.js` handles physics calculations.
-*   `entities/combat/combat-manager.js` handles all collision detection logic.
+*   `entities/combat/collision-manager.js` handles all collision detection logic.
 *   `entities/player-lifecycle-manager.js` handles player state transitions like death, respawn, and vehicle selection confirmation.
 *   Other specialized modules (`player-input`, `player-renderer`, `player-actions`, `health-system`, etc.) continue their specific roles.
-
