@@ -178,9 +178,21 @@ class Player {
         // Calculate firing angle based on sprite rotation and visual direction
         // Angle 0 is right, PI/2 is up, PI is left, 3*PI/2 is down.
         // state.rotation is the tilt relative to the *unflipped* sprite's horizontal.
-        // Positive rotation = left side up.
-        // If facing right (flipped), the base angle is PI, and the rotation effectively reverses.
-        const angle = (state.visualFacingDirection === 1) ? (Math.PI - state.rotation) : state.rotation;
+        // Positive rotation means the left side of the *unflipped* sprite tilts up.
+        let angle;
+        if (state.visualFacingDirection === 1) { // Facing Right (sprite is flipped)
+            // Base direction is 0 (right).
+            // A positive state.rotation (left side up on original) means the right side (nose) tilts up when flipped.
+            // Tilting up means a negative angle relative to the horizontal axis.
+            angle = -state.rotation;
+        } else { // Facing Left (sprite is not flipped)
+            // Base direction is PI (left).
+            // A positive state.rotation (left side up) means the nose tilts up relative to the horizontal axis.
+            // This angle needs to be relative to the positive X-axis (0 radians).
+            // The angle relative to the horizontal is state.rotation, but it points leftwards.
+            // The angle relative to the positive X-axis is PI + state.rotation.
+             angle = Math.PI + state.rotation; // Corrected: was just state.rotation which is relative to the sprite's facing direction not the world x-axis
+        }
 
         // Calculate base velocity vector based on angle and speed
         let vx = Math.cos(angle) * speed;
@@ -250,33 +262,23 @@ class Player {
 
         const spriteDrawWidth = spriteConfig.width * this.renderScale;
         const noseOffsetFactor = 0.45; // How far from the center the nose is (0=center, 0.5=edge)
-        const offsetX = state.visualFacingDirection * spriteDrawWidth * noseOffsetFactor;
-        const offsetY = 0; // Assuming nose is horizontally aligned with center before rotation
 
-        // Calculate the effective angle based on visual direction and rotation
-        // Same logic as in fireProjectile
-        const angle = (state.visualFacingDirection === 1) ? (Math.PI - state.rotation) : state.rotation;
+        // Vector from center to unrotated nose position, aligned with the visual facing direction
+        const noseVecX = state.visualFacingDirection * spriteDrawWidth * noseOffsetFactor;
+        const noseVecY = 0; // Assume nose is horizontally aligned with center before rotation
 
-        // Rotate the offset vector (offsetX, offsetY) by the rotation angle
-        // This gives the nose position relative to the center *after* rotation
-        const rotatedOffsetX = offsetX * Math.cos(state.rotation) - offsetY * Math.sin(state.rotation);
-        const rotatedOffsetY = offsetX * Math.sin(state.rotation) + offsetY * Math.cos(state.rotation);
+        // Rotate this vector by state.rotation
+        const cosR = Math.cos(state.rotation);
+        const sinR = Math.sin(state.rotation);
 
+        // Calculate the rotated offset from the center point
+        const finalOffsetX = (noseVecX * cosR - noseVecY * sinR);
+        const finalOffsetY = (noseVecX * sinR + noseVecY * cosR);
 
-         // The final nose position is the visual center plus the rotated offset.
-         // However, the rotation in drawPlayer happens *around* the visual center.
-         // So we just need to calculate the offset from the center *before* rotation,
-         // then apply the rotation to that offset.
+        // The final nose position is the visual center plus the rotated offset.
+        const finalNoseX = center.x + finalOffsetX;
+        const finalNoseY = center.y + finalOffsetY;
 
-         // Vector from center to unrotated nose position
-         const noseVecX = state.visualFacingDirection * spriteDrawWidth * noseOffsetFactor;
-         const noseVecY = 0;
-
-         // Rotate this vector by state.rotation
-         const cosR = Math.cos(state.rotation);
-         const sinR = Math.sin(state.rotation);
-         const finalNoseX = center.x + (noseVecX * cosR - noseVecY * sinR);
-         const finalNoseY = center.y + (noseVecX * sinR + noseVecY * cosR);
 
          return { x: finalNoseX, y: finalNoseY };
      }
