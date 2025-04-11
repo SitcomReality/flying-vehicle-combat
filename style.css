@@ -1,0 +1,53 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #f0f0f0; /* Light background */
+    font-family: 'Comic Sans MS', 'Chalkduster', 'cursive'; /* Crayon-like font */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+canvas {
+    border: 5px solid #333; /* Thick, slightly irregular border */
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3); /* Subtle shadow */
+    background-color: #ffffff; /* White canvas background */
+    /* Potential TODO: Add a subtle paper/crayon texture background image */
+    image-rendering: pixelated; /* Keep pixel art crisp */
+    image-rendering: crisp-edges;
+}
+
+#debug {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 5px;
+    font-size: 12px;
+    font-family: monospace;
+    white-space: pre;
+}
+
+/* Style for player names/avatars (example - integrate later) */
+.player-info {
+    position: absolute;
+    background-color: rgba(255, 255, 255, 0.8);
+    padding: 2px 5px;
+    border: 2px solid #555;
+    border-radius: 5px;
+    font-size: 10px;
+    text-align: center;
+    transform: translateX(-50%); /* Center above player */
+    white-space: nowrap;
+}
+
+.player-avatar {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 3px;
+}
+
