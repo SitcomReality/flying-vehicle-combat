@@ -65,10 +65,15 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
         if (playerState.vy > 0) playerState.vy = 0; // Stop downward movement at floor
     }
 
-
-    // 5. Calculate Target Rotation based on Vertical Velocity
+    // 5. Calculate Target Rotation based on Vertical Velocity and Facing Direction
     const normalizedVy = Math.max(-1, Math.min(1, playerState.vy / PLAYER_PHYSICS.MAX_VERTICAL_SPEED));
-    const targetRotation = -normalizedVy * PLAYER_PHYSICS.MAX_TILT_ANGLE; // Negative vy (up) -> positive rotation (nose up)
+    // Base rotation: negative vy (up) -> positive rotation (nose up)
+    let targetRotation = -normalizedVy * PLAYER_PHYSICS.MAX_TILT_ANGLE;
+
+    // Invert rotation if facing right, so the *nose* still points relatively up/down
+    if (playerState.facingDirection === 1) {
+        targetRotation *= -1;
+    }
 
     // 6. Smoothly Interpolate Rotation
     playerState.rotation += (targetRotation - playerState.rotation) * PLAYER_PHYSICS.TILT_SPEED * deltaTime;
