@@ -1,6 +1,7 @@
-// Handles player actions like charging and firing projectiles
-
 import { GLOBAL_PHYSICS } from './player-state.js'; // Use GLOBAL_PHYSICS for projectile constants like SPEED_SCALE
+// Import powerup helpers
+import { getPowerupMultiplier } from './powerups/powerup-effects.js';
+import { PowerupType } from './powerups/powerup-types.js';
 
 // Configuration
 const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
@@ -16,6 +17,9 @@ const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
  */
 export function updatePlayerCharging(playerState, deltaTime, particleSystem, getVisualCenterFunc, getVisualNosePositionFunc) {
     if (!playerState.isLocalPlayer || playerState.lifecycleState !== 'ACTIVE') return;
+
+    // Apply powerup multipliers (e.g., faster charge rate?) - currently none defined for charge rate
+    // const chargeRateMultiplier = getPowerupMultiplier(playerState, PowerupType.CHARGE_BOOST); // Example
 
     if (playerState.isCharging) {
         playerState.chargeLevel = Math.min(
@@ -53,6 +57,10 @@ export function fireProjectile(playerState, projectileManager, networkManager, g
         return;
     }
 
+    // Apply powerup multipliers
+    const damageMultiplier = getPowerupMultiplier(state, PowerupType.DAMAGE_BOOST);
+    // Note: Rapid fire might affect how often this function is CALLED, rather than modifying it here.
+
     // Calculate projectile initial state
     const nosePos = getVisualNosePositionFunc(state);
     const startX = nosePos.x;
@@ -79,20 +87,23 @@ export function fireProjectile(playerState, projectileManager, networkManager, g
     vx += state.vx * 0.5;
     vy += state.vy * 0.5;
 
+    // Calculate final damage including powerup multiplier
+    const finalDamage = Math.round(state.projectileDamage * damageMultiplier);
+
     // Create projectile locally AND get data to broadcast
-    // Use vehicle's projectileDamage and projectileColor
+    // Use vehicle's projectileColor and modified damage
     const projectileData = projectileManager.createAndGetData(
         state.id,
         startX, startY,
         vx, vy,
         state.projectileColor,
-        state.projectileDamage // Pass damage value
+        finalDamage // Pass final damage value
     );
 
     // Broadcast the fire event to other clients
     networkManager.sendEvent({
         type: 'fireProjectile',
-        projectile: projectileData,
+        projectile: projectileData, // Includes final damage
         echo: false // Don't send back to self
     });
 

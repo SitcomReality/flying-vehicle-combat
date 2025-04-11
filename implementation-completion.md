@@ -8,7 +8,7 @@ This document tracks the completion status of the features outlined in `implemen
 
 *   **[X] Create `entities/vehicles/vehicle-types.js`:** File created and defines stats for 3 vehicle types.
 *   **[X] Create `entities/vehicles/vehicle-factory.js`:** Functionality integrated into `PlayerState.constructor`, `PlayerState.setVehicle`, and `PlayerState.updateVehicleProperties`.
-*   **[X] Update `player-state.js`:** Added health, fuel, and vehicle-specific physics/weapon properties. Updated logic to load and use these stats based on `vehicleType`. Reset charge level on vehicle change. Initialized `lastGroundDamageTime`.
+*   **[X] Update `player-state.js`:** Added health, fuel, and vehicle-specific physics/weapon properties. Updated logic to load and use these stats based on `vehicleType`. Reset charge level on vehicle change. Initialized `lastGroundDamageTime`. Added `activePowerups` property.
 *   **[X] Create `entities/vehicles/vehicle-stats.js`:** Base stats are loaded directly into `PlayerState`. Deferring calculation helpers.
 
 **Status:** COMPLETE
@@ -17,8 +17,8 @@ This document tracks the completion status of the features outlined in `implemen
 
 *   **[X] Create `entities/player-lifecycle.js`**: File created with states.
 *   **[X] Create `ui/vehicle-selector.js`**: UI component created and integrated. Draws previews.
-*   **[X] Update `player-manager.js`**: Handles state transitions (CONNECTING, SELECTING, ACTIVE, DEAD), respawn flow, vehicle selection confirmation. Player creation defaults local player to SELECTING state. Network syncs lifecycle state. Debug 'kill' command triggers death sequence. `handlePlayerDeath` transitions local player and triggers respawn flow.
-*   **[X] Update `player.js`**: Implemented `transitionToState` with side effects (clearing velocity/flags on death). Added `takeDamage` method. Update loop respects lifecycle state.
+*   **[X] Update `player-manager.js`**: Handles state transitions (CONNECTING, SELECTING, ACTIVE, DEAD), respawn flow, vehicle selection confirmation. Player creation defaults local player to SELECTING state. Network syncs lifecycle state. Debug 'kill' command triggers death sequence. `handlePlayerDeath` transitions local player and triggers respawn flow. Clears powerups on death transition.
+*   **[X] Update `player.js`**: Implemented `transitionToState` with side effects (clearing velocity/flags/powerups on death). Added `takeDamage` method. Update loop respects lifecycle state. Hides player during SELECTING.
 *   **[X] Update `network-event-handler.js`**: Handles lifecycle state synchronization from presence updates.
 
 **Status:** COMPLETE

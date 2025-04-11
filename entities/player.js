@@ -7,8 +7,10 @@ import { updatePlayerAnimation } from './player-animation.js';
 import { updatePlayerCharging, handlePlayerFiring } from './player-actions.js';
 import { getVisualCenter, getVisualNosePosition } from './player-visuals.js';
 import { PlayerLifecycleState } from './player-lifecycle.js'; // Import lifecycle states
-import { updateFuel, consumeFuel } from './vehicles/fuel-system.js'; // Use functions from fuel-system
+import { updateFuel } from './vehicles/fuel-system.js'; // Use functions from fuel-system
 import { updateHealth, applyDamage } from './vehicles/health-system.js'; // Use functions from health-system
+// Import powerup effects updater
+import { updatePowerupEffects } from './powerups/powerup-effects.js';
 
 // Configuration Constants
 const REMOTE_PLAYER_INTERPOLATION_FACTOR = 0.15;
@@ -27,15 +29,18 @@ class Player {
         this.projectileManager = null;
         this.networkManager = null;
         this.playerManager = null; // Add reference to player manager for death handling
-
-        console.log(`Player ${id} instance created. Local: ${isLocalPlayer}, Vehicle: ${this.state.vehicleType}, Pos: ${this.state.x.toFixed(0)},${this.state.y.toFixed(0)}, Scale: ${this.renderScale}`);
+        this.particleSystem = null; // Add reference for particle effects
+        this.powerupManager = null; // Add reference for powerups
     }
 
     // Set references to managers needed for actions
-    setManagers(projectileManager, networkManager, playerManager) {
+    // Added particleSystem and powerupManager parameters
+    setManagers(projectileManager, networkManager, playerManager, particleSystem, powerupManager) {
         this.projectileManager = projectileManager;
         this.networkManager = networkManager;
         this.playerManager = playerManager; // Store player manager reference
+        this.particleSystem = particleSystem; // Store particle system reference
+        this.powerupManager = powerupManager; // Store powerup manager reference
     }
 
     // --- Getters to access state properties easily ---
@@ -83,26 +88,25 @@ class Player {
     }
 
     // --- Update Cycle ---
-    update(deltaTime, groundLevelY, particleSystem, currentTime) {
-        // Skip updates if marked for removal or in a non-updatable state
+    update(deltaTime, groundLevelY, particleSystem, currentTime, playerManager) { // Pass playerManager explicitly
+        // Skip updates if marked for removal or in a completely non-interactive state
         if (this.state.isMarkedForRemoval || this.state.lifecycleState === PlayerLifecycleState.CONNECTING) {
              // Still update health invulnerability timer even if connecting (edge case?)
             updateHealth(this.state, deltaTime, currentTime); // Call updateHealth from health-system
             return;
         }
 
-        // 1. Update health/invulnerability timers FIRST
-        // (Needs to happen even if DEAD/SELECTING to clear invulnerability eventually)
-        updateHealth(this.state, deltaTime, currentTime);
+        // 1. Update timed effects (invulnerability, powerups) FIRST
+        // (Needs to happen even if DEAD/SELECTING to handle expiry)
+        updateHealth(this.state, deltaTime, currentTime); // Handles damage invulnerability timer
+        updatePowerupEffects(this.state, currentTime); // Handles powerup effect timers
 
-        // Exit early if DEAD or SELECTING (after health update)
+        // Exit early if DEAD or SELECTING (after effect updates)
         if (this.state.lifecycleState === PlayerLifecycleState.DEAD || this.state.lifecycleState === PlayerLifecycleState.SELECTING) {
             return;
         }
 
-
         // 2. Update animations (like the flip) based on current time
-        // (Allow animation even if not ACTIVE, e.g., for spawn-in effect later)
         updatePlayerAnimation(this.state, currentTime);
 
         // 3. Handle Local Player Actions (Charging & Firing) - Only if ACTIVE
@@ -128,11 +132,9 @@ class Player {
         if (this.state.isLocalPlayer) {
              // Only apply physics if ACTIVE
              if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
-                updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem);
+                updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem, currentTime, playerManager); // Pass playerManager
                 // Update fuel state (regen only) using fuel-system
                 updateFuel(this.state, deltaTime);
-                // Health updates (damage application) happen elsewhere (e.g., collisions, projectiles)
-                // We already called updateHealth for the timer at the start.
              }
         } else {
             interpolatePlayerState(this.state, REMOTE_PLAYER_INTERPOLATION_FACTOR);
@@ -154,11 +156,14 @@ class Player {
     // --- Rendering ---
     draw() {
         // Only draw if not marked for removal and not in a completely hidden state
-        if (this.state.isMarkedForRemoval || this.state.lifecycleState === PlayerLifecycleState.CONNECTING) return;
+        if (this.state.isMarkedForRemoval ||
+            this.state.lifecycleState === PlayerLifecycleState.CONNECTING ||
+            this.state.lifecycleState === PlayerLifecycleState.SELECTING) { // Also hide during SELECTING
+            return;
+        }
 
-        // Optionally hide player visually during selection or death if needed
-        // if (this.state.lifecycleState === PlayerLifecycleState.SELECTING || this.state.lifecycleState === PlayerLifecycleState.DEAD) {
-        //     // Maybe draw a placeholder or nothing?
+        // Optionally hide player visually during death if needed (e.g., show explosion instead)
+        // if (this.state.lifecycleState === PlayerLifecycleState.DEAD) {
         //     return;
         // }
 
@@ -205,13 +210,14 @@ class Player {
                  this.state.isOnGround = false; // Assume blown into air briefly
                  // Ensure health is 0 on transition to DEAD
                  this.state.health = 0;
+                 // Clear active powerups on death
+                 this.state.activePowerups = {};
              } else if (newState === PlayerLifecycleState.SELECTING) {
                  // Ensure player is visually static or hidden
              } else if (newState === PlayerLifecycleState.ACTIVE) {
                  // Ensure physics/input are enabled
                  // Make player invulnerable for a short period on spawn?
-                 // applyDamage handles invulnerability on taking damage,
-                 // but we might want spawn protection later.
+                 // For now, handled by damage invulnerability only.
              }
 
              // If local player, immediately sync presence on state change
