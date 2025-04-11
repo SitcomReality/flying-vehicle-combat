@@ -1,71 +1,78 @@
-// New file: Handles drawing the dynamic background
-
-const STAR_COUNT = 150;
-const TWINKLE_SPEED = 0.5; // How fast stars twinkle
-const STAR_COLORS = ['#FFFFFF', '#FFFFE0', '#ADD8E6', '#FFDAB9']; // White, light yellow, light blue, light orange
+// New file: Handles rendering the dynamic background
 
 class BackgroundRenderer {
-    constructor(width, height) {
+    constructor(ctx, width, height, numStars = 200) {
+        this.ctx = ctx;
         this.width = width;
         this.height = height;
         this.stars = [];
+        this.numStars = numStars;
+
         this.generateStars();
-        console.log("BackgroundRenderer initialized.");
     }
 
     generateStars() {
         this.stars = [];
-        for (let i = 0; i < STAR_COUNT; i++) {
-            const size = Math.random() * 1.5 + 0.5; // Size between 0.5 and 2
+        for (let i = 0; i < this.numStars; i++) {
             this.stars.push({
                 x: Math.random() * this.width,
                 y: Math.random() * this.height,
-                size: size,
-                baseAlpha: 0.5 + Math.random() * 0.5, // Base brightness (0.5 to 1.0)
-                alphaOffset: Math.random() * Math.PI * 2, // Random starting point for twinkle
-                color: STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)]
+                size: Math.random() * 1.5 + 0.5, // Star size between 0.5 and 2
+                speed: Math.random() * 0.5 + 0.1, // Star speed between 0.1 and 0.6 px/frame
+                opacity: Math.random() * 0.5 + 0.5, // Opacity between 0.5 and 1.0
+                color: `rgba(255, 255, ${Math.floor(Math.random() * 55) + 200}, ${Math.random() * 0.5 + 0.5})` // Mostly white/yellowish
             });
         }
-        console.log(`Generated ${this.stars.length} stars.`);
+         // Add a few larger, slower "planets" or nebulae (optional)
+        for (let i = 0; i < 5; i++) {
+            this.stars.push({
+                x: Math.random() * this.width,
+                y: Math.random() * this.height,
+                size: Math.random() * 5 + 3, // Larger size
+                speed: Math.random() * 0.1 + 0.05, // Slower speed
+                opacity: Math.random() * 0.2 + 0.1, // Fainter
+                 // Colors: blues, purples, faint reds
+                color: `rgba(${Math.floor(Math.random() * 50 + 100)}, ${Math.floor(Math.random() * 50 + 100)}, ${Math.floor(Math.random() * 100 + 155)}, ${Math.random() * 0.2 + 0.1})`
+            });
+        }
     }
 
     update(deltaTime) {
-        // Update twinkle effect (can be skipped if performance is an issue)
-        const now = performance.now() / 1000; // Time in seconds
+        // Adjust speed based on deltaTime, assuming 60fps baseline for speed values
+        const speedMultiplier = deltaTime * 60;
         this.stars.forEach(star => {
-            // Use sine wave for smooth twinkle
-            star.currentAlpha = star.baseAlpha * (0.75 + Math.sin(now * TWINKLE_SPEED + star.alphaOffset) * 0.25);
+            star.x -= star.speed * speedMultiplier; // Move stars from right to left
+
+            // Wrap stars around the screen
+            if (star.x < -star.size) {
+                star.x = this.width + star.size;
+                star.y = Math.random() * this.height; // Re-randomize Y for variety
+            }
         });
     }
 
-    draw(renderer) {
-        const ctx = renderer.getContext();
+    draw() {
+        // Clear canvas with a dark space color (or leave transparent if layered)
+        // this.ctx.fillStyle = '#0a0a1a'; // Very dark blue/purple
+        // this.ctx.fillRect(0, 0, this.width, this.height);
 
-        // 1. Draw solid dark background
-        ctx.fillStyle = '#0a0514'; // Match body background or use a gradient
-        ctx.fillRect(0, 0, this.width, this.height);
-
-        // Optional Gradient:
-        // const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
-        // gradient.addColorStop(0, '#0a0514'); // Darker top
-        // gradient.addColorStop(1, '#1a1034'); // Slightly lighter bottom
-        // ctx.fillStyle = gradient;
-        // ctx.fillRect(0, 0, this.width, this.height);
-
-        // 2. Draw stars
         this.stars.forEach(star => {
-            ctx.fillStyle = star.color;
-            ctx.globalAlpha = star.currentAlpha; // Apply twinkle alpha
-            ctx.fillRect(
-                Math.floor(star.x),
-                Math.floor(star.y),
-                Math.ceil(star.size), // Use ceil to ensure even small stars are visible
-                Math.ceil(star.size)
-            );
-        });
-        ctx.globalAlpha = 1.0; // Reset global alpha
+            this.ctx.fillStyle = star.color;
+            this.ctx.globalAlpha = star.opacity; // Use individual star opacity
 
-        // 3. TODO: Add other astral objects (planets, nebulae etc.)
+            // Draw circle for stars
+            this.ctx.beginPath();
+            this.ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Simple glow effect (optional, can impact performance)
+            // this.ctx.shadowBlur = star.size * 2;
+            // this.ctx.shadowColor = star.color;
+            // this.ctx.fill(); // Fill again with shadow enabled
+            // this.ctx.shadowBlur = 0; // Reset shadow
+
+        });
+         this.ctx.globalAlpha = 1.0; // Reset global alpha
     }
 }
 

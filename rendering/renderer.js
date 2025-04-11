@@ -1,1 +1,55 @@
-Qq!aaQ��1�qQAQ!a�A�qqQq��AAQqaa���!QA�A1Q�A��1�AA11�q!1!A1a!Q��aQA�q11A!q!1��qA�1Aqaq!qA!�1!A�Aa11qQ1a�1!qA1�q�1A!a�A���1�!�1�aaqQQaAAA�AQq�QAQA�qA1aQ�!�qq�Qa�AQQaqQ1!aaQQ!1QAaqQq�q�q�aAQ�q!�Q�!aq1�aA!�q!!qq!a�1q�!a�QqQa1a!�QA!aA11�qA�!�QaA�a!Q11q�!�!1AQ��1�Q!�1qaQqqq1aq1aqQqAQ�q��aaA�a�a�!a11!1!Aq1AA���QA��a�a�QQaaQq1AaQaq!����A�qa11AQq11���1�q!!aa1�A���Q!�Qa!�AA!QqA!a1Q!1�QAA1!Q�a�qA�AQq!AQ!aq1!AQQ1A���qQqqqAqA�1QqA!1�1qQQQ!1QA�aQaa!!�A��1AQaaA!q1AAA��1QqQ!�A�A!aqaA1�AA1�Q�A�aa1AQ�Q�AQ�qAa�!Q1�!AAq!!q�q!a!�Qq11!q!1�!�qaqq1�!qq�aaQQQaa���A!��Qqaa�qqq�A��q!!1qAQ�AQqQQAa�1�!�Qq�a�q!�!!�aQ!��A�Q!Q!qaQ!QAA�QQ�!aAA!qqqa1�q����!1Q�AQ�qQ!!!A!!�A!!q�Q�Qq!aA��Q��AAqaAa!�!!�1q1qQaq�!1�!���AaqA�a�!�q��!qq11aaa!qQQq!!1a���aAQQ!!1Q!aqQ!�1!Q�!�Q�QqQ1!�1q1�!�a1a11AaaaaaQA�1qA�A�11Q�qA��!�aQ��!q1��aQ�!A�aQQQqq�!���A!���1A!a!a!Qa�Q!A�1Q��1aq�AAA1!aAa�11!1A�a��a!Q!qA�Q�Aa1�!�A1A!!aQ1q1�A�qaA!�a!!a!qAQQaAq!AqaQ�A1q!�A1QA�A1aqA1Q�AAAa!aqa�Aa��1q!!�aa!qa��!aQ��qA11q1!q�!A�1qq��A1Q1Aq1q!QQ!A�Q11��1Qaqqaa��!aQ1A11���!��Q1A��1!���Qaqaa!!aa��!��A1A��qa1�q�!AqA11Q1�Q1�qAqqa���qq1a�Q�1A�A�1QAaqAQ!�aqqQa1�11���A!A1a!q1�1Q���QA1!111�Aqqqaq1!�a1Q11!A!AQQAa!1!�AqQAq�AAaAQ!AQQ��Qa!1a�!q!1q1�!��A��1q��qaA1!�aq�A�QqAqaAaqQ1!QqA1!�!QqAaq�11A��QAaaQ��q11qQa�a�Q�!�1�Q1A��qQ�!q1Q�a1�q�A!aAQ��q!AQAQ�qa!�QqA��A!q�a1q�QqqqQQ�qQq1QaAa�!1�1!AA�QQaq!1�!�11!Qq�A1QaQ��AaA!A!�A!1aAAa�!1a��a�!!AaQA!AQ�a!A�Qq���AaaaqQ11
+class Renderer {
+    constructor(canvas, width, height) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.width = width;
+        this.height = height;
+
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+
+        // Improve performance on some browsers
+        this.ctx.imageSmoothingEnabled = false;
+
+        console.log(`Renderer initialized with size ${width}x${height}`);
+    }
+
+    clear() {
+        this.ctx.clearRect(0, 0, this.width, this.height);
+        // Optional: Fill with a background color or image
+        // this.ctx.fillStyle = '#e0f0ff'; // Light blue background example
+        // this.ctx.fillRect(0, 0, this.width, this.height);
+    }
+
+    getContext() {
+        return this.ctx;
+    }
+
+    // Helper for drawing text (useful for debug/names)
+    drawText(text, x, y, color = '#000000', font = '12px Arial', align = 'left', baseline = 'top') {
+        this.ctx.fillStyle = color;
+        this.ctx.font = font;
+        this.ctx.textAlign = align;
+        this.ctx.textBaseline = baseline;
+        this.ctx.fillText(text, x, y);
+    }
+
+     // Helper for drawing sprites (using sprite-renderer logic)
+     drawSprite(spriteSheet, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight) {
+        if (!spriteSheet || !spriteSheet.complete || spriteSheet.naturalWidth === 0) {
+            // console.warn("Attempted to draw with invalid spritesheet");
+            // Draw a placeholder if the image isn't ready
+            this.ctx.fillStyle = 'red';
+            this.ctx.fillRect(dx, dy, dWidth, dHeight);
+            return;
+        }
+        this.ctx.drawImage(
+            spriteSheet,
+            sx, sy, sWidth, sHeight, // Source rectangle
+            Math.round(dx), Math.round(dy), dWidth, dHeight // Destination rectangle
+        );
+    }
+}
+
+export default Renderer;
+
