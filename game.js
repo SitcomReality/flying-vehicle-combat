@@ -2,9 +2,10 @@ import AssetLoader from 'core/asset-loader.js';
 import InputManager from 'core/input-manager.js';
 import Renderer from 'rendering/renderer.js';
 import NetworkManager from 'networking/network-manager.js';
-import PlayerManager from 'entities/player-manager.js'; // Import new manager
-import NetworkEventHandler from 'networking/network-event-handler.js'; // Import new handler
-import DebugRenderer from 'rendering/debug-renderer.js'; // Import new debug renderer
+import PlayerManager from 'entities/player-manager.js';
+import NetworkEventHandler from 'networking/network-event-handler.js';
+import DebugRenderer from 'rendering/debug-renderer.js';
+import BackgroundRenderer from 'rendering/background-renderer.js';
 import { SPRITES } from 'config/sprites.js';
 
 console.log("Game starting...");
@@ -25,6 +26,7 @@ const renderer = new Renderer(canvas, GAME_WIDTH, GAME_HEIGHT);
 const inputManager = new InputManager();
 const networkManager = new NetworkManager();
 const assetLoader = new AssetLoader();
+const backgroundRenderer = new BackgroundRenderer(GAME_WIDTH, GAME_HEIGHT);
 
 // --- Game State ---
 let assets = {};
@@ -54,7 +56,7 @@ async function initializeGame() {
         playerManager = new PlayerManager(assets, renderer.getContext(), RENDER_SCALE, GAME_WIDTH, GAME_HEIGHT);
         playerManager.setLocalPlayerId(localPlayerId);
 
-        const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE }; // Bundle config for modules
+        const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE }; 
         networkEventHandler = new NetworkEventHandler(networkManager, playerManager, gameConfig);
         debugRenderer = new DebugRenderer(debugEl, playerManager, networkManager, inputManager, gameConfig);
         debugRenderer.setLocalPlayerId(localPlayerId);
@@ -74,7 +76,7 @@ async function initializeGame() {
         console.log("Local player object created via PlayerManager.");
 
         // 5. Send Initial Presence
-        networkEventHandler.updateLocalPlayerPresence(performance.now()); // Use handler to send presence
+        networkEventHandler.updateLocalPlayerPresence(performance.now()); 
         lastPresenceUpdateTime = performance.now();
         console.log("Initial presence sent via NetworkEventHandler.");
 
@@ -88,7 +90,7 @@ async function initializeGame() {
 
     } catch (error) {
         console.error("Initialization failed:", error);
-        if (debugEl) { // Check if debugEl exists
+        if (debugEl) { 
              debugEl.textContent = `Initialization Error:\n${error.message}\n${error.stack}`;
         }
     }
@@ -98,24 +100,15 @@ async function initializeGame() {
 function update(deltaTime) {
     const now = performance.now();
 
+    // Update background (for effects like twinkling)
+    backgroundRenderer.update(deltaTime);
+
     // Update Local Player (Input + Physics + Clamping)
     const localPlayer = playerManager.getLocalPlayer();
     if (localPlayer && localPlayer.state && !localPlayer.isMarkedForRemoval) {
         const input = inputManager.getInputState();
         localPlayer.handleInput(input);
-        localPlayer.update(deltaTime); // Runs local physics
-
-        // Clamp local player position (Boundary checks)
-         if (localPlayer.state.currentVehicle) {
-             const vehicleConfig = localPlayer.state.currentVehicle;
-             const minX = localPlayer.state.drawOffsetX * RENDER_SCALE;
-             const maxX = GAME_WIDTH - (vehicleConfig.width - localPlayer.state.drawOffsetX) * RENDER_SCALE;
-             const minY = localPlayer.state.drawOffsetY * RENDER_SCALE;
-             const maxY = GAME_HEIGHT - (vehicleConfig.height - localPlayer.state.drawOffsetY) * RENDER_SCALE;
-
-             localPlayer.state.x = Math.max(minX, Math.min(maxX, localPlayer.state.x));
-             localPlayer.state.y = Math.max(minY, Math.min(maxY, localPlayer.state.y));
-         }
+        localPlayer.update(deltaTime); 
 
         // Send presence update periodically
         if (now - lastPresenceUpdateTime > LOCAL_PLAYER_UPDATE_INTERVAL) {
@@ -130,7 +123,10 @@ function update(deltaTime) {
 
 // --- Main Draw Function ---
 function draw() {
-    renderer.clear();
+    renderer.clear(); 
+
+    // Draw the background first
+    backgroundRenderer.draw(renderer);
 
     // Draw all players (handled by PlayerManager, includes sorting)
     playerManager.drawPlayers(renderer);
@@ -149,7 +145,7 @@ function gameLoop(currentTime) {
     lastUpdateTime = currentTime;
 
     // Ensure modules are initialized before proceeding
-    if (!playerManager || !networkEventHandler || !debugRenderer) {
+    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer) { 
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
         return;

@@ -7,14 +7,15 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background-image: url('/iono_bg.jpg'); /* Add the background image */
-    background-repeat: repeat; /* Tile the background */
+    background-color: #0a0514; /* Dark space background for body */
+    /* background-image: url('/iono_bg.jpg'); Remove static background image */
+    /* background-repeat: repeat; */
 }
 
 canvas {
     border: 5px solid #333; /* Thick, slightly irregular border */
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.3); /* Subtle shadow */
-    background-color: #ffffff; /* White canvas background */
+    /* background-color: #ffffff; Remove white canvas background */
     /* Potential TODO: Add a subtle paper/crayon texture background image */
     image-rendering: pixelated; /* Keep pixel art crisp */
     image-rendering: crisp-edges;
