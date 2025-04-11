@@ -1,4 +1,5 @@
 import { GLOBAL_PHYSICS } from './player-state.js'; // Import only GLOBAL constants
+import { consumeFuel } from './vehicles/fuel-system.js'; // Import fuel consumption logic
 
 /**
  * Updates the player's physics state (position, velocity, rotation) based on forces and time.
@@ -12,15 +13,11 @@ import { GLOBAL_PHYSICS } from './player-state.js'; // Import only GLOBAL consta
  */
 export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderScale, groundLevelY, particleSystem) {
     // Physics calculations are only authoritative for the local player
-    if (!playerState.isLocalPlayer) return;
+    if (!playerState.isLocalPlayer || playerState.lifecycleState !== 'ACTIVE') return;
 
     const wasOnGround = playerState.isOnGround; // Store previous ground state
 
-    // --- Regenerate Fuel ---
-    // Regenerate fuel if not actively thrusting upwards (or maybe always, design choice)
-    if (!playerState.isThrusting || playerState.isOnGround) { // Regen on ground or when not thrusting
-        playerState.fuel = Math.min(playerState.maxFuel, playerState.fuel + playerState.fuelRegenRate * deltaTime);
-    }
+    // --- Fuel Regeneration is handled in fuel-system.js ---
 
     // --- Vertical Movement ---
     if (!playerState.isOnGround || playerState.isThrusting) {
@@ -28,8 +25,8 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
         // Apply thrust only if there's fuel
         if (playerState.isThrusting && playerState.fuel > 0) {
             playerState.ay -= playerState.thrustForce; // Use thrustForce from playerState
-            // Consume Fuel
-            playerState.fuel = Math.max(0, playerState.fuel - playerState.fuelConsumeRate * deltaTime);
+            // Consume Fuel via the Fuel System
+            consumeFuel(playerState, playerState.fuelConsumeRate * deltaTime);
         } else if (playerState.isThrusting && playerState.fuel <= 0) {
             // Optional: visual/audio cue for out of fuel?
              playerState.isThrusting = false; // Force thrust off if out of fuel (prevents holding key)

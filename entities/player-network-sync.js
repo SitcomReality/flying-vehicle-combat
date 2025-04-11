@@ -39,6 +39,26 @@ export function updatePlayerFromServer(playerState, serverState, timestamp) {
         playerState.setVehicle(serverState.vehicleType);
     }
 
+    // Update health, fuel, and invulnerability state from server data
+    if (serverState.health !== undefined) {
+        playerState.serverHealth = serverState.health;
+        playerState.health = serverState.health; // Directly set visual health for remote
+    }
+    if (serverState.fuel !== undefined) {
+        playerState.serverFuel = serverState.fuel;
+        playerState.fuel = serverState.fuel; // Directly set visual fuel for remote
+    }
+    if (serverState.isInvulnerable !== undefined) {
+        playerState.serverIsInvulnerable = serverState.isInvulnerable;
+        playerState.isInvulnerable = serverState.isInvulnerable; // Directly set visual invulnerability
+    }
+
+    // Update lifecycle state if provided and different
+    if (serverState.lifecycleState !== undefined && serverState.lifecycleState !== playerState.lifecycleState) {
+        console.log(`Remote player ${playerState.id} lifecycle state changed via presence: ${playerState.lifecycleState} -> ${serverState.lifecycleState}`);
+        playerState.lifecycleState = serverState.lifecycleState;
+    }
+
     // Note: We don't directly set x, y, rotation here. Interpolation handles the smoothing.
 }
 

@@ -20,6 +20,7 @@ export const GLOBAL_PHYSICS = {
     PROJECTILE_BASE_SPEED: 400,
     PROJECTILE_SPEED_SCALE: 3,
     PROJECTILE_GRAVITY_FACTOR: 0.5,
+    INVULNERABILITY_DURATION: 1.0, // seconds - NEW for health system
 };
 
 export const INTERPOLATION_SNAP_THRESHOLD = 0.5; // Pixels
@@ -76,6 +77,11 @@ export class PlayerState {
         this.groundFrictionFactor = GLOBAL_PHYSICS.GROUND_FRICTION_FACTOR;
         // --- End NEW Stats ---
 
+        // --- Health System State ---
+        this.lastDamageTime = 0;
+        this.isInvulnerable = false;
+        // --- End Health System State ---
+
         // Network Synchronization
         this.serverX = x;
         this.serverY = y;
@@ -84,6 +90,7 @@ export class PlayerState {
         this.serverIsOnGround = false;
         this.serverHealth = 100; // Track server health/fuel
         this.serverFuel = 100;
+        this.serverIsInvulnerable = false; // Sync invulnerability state
         this.lastServerUpdateTime = 0;
 
         // Flags
@@ -104,6 +111,10 @@ export class PlayerState {
         this.targetFacingDirection = initialDirection;
         this.visualFacingDirection = initialDirection;
         this.serverFacingDirection = initialDirection;
+
+        // Set initial server health/fuel based on properties
+        this.serverHealth = this.health;
+        this.serverFuel = this.fuel;
     }
 
     updateVehicleProperties() {
@@ -144,13 +155,14 @@ export class PlayerState {
 
         // 5. Initialize current health/fuel (or reset if called mid-game)
         // Only fully reset if health/fuel somehow became invalid. Otherwise, keep current values.
-        if (this.health > this.maxHealth || this.health <= 0) {
+        if (this.health > this.maxHealth || this.health <= 0 || isNaN(this.health)) {
              this.health = this.maxHealth;
         }
-        if (this.fuel > this.maxFuel || this.fuel < 0) {
+        if (this.fuel > this.maxFuel || this.fuel < 0 || isNaN(this.fuel)) {
              this.fuel = this.maxFuel;
         }
-         // Ensure fuel doesn't exceed new max if switching to a lower capacity vehicle
+         // Ensure health/fuel doesn't exceed new max if switching to a lower capacity vehicle
+         this.health = Math.min(this.health, this.maxHealth);
          this.fuel = Math.min(this.fuel, this.maxFuel);
     }
 
@@ -164,6 +176,9 @@ export class PlayerState {
                  this.health = this.maxHealth;
                  this.fuel = this.maxFuel;
                  console.log(`Player ${this.id} vehicle state changed from type ${oldType} to ${this.vehicleType}. Health/Fuel reset.`);
+                 // Also reset server state tracking
+                 this.serverHealth = this.health;
+                 this.serverFuel = this.fuel;
             }
         } else {
             console.warn(`Invalid vehicleTypeIndex: ${vehicleTypeIndex} for player ${this.id}`);
@@ -178,8 +193,9 @@ export class PlayerState {
             facingDirection: this.facingDirection,
             rotation: this.rotation,
             isOnGround: this.isOnGround,
-            health: this.health,
-            fuel: this.fuel,
+            health: this.health, // Sync health
+            fuel: this.fuel,     // Sync fuel
+            isInvulnerable: this.isInvulnerable, // Sync invulnerability
             lifecycleState: this.lifecycleState, // Sync lifecycle state
         };
     }
@@ -209,6 +225,10 @@ export class PlayerState {
         this.health = this.maxHealth;
         this.fuel = this.maxFuel;
 
+        // Reset invulnerability state
+        this.lastDamageTime = 0;
+        this.isInvulnerable = false;
+
         // Reset server state for interpolation
         this.serverX = x;
         this.serverY = y;
@@ -217,6 +237,7 @@ export class PlayerState {
         this.serverIsOnGround = false;
         this.serverHealth = this.health;
         this.serverFuel = this.fuel;
+        this.serverIsInvulnerable = this.isInvulnerable;
         this.lastServerUpdateTime = 0;
 
         this.isMarkedForRemoval = false;
