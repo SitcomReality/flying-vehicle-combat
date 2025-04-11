@@ -95,17 +95,17 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
          console.error("Player state missing currentVehicle during physics update!");
          return; // Cannot proceed without vehicle dimensions
     }
-    const spriteDrawWidth = playerState.currentVehicle.width * renderScale;
-    const spriteDrawHeight = playerState.currentVehicle.height * renderScale;
-    let currentEffectiveDrawY = playerState.y - playerState.drawOffsetY * renderScale;
-    let currentEffectiveBottomY = currentEffectiveDrawY + spriteDrawHeight;
+    const playerWidth = playerState.width * renderScale;
+    const playerHeight = playerState.height * renderScale;
+    // Use playerState x, y which represent the top-left of the hitbox
+    const playerBottomY = playerState.y + playerHeight;
 
     let justLanded = false;
-    if (currentEffectiveBottomY >= groundLevelY) {
-        const penetration = currentEffectiveBottomY - groundLevelY;
+    if (playerBottomY >= groundLevelY) {
+        const penetration = playerBottomY - groundLevelY;
         // Check if penetration is significant enough (prevents tiny floating point issues sticking player)
         if (penetration >= -0.1) { // Allow slight overlap
-            playerState.y -= penetration;
+            playerState.y -= penetration; // Correct position based on hitbox bottom
             if (!wasOnGround && playerState.vy >= 0) {
                 justLanded = true;
                  // TODO: Add single impact ground collision damage check here? (e.g., based on vy)
@@ -119,14 +119,14 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
             }
 
             // --- Apply recurring ground damage ---
-            if (currentTime - playerState.lastGroundDamageTime > GROUND_DAMAGE_INTERVAL) {
+            // Ensure playerManager is provided before calling applyDamage
+            if (playerManager && currentTime - playerState.lastGroundDamageTime > GROUND_DAMAGE_INTERVAL) {
                  // Use the imported applyDamage function from health system
                  // Pass playerManager for death handling
                  applyDamage(playerState, GROUND_DAMAGE_AMOUNT, currentTime, playerManager);
                  playerState.lastGroundDamageTime = currentTime; // Update time AFTER applying damage
             }
 
-            currentEffectiveDrawY = playerState.y - playerState.drawOffsetY * renderScale;
         } else {
             playerState.isOnGround = false;
         }
@@ -143,22 +143,21 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
 
     // --- Clamping Position (X and Top Y) ---
     const minX = 0;
-    const effectiveDrawX = playerState.x - playerState.drawOffsetX * renderScale;
-    const maxX = gameBounds.width - spriteDrawWidth;
+    const maxX = gameBounds.width - playerWidth; // Clamp based on hitbox width
 
-    if (effectiveDrawX < minX) {
-        playerState.x = minX + playerState.drawOffsetX * renderScale;
+    if (playerState.x < minX) {
+        playerState.x = minX;
         if (playerState.vx < 0) playerState.vx = 0;
          // TODO: Add boundary collision damage/effect?
-    } else if (effectiveDrawX > maxX) {
-        playerState.x = maxX + playerState.drawOffsetX * renderScale;
+    } else if (playerState.x > maxX) {
+        playerState.x = maxX;
         if (playerState.vx > 0) playerState.vx = 0;
          // TODO: Add boundary collision damage/effect?
     }
 
     const minY = 0;
-    if (currentEffectiveDrawY < minY) {
-        playerState.y = minY + playerState.drawOffsetY * renderScale;
+    if (playerState.y < minY) { // Check hitbox top Y
+        playerState.y = minY;
         if (playerState.vy < 0) playerState.vy = 0;
         playerState.isOnGround = false;
          // TODO: Add boundary collision damage/effect?
@@ -166,9 +165,10 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
 
     // --- Particle Effects on Ground ---
     if (playerState.isOnGround && particleSystem) {
-        const contactX = (playerState.x - playerState.drawOffsetX * renderScale + spriteDrawWidth / 2)
-                       + (playerState.visualFacingDirection === 1 ? -spriteDrawWidth * 0.3 : spriteDrawWidth * 0.3);
-        const contactY = groundLevelY - 2;
+        // Calculate effect position based on hitbox center and visual direction
+        const contactX = (playerState.x + playerWidth / 2)
+                       + (playerState.visualFacingDirection === 1 ? -playerWidth * 0.3 : playerWidth * 0.3);
+        const contactY = groundLevelY - 2; // Slightly above ground line
         const baseSparkVX = -80 + playerState.vx * 0.5;
         const baseSmokeVX = -30 + playerState.vx * 0.3;
         // Use GLOBAL_PHYSICS for particle emit rates for now
@@ -181,7 +181,8 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
     if (!playerState.isOnGround) {
         const normalizedVy = Math.max(-1, Math.min(1, playerState.vy / GLOBAL_PHYSICS.MAX_VERTICAL_SPEED));
         targetRotation = -normalizedVy * GLOBAL_PHYSICS.MAX_TILT_ANGLE; // Use GLOBAL constants
-        if (playerState.facingDirection === 1) {
+        // Rotation direction depends on VISUAL facing direction
+        if (playerState.visualFacingDirection === 1) {
             targetRotation *= -1;
         }
     }

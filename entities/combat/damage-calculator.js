@@ -30,12 +30,16 @@ export function calculateCollisionDamage(type, targetEntity, sourceEntity, curre
     const cooldownDuration = COLLISION_COOLDOWN[type] || 0;
     let collisionKey = null;
 
+    // Ensure entities are valid before proceeding
+    if (!targetEntity || !sourceEntity) return 0;
+
     if (type === 'player-player') {
         // Create a sorted key for player-player pairs to ensure cooldown works regardless of order
         collisionKey = [targetEntity.id, sourceEntity.id].sort().join('-');
     } else if (type === 'player-projectile') {
         // Projectiles have their own damage, potentially overriding base
-        damage = sourceEntity?.damage || BASE_DAMAGE['player-projectile'];
+        // Ensure sourceEntity is a projectile and has a damage property
+        damage = sourceEntity?.damage ?? BASE_DAMAGE['player-projectile'];
         // Projectiles don't have cooldowns handled here, they are destroyed on impact
         return damage;
     } else {

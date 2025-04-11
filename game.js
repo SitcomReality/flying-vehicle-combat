@@ -22,6 +22,7 @@ const RENDER_SCALE = 0.2;
 const LOCAL_PLAYER_UPDATE_INTERVAL = 50; // ms
 const MAX_DELTA_TIME = 0.1; // seconds
 const DEBUG_KILL_KEY = 'k';
+const PRESENCE_UPDATE_THROTTLE = 50; // Milliseconds between sending presence updates
 
 // --- DOM Elements ---
 const canvas = document.getElementById('gameCanvas');
@@ -82,6 +83,7 @@ async function initializeGame() {
         statusBarRenderer = new StatusBarRenderer(renderer.getContext(), playerManager, RENDER_SCALE);
 
         // Set managers in PlayerManager AFTER all managers are created
+        // Ensure particleSystem is passed here as well
         playerManager.setManagers(projectileManager, networkManager, vehicleSelector, particleSystem);
 
         const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE, groundLevelY };
@@ -159,7 +161,21 @@ function update(deltaTime, currentTime) {
         }
     }
 
+    // Update all players (physics, interpolation, fuel regen, health timers, actions)
+    // Pass playerManager to handle dependencies within player update (e.g., ground damage)
     playerManager.updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime);
+
+    // Handle collisions AFTER player positions are updated
+    playerManager.handleCollisions(currentTime);
+
+    // Send local player presence update periodically
+    if (currentTime - lastPresenceUpdateTime > PRESENCE_UPDATE_THROTTLE) {
+         networkEventHandler.updateLocalPlayerPresence(currentTime);
+         lastPresenceUpdateTime = currentTime;
+    }
+
+    // Update InputManager's previous key state AFTER all input checks
+    inputManager.update();
 }
 
 // --- Main Draw Function ---
@@ -187,20 +203,15 @@ function gameLoop(currentTime) {
     }
 
     try {
-        // Input processing happens implicitly through event listeners
-        // We read the state in update()
+        // Input state is read in update()
         update(deltaTime, currentTime);
         draw();
-
-        // Update InputManager's previous state at the END of the frame
-        inputManager.update();
 
     } catch (error) {
         console.error("Error in game loop:", error);
         if (debugEl) {
             debugEl.textContent = `GAME LOOP ERROR:\n${error.message}\n${error.stack}`;
         }
-        // Optionally stop the loop on error: return;
     }
 
     requestAnimationFrame(gameLoop);
