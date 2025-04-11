@@ -1,5 +1,3 @@
-import { PLAYER_PHYSICS } from './player-state.js';
-
 /**
  * Processes input state and updates the player's intended movement and actions.
  * @param {PlayerState} playerState - The state object of the player.
