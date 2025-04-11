@@ -2,9 +2,6 @@ import Player from './player.js';
 import { SPRITES } from 'config/sprites.js';
 import { PlayerLifecycleState } from './player-lifecycle.js'; // Import states
 import { getVehicleConfig } from './vehicles/vehicle-types.js'; // Import vehicle config getter
-// Import collision detection and damage calculation
-import { checkPlayerCollisions, checkProjectileCollisions, checkPowerupCollisions } from './combat/collision-detector.js'; // Added checkPowerupCollisions
-import { calculateCollisionDamage } from './combat/damage-calculator.js';
 
 class PlayerManager {
     constructor(assets, ctx, renderScale, gameWidth, gameHeight) {
@@ -203,52 +200,6 @@ class PlayerManager {
         }
     }
 
-    handleCollisions(currentTime) {
-        // Check if managers needed for collision detection are available
-        if (!this.projectileManager || !this.particleSystem || !this.powerupManager) {
-            console.warn("Collision detection skipped: projectileManager, particleSystem, or powerupManager not available.");
-            return;
-        }
-
-        const activePlayers = this.getAllActivePlayers(); // Get only players in ACTIVE state
-        const localPlayer = this.getLocalPlayer();
-
-        // Get active projectiles from the projectile manager
-        const activeProjectilesObject = this.projectileManager.getProjectiles();
-
-        // Get active powerups from the powerup manager
-        const activePowerupsArray = this.powerupManager.getActivePowerups();
-
-        // Call Player-Player collision detection
-        checkPlayerCollisions(
-            activePlayers,
-            this.renderScale,
-            calculateCollisionDamage, // Pass the damage calculation function
-            currentTime,
-            this // Pass self (PlayerManager instance) for damage application/death handling
-        );
-
-        // Call Projectile-Player collision detection
-        checkProjectileCollisions(
-            activePlayers,
-            activeProjectilesObject, // Pass the object of active projectiles
-            this.renderScale,
-            calculateCollisionDamage, // Pass the damage calculation function
-            currentTime,
-            this, // Pass self (PlayerManager instance) for damage application/death handling
-            this.particleSystem // Pass particle system for collision effects
-        );
-
-        // Call Player-Powerup collision detection (only for local player)
-        checkPowerupCollisions(
-            localPlayer,
-            activePowerupsArray,
-            this.renderScale,
-            currentTime,
-            this.powerupManager // Pass powerup manager for pickup logic
-        );
-    }
-
     drawPlayers(renderer) {
         const sortedPlayerIds = Object.keys(this.players).sort((a, b) => {
             if (a === this.localPlayerId) return 1;
@@ -299,11 +250,12 @@ class PlayerManager {
 
         // Determine spawn position
         const vehicleConfig = getVehicleConfig(selectedVehicleType);
-        const vehicleHeight = (vehicleConfig.hitbox?.height ?? SPRITES.vehicles.frameHeight) * this.renderScale;
+        // Estimate vehicle height using known render scale and sprite data
+        const vehicleHeight = (SPRITES.vehicles.hitboxHeight ?? SPRITES.vehicles.frameHeight) * this.renderScale;
         const spawnX = this.gameWidth / 2;
-        // Use gameHeight directly (ground level calculation needs improvement later if dynamic)
+        // Estimate ground level (needs refinement if dynamic)
         const groundY = this.gameHeight - 30; // Use consistent ground estimate
-        const spawnY = groundY - vehicleHeight - 10;
+        const spawnY = groundY - vehicleHeight - 10; // Spawn slightly above ground
 
         // Reset state and set to ACTIVE
         localPlayer.resetStateForSpawn(spawnX, spawnY);

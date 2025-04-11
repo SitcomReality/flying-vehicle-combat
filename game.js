@@ -13,6 +13,7 @@ import VehicleSelector from 'ui/vehicle-selector.js';
 import { PlayerLifecycleState } from 'entities/player-lifecycle.js';
 import StatusBarRenderer from 'ui/status-bars.js';
 import PowerupManager from 'entities/powerups/powerup-manager.js';
+import CollisionManager from 'entities/combat/collision-manager.js';
 
 console.log("Game starting...");
 
@@ -46,13 +47,14 @@ let groundLevelY = GAME_HEIGHT;
 
 // --- Game Logic Modules (Initialized later) ---
 let playerManager = null;
-let powerupManager = null; 
+let powerupManager = null;
 let networkEventHandler = null;
 let debugRenderer = null;
 let backgroundRenderer = null;
 let particleSystem = null;
 let vehicleSelector = null;
 let statusBarRenderer = null;
+let collisionManager = null;
 
 // --- Initialization ---
 async function initializeGame() {
@@ -74,7 +76,7 @@ async function initializeGame() {
         powerupManager = new PowerupManager(networkManager, assets, RENDER_SCALE);
 
         backgroundRenderer = new BackgroundRenderer(renderer.getContext(), GAME_WIDTH, GAME_HEIGHT);
-        groundLevelY = backgroundRenderer.getGroundLevel(); 
+        groundLevelY = backgroundRenderer.getGroundLevel();
 
         particleSystem = new ParticleSystem();
 
@@ -84,6 +86,9 @@ async function initializeGame() {
 
         statusBarRenderer = new StatusBarRenderer(renderer.getContext(), playerManager, RENDER_SCALE);
 
+        // Instantiate CollisionManager after its dependencies
+        collisionManager = new CollisionManager(playerManager, projectileManager, powerupManager, particleSystem, RENDER_SCALE);
+
         playerManager.setManagers(projectileManager, networkManager, vehicleSelector, particleSystem, powerupManager);
 
         const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE, groundLevelY };
@@ -91,17 +96,17 @@ async function initializeGame() {
         debugRenderer = new DebugRenderer(debugEl, playerManager, networkManager, inputManager, gameConfig);
         debugRenderer.setLocalPlayerId(localPlayerId);
 
-        inputManager.update(); 
+        inputManager.update();
 
         const initialX = GAME_WIDTH / 2;
         const initialY = groundLevelY / 2;
         const initialState = {
             x: initialX,
             y: initialY,
-            vehicleType: 0, 
+            vehicleType: 0,
             facingDirection: -1,
             rotation: 0,
-            lifecycleState: PlayerLifecycleState.SELECTING 
+            lifecycleState: PlayerLifecycleState.SELECTING
         };
         const localPlayer = playerManager.createPlayer(localPlayerId, initialState, true);
         if (localPlayer) {
@@ -137,7 +142,7 @@ function update(deltaTime, currentTime) {
     backgroundRenderer.update(deltaTime);
     particleSystem.update(deltaTime);
     projectileManager.update(deltaTime, groundLevelY);
-    powerupManager.update(deltaTime); 
+    powerupManager.update(deltaTime);
 
     powerupManager.attemptSpawnPowerup(currentTime, GAME_WIDTH, GAME_HEIGHT, groundLevelY);
 
@@ -149,13 +154,18 @@ function update(deltaTime, currentTime) {
 
         if (inputManager.wasKeyJustPressed(DEBUG_KILL_KEY) && localPlayer.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
             console.log("Debug key pressed: Kill Local Player");
-            playerManager.killLocalPlayer(); 
+            playerManager.killLocalPlayer();
         }
     }
 
     playerManager.updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime);
 
-    playerManager.handleCollisions(currentTime); 
+    // Use CollisionManager for collision checks
+    if (collisionManager) {
+        collisionManager.checkAllCollisions(currentTime);
+    } else {
+        console.warn("CollisionManager not initialized, skipping collision checks.");
+    }
 
     if (currentTime - lastPresenceUpdateTime > PRESENCE_UPDATE_THROTTLE) {
          networkEventHandler.updateLocalPlayerPresence(currentTime);
@@ -170,9 +180,9 @@ function draw() {
     backgroundRenderer.draw();
     particleSystem.draw(renderer.getContext());
     projectileManager.draw(renderer.getContext());
-    powerupManager.draw(renderer.getContext()); 
+    powerupManager.draw(renderer.getContext());
     playerManager.drawPlayers(renderer);
-    statusBarRenderer.draw(); 
+    statusBarRenderer.draw();
     debugRenderer.drawPlayerInfo(renderer);
     debugRenderer.updateDebugInfo();
 }
@@ -182,7 +192,8 @@ function gameLoop(currentTime) {
     const deltaTime = Math.min(rawDeltaTime, MAX_DELTA_TIME);
     lastUpdateTime = currentTime;
 
-    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager) {
+    // Include collisionManager in the check
+    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager) {
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
         return;

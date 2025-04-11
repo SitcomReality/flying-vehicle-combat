@@ -20,7 +20,7 @@ This plan outlines the steps to refactor large player-related files into smaller
     *   **Action:** Delete the `player-physics.js` file located in the root directory.
     *   **Reasoning:** This file appears unused, as imports point to `entities/player-physics.js`. This removes redundancy.
 
-3.  **Refactor `entities/player-manager.js` - Extract Collision Logic:**
+3.  **[X] Refactor `entities/player-manager.js` - Extract Collision Logic:**
     *   **Action:**
         *   Create a new file `entities/combat/collision-manager.js`.
         *   Move the `handleCollisions` method logic from `entities/player-manager.js` into a method within `CollisionManager`.
