@@ -16,6 +16,7 @@ const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 const LOCAL_PLAYER_UPDATE_INTERVAL = 50; // ms - How often to send updates
 const REMOTE_PLAYER_INTERPOLATION_FACTOR = 0.1; // How quickly remote players snap to server position (lower = smoother, higher = more responsive)
+const MAX_DELTA_TIME = 0.1; // Maximum delta time in seconds (100ms) to prevent large jumps
 
 // --- Global Game State ---
 let assets = {};
@@ -34,18 +35,45 @@ const assetLoader = new AssetLoader();
 
 function updateDebugInfo() {
     let debugText = `Client ID: ${localPlayerId}\n`;
+    debugText += `Is Connected: ${networkManager.isOnline()}\n`;
     debugText += `Players (${Object.keys(players).length}):\n`;
     for (const id in players) {
         const p = players[id];
+        if (!p) {
+             debugText += `  ${id.substring(0, 4)}: Player object missing!\n`;
+             continue;
+        }
         const peerInfo = networkManager.getPeer(id);
         const name = peerInfo?.username || 'Unknown';
-        debugText += `  ${name} (${id.substring(0, 4)}): ${p.x.toFixed(0)}, ${p.y.toFixed(0)}\n`;
+        const xVal = p.x; // Check value before toFixed
+        const yVal = p.y; // Check value before toFixed
+
+        debugText += `  ${name} (${id.substring(0, 4)}): x=${xVal}, y=${yVal}`;
+        if (typeof xVal === 'number' && isFinite(xVal)) debugText += ` (int: ${Math.round(xVal)})`;
+        else debugText += ` (INVALID)`;
+        if (typeof yVal === 'number' && isFinite(yVal)) debugText += `, (int: ${Math.round(yVal)})`;
+        else debugText += ` (INVALID)`;
+        debugText += '\n';
+
+        // Add isLocalPlayer flag check
+        debugText += `    Is Local: ${p.isLocalPlayer}\n`;
+
         if (p.isLocalPlayer) {
              debugText += `    Input: ${JSON.stringify(inputManager.getInputState())}\n`;
+             // Also show serverX/Y for local player for comparison if needed, though they aren't used for movement
+             // const sxVal = p.serverX;
+             // const syVal = p.serverY;
+             // debugText += `    Local's server pos (unused): sx=${sxVal}, sy=${syVal}\n`;
         } else {
-             debugText += `    Server: ${p.serverX?.toFixed(0)}, ${p.serverY?.toFixed(0)}\n`;
+             const sxVal = p.serverX; // Check value before toFixed
+             const syVal = p.serverY; // Check value before toFixed
+             debugText += `    Server State: sx=${sxVal}, sy=${syVal}`;
+             if (typeof sxVal === 'number' && isFinite(sxVal)) debugText += ` (int: ${Math.round(sxVal)})`;
+             else debugText += ` (INVALID)`;
+             if (typeof syVal === 'number' && isFinite(syVal)) debugText += `, (int: ${Math.round(syVal)})`;
+             else debugText += ` (INVALID)`;
+             debugText += '\n';
         }
-
     }
     debugEl.textContent = debugText;
 }
@@ -60,19 +88,33 @@ async function initializeGame() {
         // 2. Initialize Network
         await networkManager.initialize();
         localPlayerId = networkManager.getClientId();
+        if (!localPlayerId) {
+            throw new Error("Failed to get Client ID after network initialization.");
+        }
         console.log("Network initialized. Client ID:", localPlayerId);
 
         // 3. Setup Network Event Handlers
         setupNetworkHandlers();
 
         // 4. Initialize Local Player (initial state before first presence update)
+        // Ensure initial state has valid numbers
+        const initialX = Math.random() * (GAME_WIDTH - (SPRITES.vehicles.frameWidth * RENDER_SCALE)); // Adjust for sprite width
+        const initialY = Math.random() * (GAME_HEIGHT - (SPRITES.vehicles.hitboxHeight * RENDER_SCALE)); // Adjust for sprite height
+        console.log(`Creating local player ${localPlayerId} at ${initialX}, ${initialY}`);
         createPlayer(localPlayerId, {
-            x: Math.random() * GAME_WIDTH,
-            y: Math.random() * GAME_HEIGHT,
+            x: initialX,
+            y: initialY,
             vehicleType: 0 // Default vehicle
         }, true); // isLocalPlayer = true
 
-        // Send initial presence
+        // Check if player was created successfully
+        if (!players[localPlayerId]) {
+             throw new Error("Local player object not found after creation.");
+        }
+        console.log("Local player instance:", players[localPlayerId]);
+
+
+        // Send initial presence only after player object is confirmed created
         updateLocalPlayerPresence();
 
         // 5. Start Game Loop
@@ -82,6 +124,7 @@ async function initializeGame() {
 
     } catch (error) {
         console.error("Initialization failed:", error);
+        debugEl.textContent = `Initialization failed: ${error.message}\nCheck console for details.`;
         // Display error to user?
     }
 }
@@ -91,16 +134,29 @@ function setupNetworkHandlers() {
         const now = performance.now();
         // Add new players or update existing ones
         for (const clientId in presence) {
+            // Ensure we don't accidentally re-create or update local player via presence
+            if (clientId === localPlayerId) continue;
+
             if (!players[clientId]) {
                 console.log("New player joined:", clientId, networkManager.getPeer(clientId)?.username);
-                createPlayer(clientId, presence[clientId]);
-            } else if (clientId !== localPlayerId) {
+                 // Make sure presence data has valid coordinates before creating player
+                const initialState = presence[clientId];
+                if (typeof initialState.x !== 'number' || typeof initialState.y !== 'number') {
+                    console.warn(`Received invalid initial state for ${clientId}, using defaults.`);
+                    initialState.x = GAME_WIDTH / 2;
+                    initialState.y = GAME_HEIGHT / 2;
+                }
+                createPlayer(clientId, initialState); // isLocal defaults to false
+            } else {
                  // Only update remote players based on presence
                 players[clientId].updateFromServer(presence[clientId], now);
             }
         }
         // Remove players who are no longer present
         for (const clientId in players) {
+            // Don't remove local player based on presence list
+             if (clientId === localPlayerId) continue;
+
              if (!(clientId in presence) && !players[clientId].isMarkedForRemoval) {
                 console.log("Player left:", clientId, networkManager.getPeer(clientId)?.username);
                 removePlayer(clientId);
@@ -140,29 +196,44 @@ function setupNetworkHandlers() {
 
 
 function createPlayer(clientId, initialState, isLocal = false) {
-    if (players[clientId]) return; // Already exists
-
-    const player = new Player(
-        clientId,
-        initialState.x ?? GAME_WIDTH / 2,
-        initialState.y ?? GAME_HEIGHT / 2,
-        initialState.vehicleType ?? 0,
-        isLocal,
-        assets,
-        renderer.getContext(),
-        RENDER_SCALE
-    );
-    players[clientId] = player;
-
-    // Ensure initial server state is set for interpolation
-    if (!isLocal) {
-        player.updateFromServer(initialState, performance.now());
-         // Force position immediately on creation for remote players
-        player.x = player.serverX;
-        player.y = player.serverY;
+    if (players[clientId]) {
+        console.warn(`Player ${clientId} already exists. Ignoring create request.`);
+        return;
     }
+     // Validate initial state coordinates
+    const startX = (typeof initialState.x === 'number' && isFinite(initialState.x)) ? initialState.x : GAME_WIDTH / 2;
+    const startY = (typeof initialState.y === 'number' && isFinite(initialState.y)) ? initialState.y : GAME_HEIGHT / 2;
+    const startVehicle = (typeof initialState.vehicleType === 'number') ? initialState.vehicleType : 0;
 
-    console.log(`Player ${isLocal ? '(Local)' : ''} created: ${clientId}`);
+    console.log(`Creating player ${clientId}. isLocal=${isLocal}. Pos: ${startX}, ${startY}`);
+
+    try {
+        const player = new Player(
+            clientId,
+            startX,
+            startY,
+            startVehicle,
+            isLocal,
+            assets,
+            renderer.getContext(),
+            RENDER_SCALE
+        );
+        players[clientId] = player;
+
+        // Ensure initial server state is set for interpolation, even for local (though unused locally)
+        player.serverX = startX;
+        player.serverY = startY;
+
+        if (!isLocal) {
+            // Force position immediately on creation for remote players
+            player.x = player.serverX;
+            player.y = player.serverY;
+        }
+
+        console.log(`Player ${isLocal ? '(Local)' : ''} created: ${clientId}`);
+    } catch (error) {
+        console.error(`Failed to create player ${clientId}:`, error);
+    }
 }
 
 function removePlayer(clientId) {
@@ -249,11 +320,10 @@ function draw() {
              }
         }
     }
-
 }
 
 function gameLoop(currentTime) {
-    const deltaTime = (currentTime - lastUpdateTime) / 1000; // Delta time in seconds
+    const deltaTime = Math.min((currentTime - lastUpdateTime) / 1000, MAX_DELTA_TIME); // Delta time in seconds, capped
     lastUpdateTime = currentTime;
 
     // Check network connection status (optional)
@@ -273,5 +343,3 @@ function gameLoop(currentTime) {
 
 // --- Start the game ---
 initializeGame();
-
-
