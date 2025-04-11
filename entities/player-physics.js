@@ -158,8 +158,16 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
     if (!playerState.isOnGround) {
         // Airborne rotation based on vertical velocity
         const normalizedVy = Math.max(-1, Math.min(1, playerState.vy / PLAYER_PHYSICS.MAX_VERTICAL_SPEED));
-        // Nose points up when vy is negative (moving up), down when vy is positive (moving down)
+        // Base rotation: Nose points up when vy is negative (moving up), down when vy is positive (moving down)
         targetRotation = -normalizedVy * PLAYER_PHYSICS.MAX_TILT_ANGLE;
+
+        // *** Important: Invert rotation when facing right ***
+        // The renderer flips the sprite horizontally when facing right (facingDirection = 1).
+        // To make the *nose* tilt correctly relative to the world, we must invert the rotation angle
+        // before applying the horizontal flip transformation during rendering.
+        if (playerState.facingDirection === 1) {
+            targetRotation *= -1;
+        }
     } // On ground, targetRotation smoothly returns to 0
 
     // Smoothly Interpolate Rotation
