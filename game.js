@@ -89,6 +89,8 @@ async function initializeGame() {
         debugRenderer = new DebugRenderer(debugEl, playerManager, networkManager, inputManager, gameConfig);
         debugRenderer.setLocalPlayerId(localPlayerId);
 
+        inputManager.update(); // Initial update to set previousKeys
+
         // 4. Create Local Player (will start in SELECTING state by default)
         const initialX = GAME_WIDTH / 2;
         // Initial Y doesn't matter much as it will be set on spawn after selection
@@ -149,8 +151,9 @@ function update(deltaTime, currentTime) {
     if (localPlayer && localPlayer.state && !localPlayer.isMarkedForRemoval) {
         localPlayer.handleInput(input);
 
-        // Handle debug kill key only when active
-        if (inputManager.wasKeyJustPressed(DEBUG_KILL_KEY)) {
+        // Handle debug kill key only when active and key JUST pressed
+        // Use the new wasKeyJustPressed method
+        if (inputManager.wasKeyJustPressed(DEBUG_KILL_KEY) && localPlayer.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
             console.log("Debug key pressed: Kill Local Player");
             playerManager.killLocalPlayer(); // Request kill
         }
@@ -184,14 +187,20 @@ function gameLoop(currentTime) {
     }
 
     try {
-        inputManager.updateJustPressed();
+        // Input processing happens implicitly through event listeners
+        // We read the state in update()
         update(deltaTime, currentTime);
         draw();
+
+        // Update InputManager's previous state at the END of the frame
+        inputManager.update();
+
     } catch (error) {
         console.error("Error in game loop:", error);
         if (debugEl) {
             debugEl.textContent = `GAME LOOP ERROR:\n${error.message}\n${error.stack}`;
         }
+        // Optionally stop the loop on error: return;
     }
 
     requestAnimationFrame(gameLoop);
