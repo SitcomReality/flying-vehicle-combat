@@ -4,6 +4,8 @@ import { PlayerLifecycleState } from '../player-lifecycle.js'; // Import lifecyc
 import { applyPowerupEffect } from '../powerups/powerup-effects.js';
 // Import SpaceObject for type checking (though not strictly necessary for AABB)
 import { SpaceObject } from '../space-objects/space-object.js';
+// Import Collectible for type checking
+import Collectible from '../collectibles/collectible.js'; // Assuming Collectible class exists
 
 /**
  * Checks for collision between two axis-aligned bounding boxes (AABB).
