@@ -11,6 +11,9 @@ export const PLAYER_PHYSICS = {
     MAX_TILT_ANGLE: Math.PI / 2.5, // ~72 degrees - Increased from PI / 9
     TILT_SPEED: 6, // How quickly the sprite tilts
     PLAYER_SPEED: 150, // Pixels per second (horizontal)
+    GROUND_FRICTION: 0.8, // Multiplier applied to vx when on ground
+    SPARK_EMIT_RATE: 5, // Sparks per physics frame when scraping
+    SMOKE_EMIT_RATE: 1, // Smoke puffs per physics frame when scraping
 };
 
 export const INTERPOLATION_SNAP_THRESHOLD = 0.5; // Pixels
@@ -32,12 +35,14 @@ export class PlayerState {
         this.vehicleType = vehicleType;
         this.facingDirection = -1; // -1 left, 1 right
         this.isThrusting = false;
+        this.isOnGround = false; // New flag for ground contact
 
         // Network Synchronization (for remote players)
         this.serverX = x;
         this.serverY = y;
         this.serverRotation = 0;
         this.serverFacingDirection = -1;
+        this.serverIsOnGround = false; // Sync ground state
         this.lastServerUpdateTime = 0;
 
         // Flags
@@ -82,7 +87,6 @@ export class PlayerState {
         }
     }
 
-    // Method to get the presence data easily
     getPresenceData() {
         return {
             x: this.x,
@@ -90,6 +94,7 @@ export class PlayerState {
             vehicleType: this.vehicleType,
             facingDirection: this.facingDirection,
             rotation: this.rotation,
+            isOnGround: this.isOnGround,
             // Optionally include velocity if needed for prediction/effects
             // vx: this.vx,
             // vy: this.vy,

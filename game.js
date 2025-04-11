@@ -2,10 +2,11 @@ import AssetLoader from 'core/asset-loader.js';
 import InputManager from 'core/input-manager.js';
 import Renderer from 'rendering/renderer.js';
 import NetworkManager from 'networking/network-manager.js';
-import PlayerManager from 'entities/player-manager.js'; // Import new manager
-import NetworkEventHandler from 'networking/network-event-handler.js'; // Import new handler
-import DebugRenderer from 'rendering/debug-renderer.js'; // Import new debug renderer
-import BackgroundRenderer from 'rendering/background-renderer.js'; // Import background renderer
+import PlayerManager from 'entities/player-manager.js'; 
+import NetworkEventHandler from 'networking/network-event-handler.js'; 
+import DebugRenderer from 'rendering/debug-renderer.js'; 
+import BackgroundRenderer from 'rendering/background-renderer.js'; 
+import { ParticleSystem } from 'rendering/particle-system.js'; 
 import { SPRITES } from 'config/sprites.js';
 
 console.log("Game starting...");
@@ -13,9 +14,9 @@ console.log("Game starting...");
 // --- Configuration ---
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
-const RENDER_SCALE = 0.2; // Render sprites smaller
-const LOCAL_PLAYER_UPDATE_INTERVAL = 50; // ms - How often to send updates
-const MAX_DELTA_TIME = 0.1; // Max 100ms step to prevent large jumps
+const RENDER_SCALE = 0.2; 
+const LOCAL_PLAYER_UPDATE_INTERVAL = 50; 
+const MAX_DELTA_TIME = 0.1; 
 
 // --- DOM Elements ---
 const canvas = document.getElementById('gameCanvas');
@@ -29,15 +30,17 @@ const assetLoader = new AssetLoader();
 
 // --- Game State ---
 let assets = {};
-let localPlayerId = null; // Stays here, needed by multiple modules
+let localPlayerId = null; 
 let lastUpdateTime = 0;
 let lastPresenceUpdateTime = 0;
+let groundLevelY = GAME_HEIGHT; 
 
 // --- Game Logic Modules (Initialized later) ---
 let playerManager = null;
 let networkEventHandler = null;
 let debugRenderer = null;
-let backgroundRenderer = null; // Add background renderer
+let backgroundRenderer = null; 
+let particleSystem = null; 
 
 // --- Initialization ---
 async function initializeGame() {
@@ -55,9 +58,11 @@ async function initializeGame() {
         // 3. Instantiate Game Logic Modules (pass dependencies)
         playerManager = new PlayerManager(assets, renderer.getContext(), RENDER_SCALE, GAME_WIDTH, GAME_HEIGHT);
         playerManager.setLocalPlayerId(localPlayerId);
-        backgroundRenderer = new BackgroundRenderer(renderer.getContext(), GAME_WIDTH, GAME_HEIGHT); // Init background
+        backgroundRenderer = new BackgroundRenderer(renderer.getContext(), GAME_WIDTH, GAME_HEIGHT); 
+        groundLevelY = backgroundRenderer.getGroundLevel(); 
+        particleSystem = new ParticleSystem(); 
 
-        const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE }; // Bundle config for modules
+        const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE, groundLevelY }; 
         networkEventHandler = new NetworkEventHandler(networkManager, playerManager, gameConfig);
         debugRenderer = new DebugRenderer(debugEl, playerManager, networkManager, inputManager, gameConfig);
         debugRenderer.setLocalPlayerId(localPlayerId);
@@ -65,19 +70,20 @@ async function initializeGame() {
         // 4. Create Local Player
         const initialVehicleType = Math.floor(Math.random() * SPRITES.vehicles.frames.length);
         const initialX = Math.random() * (GAME_WIDTH * 0.8) + GAME_WIDTH * 0.1;
-        const initialY = GAME_HEIGHT / 2;
+        const initialY = groundLevelY - (SPRITES.vehicles.hitboxHeight * RENDER_SCALE) - 10; 
         const initialState = {
             x: initialX,
             y: initialY,
             vehicleType: initialVehicleType,
             facingDirection: -1,
-            rotation: 0
+            rotation: 0,
+            isOnGround: false 
         };
         playerManager.createPlayer(localPlayerId, initialState, true);
         console.log("Local player object created via PlayerManager.");
 
         // 5. Send Initial Presence
-        networkEventHandler.updateLocalPlayerPresence(performance.now()); // Use handler to send presence
+        networkEventHandler.updateLocalPlayerPresence(performance.now()); 
         lastPresenceUpdateTime = performance.now();
         console.log("Initial presence sent via NetworkEventHandler.");
 
@@ -91,7 +97,7 @@ async function initializeGame() {
 
     } catch (error) {
         console.error("Initialization failed:", error);
-        if (debugEl) { // Check if debugEl exists
+        if (debugEl) { 
              debugEl.textContent = `Initialization Error:\n${error.message}\n${error.stack}`;
         }
     }
@@ -104,24 +110,15 @@ function update(deltaTime) {
     // Update Background
     backgroundRenderer.update(deltaTime);
 
+    // Update Particle System
+    particleSystem.update(deltaTime);
+
     // Update Local Player (Input + Physics + Clamping)
     const localPlayer = playerManager.getLocalPlayer();
     if (localPlayer && localPlayer.state && !localPlayer.isMarkedForRemoval) {
         const input = inputManager.getInputState();
         localPlayer.handleInput(input);
-        localPlayer.update(deltaTime); // Runs local physics
-
-        // Clamp local player position (Boundary checks)
-         if (localPlayer.state.currentVehicle) {
-             const vehicleConfig = localPlayer.state.currentVehicle;
-             const minX = localPlayer.state.drawOffsetX * RENDER_SCALE;
-             const maxX = GAME_WIDTH - (vehicleConfig.width - localPlayer.state.drawOffsetX) * RENDER_SCALE;
-             const minY = localPlayer.state.drawOffsetY * RENDER_SCALE;
-             const maxY = GAME_HEIGHT - (vehicleConfig.height - localPlayer.state.drawOffsetY) * RENDER_SCALE;
-
-             localPlayer.state.x = Math.max(minX, Math.min(maxX, localPlayer.state.x));
-             localPlayer.state.y = Math.max(minY, Math.min(maxY, localPlayer.state.y));
-         }
+        localPlayer.update(deltaTime, groundLevelY, particleSystem);
 
         // Send presence update periodically
         if (now - lastPresenceUpdateTime > LOCAL_PLAYER_UPDATE_INTERVAL) {
@@ -131,15 +128,18 @@ function update(deltaTime) {
     }
 
     // Update Remote Players (Interpolation - now handled within PlayerManager)
-    playerManager.updatePlayers(deltaTime);
+    playerManager.updatePlayers(deltaTime, groundLevelY, null); 
 }
 
 // --- Main Draw Function ---
 function draw() {
-    renderer.clear(); // Clear canvas
+    renderer.clear(); 
 
-    // Draw Background first
+    // Draw Background first (includes ground)
     backgroundRenderer.draw();
+
+    // Draw Particles (before players, so players are on top)
+    particleSystem.draw(renderer.getContext());
 
     // Draw all players (handled by PlayerManager, includes sorting)
     playerManager.drawPlayers(renderer);
@@ -158,7 +158,7 @@ function gameLoop(currentTime) {
     lastUpdateTime = currentTime;
 
     // Ensure modules are initialized before proceeding
-    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer) { // Add check for backgroundRenderer
+    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem) { 
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
         return;
@@ -167,7 +167,6 @@ function gameLoop(currentTime) {
     try {
         update(deltaTime);
         draw();
-        // Debug info is updated within draw() via debugRenderer.updateDebugInfo()
     } catch (error) {
         console.error("Error in game loop:", error);
         if (debugEl) {
