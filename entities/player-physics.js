@@ -13,165 +13,147 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
     // Physics calculations are only authoritative for the local player
     if (!playerState.isLocalPlayer) return;
 
-    // --- Facing direction is no longer updated here based on vx ---
-    // It's handled by the input handler setting targetFacingDirection,
-    // and the animation update logic finalizing facingDirection.
-
     const wasOnGround = playerState.isOnGround; // Store previous ground state
 
     // --- Vertical Movement ---
-    // Apply forces only when airborne OR when thrusting on the ground (for liftoff)
+    // (Same as before)
     if (!playerState.isOnGround || playerState.isThrusting) {
-        // 1. Calculate Vertical Acceleration
-        playerState.ay = PLAYER_PHYSICS.GRAVITY; // Start with gravity
+        playerState.ay = PLAYER_PHYSICS.GRAVITY;
         if (playerState.isThrusting) {
-            playerState.ay -= PLAYER_PHYSICS.THRUST_FORCE; // Apply upward thrust
+            playerState.ay -= PLAYER_PHYSICS.THRUST_FORCE;
         }
-
-        // Apply vertical drag (only when airborne - prevents damping gravity when starting thrust on ground)
         if (!playerState.isOnGround) {
             const dragForce = -playerState.vy * PLAYER_PHYSICS.VERTICAL_DRAG_FACTOR;
-            playerState.ay += dragForce; // Add drag acceleration (mass assumed 1)
+            playerState.ay += dragForce;
         }
-
-        // 2. Update Vertical Velocity
         playerState.vy += playerState.ay * deltaTime;
-
-        // Clamp vertical speed (airborne or taking off)
         playerState.vy = Math.max(-PLAYER_PHYSICS.MAX_VERTICAL_SPEED, Math.min(PLAYER_PHYSICS.MAX_VERTICAL_SPEED, playerState.vy));
-
     } else {
-        // On ground and not thrusting: ensure zero vertical velocity/acceleration
         playerState.ay = 0;
         playerState.vy = 0;
     }
 
-    // --- Horizontal Movement ---
-    // Apply friction if on ground and not actively moving horizontally
-    if (playerState.isOnGround && playerState.vx !== 0) {
-        // Apply friction opposing motion
-        playerState.vx *= (1 - PLAYER_PHYSICS.GROUND_FRICTION * deltaTime);
-        // Stop completely if velocity is very low
-        if (Math.abs(playerState.vx) < 1) {
-            playerState.vx = 0;
-        }
+    // --- Horizontal Movement (with Inertia) ---
+    // 1. Apply Horizontal Acceleration based on Input
+    playerState.ax = 0;
+    if (playerState.isMovingLeft) {
+        playerState.ax -= PLAYER_PHYSICS.HORIZONTAL_ACCELERATION;
     }
-    // Note: vx is primarily set by input handler
+    if (playerState.isMovingRight) {
+        playerState.ax += PLAYER_PHYSICS.HORIZONTAL_ACCELERATION;
+    }
+
+    // 2. Apply Friction/Drag opposing current velocity
+    let frictionFactor = 0;
+    if (playerState.isOnGround) {
+        // Higher friction on the ground
+        frictionFactor = PLAYER_PHYSICS.GROUND_FRICTION_FACTOR;
+    } else {
+        // Lower friction (air drag) when airborne
+        frictionFactor = PLAYER_PHYSICS.AIR_FRICTION_FACTOR;
+    }
+    // Apply friction force proportional to velocity and friction factor
+    const frictionForce = -playerState.vx * frictionFactor;
+    playerState.ax += frictionForce; // Add friction acceleration (mass assumed 1)
+
+    // 3. Update Horizontal Velocity
+    playerState.vx += playerState.ax * deltaTime;
+
+    // 4. Clamp Horizontal Velocity
+    playerState.vx = Math.max(-PLAYER_PHYSICS.MAX_HORIZONTAL_SPEED, Math.min(PLAYER_PHYSICS.MAX_HORIZONTAL_SPEED, playerState.vx));
+
+    // 5. Stop completely if velocity and acceleration are very low (prevents micro-drifting)
+     if (!playerState.isMovingLeft && !playerState.isMovingRight && Math.abs(playerState.vx) < 1 && Math.abs(playerState.ax) < 1) {
+         playerState.vx = 0;
+         playerState.ax = 0;
+     }
+
 
     // --- Update Position ---
     playerState.x += playerState.vx * deltaTime;
     playerState.y += playerState.vy * deltaTime; // Tentative new position
 
     // --- Clamping Position & Ground Check ---
-    // Use visual frame dimensions for collision with boundaries/ground
+    // (Same logic as before, carefully check calculations)
     const spriteDrawWidth = playerState.currentVehicle.width * renderScale;
     const spriteDrawHeight = playerState.currentVehicle.height * renderScale;
-
-    // Recalculate visual Y based on potentially updated playerState.y
     let currentEffectiveDrawY = playerState.y - playerState.drawOffsetY * renderScale;
     let currentEffectiveBottomY = currentEffectiveDrawY + spriteDrawHeight;
 
-    // Ground Collision & Correction
     let justLanded = false;
     if (currentEffectiveBottomY >= groundLevelY) {
         const penetration = currentEffectiveBottomY - groundLevelY;
-        // Correct position only if penetrating or exactly on the ground
         if (penetration >= 0) {
             playerState.y -= penetration; // Correct position
-
-            // Check if we were previously airborne and moving down
-            if (!wasOnGround && playerState.vy >= 0) { // Use vy>=0 to catch resting state too
+            if (!wasOnGround && playerState.vy >= 0) {
                 justLanded = true;
             }
-
-            // Stop downward/penetrating velocity immediately
             if (playerState.vy > 0) {
                 playerState.vy = 0;
             }
             playerState.isOnGround = true;
-
-            // Reset vertical acceleration only when grounded and not thrusting (prevent cancelling takeoff)
-            if (!playerState.isThrusting) {
+            if (!playerState.isThrusting) { // Only zero ay if not thrusting vertically
                  playerState.ay = 0;
             }
-
-            // Recalculate effective Y after correction for ceiling check
-            currentEffectiveDrawY = playerState.y - playerState.drawOffsetY * renderScale;
+            currentEffectiveDrawY = playerState.y - playerState.drawOffsetY * renderScale; // Recalc after correction
         } else {
-            // This case (currentEffectiveBottomY >= groundLevelY but penetration < 0) shouldn't happen with floats
-            // If it did, it means slightly above ground. Assume airborne.
-            playerState.isOnGround = false;
+             playerState.isOnGround = false; // Should not happen, but safety check
         }
-
     } else {
-        // Clearly above ground
         playerState.isOnGround = false;
     }
 
-    // If we just landed, ensure acceleration is zeroed regardless of thrust
-    // This prevents an immediate "bounce" impulse if thrust was held during landing.
     if (justLanded) {
-        playerState.ay = 0;
-        // playerState.vy = 0; // Velocity already zeroed if vy > 0
+        playerState.ay = 0; // Ensure no bounce impulse on landing
     }
 
     // --- Clamping Position (X and Top Y) ---
+    // (Same logic as before)
     const minX = 0;
-    // Clamp X based on *visual* sprite bounds
     const effectiveDrawX = playerState.x - playerState.drawOffsetX * renderScale;
     const maxX = gameBounds.width - spriteDrawWidth;
 
     if (effectiveDrawX < minX) {
         playerState.x = minX + playerState.drawOffsetX * renderScale;
-        if (playerState.vx < 0) playerState.vx = 0;
+        if (playerState.vx < 0) playerState.vx = 0; // Stop velocity at boundary
     } else if (effectiveDrawX > maxX) {
         playerState.x = maxX + playerState.drawOffsetX * renderScale;
-        if (playerState.vx > 0) playerState.vx = 0;
+        if (playerState.vx > 0) playerState.vx = 0; // Stop velocity at boundary
     }
 
-    // Clamp Y (Ceiling) - Use the potentially ground-corrected position
     const minY = 0;
     if (currentEffectiveDrawY < minY) {
         playerState.y = minY + playerState.drawOffsetY * renderScale;
-        if (playerState.vy < 0) playerState.vy = 0; // Stop upward velocity at ceiling
-        playerState.isOnGround = false; // Definitely not on ground if hitting ceiling
+        if (playerState.vy < 0) playerState.vy = 0;
+        playerState.isOnGround = false;
     }
 
     // --- Particle Effects on Ground ---
+    // (Same logic as before, using visualFacingDirection)
     if (playerState.isOnGround && particleSystem) {
         const spriteDrawWidth = playerState.currentVehicle.width * renderScale;
-        // Use VISUAL facing direction for effect positioning
         const contactX = (playerState.x - playerState.drawOffsetX * renderScale + spriteDrawWidth / 2)
                        + (playerState.visualFacingDirection === 1 ? -spriteDrawWidth * 0.3 : spriteDrawWidth * 0.3);
         const contactY = groundLevelY - 2;
-
-        const baseSparkVX = -80 + playerState.vx * 0.5;
-        const baseSmokeVX = -30 + playerState.vx * 0.3;
-
-        // Use constants for emit rate
+        const baseSparkVX = -80 + playerState.vx * 0.5; // Sparks slightly affected by player velocity
+        const baseSmokeVX = -30 + playerState.vx * 0.3; // Smoke slightly affected by player velocity
         particleSystem.emitSparks(contactX, contactY, PLAYER_PHYSICS.SPARK_EMIT_RATE, baseSparkVX);
         particleSystem.emitSmoke(contactX, contactY, PLAYER_PHYSICS.SMOKE_EMIT_RATE, baseSmokeVX);
     }
 
     // --- Rotation Calculation ---
+    // (Same logic as before, based on vy and LOGICAL facing direction)
     let targetRotation = 0;
     if (!playerState.isOnGround) {
         const normalizedVy = Math.max(-1, Math.min(1, playerState.vy / PLAYER_PHYSICS.MAX_VERTICAL_SPEED));
         targetRotation = -normalizedVy * PLAYER_PHYSICS.MAX_TILT_ANGLE;
-
-        // Invert rotation target based on the LOGICAL facing direction
-        // The renderer will handle the visual flip separately using visualFacingDirection.
+        // Invert rotation target based on the LOGICAL facing direction.
         if (playerState.facingDirection === 1) {
             targetRotation *= -1;
         }
     }
-
-    // Smoothly Interpolate Rotation
-    // Avoid division by zero if deltaTime is extremely small
     const rotationStep = (targetRotation - playerState.rotation) * PLAYER_PHYSICS.TILT_SPEED * deltaTime;
     playerState.rotation += rotationStep;
-
-    // Small threshold to snap rotation to 0 when on ground and close
     if (playerState.isOnGround && Math.abs(playerState.rotation) < 0.01) {
         playerState.rotation = 0;
     }

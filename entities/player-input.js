@@ -8,24 +8,22 @@ import { PLAYER_PHYSICS } from './player-state.js';
 export function handlePlayerInput(playerState, inputState) {
     if (!playerState.isLocalPlayer) return; // Only handle input for the local player
 
-    let targetVX = 0;
-    // Horizontal movement
-    if (inputState.left) {
-        targetVX = -PLAYER_PHYSICS.PLAYER_SPEED;
-    } else if (inputState.right) {
-        targetVX = PLAYER_PHYSICS.PLAYER_SPEED;
-    }
-    playerState.vx = targetVX;
+    // --- Update Movement Intent Flags ---
+    playerState.isThrusting = inputState.up; // Vertical thrust
+    playerState.isMovingLeft = inputState.left;
+    playerState.isMovingRight = inputState.right;
 
-    // Vertical thrust
-    playerState.isThrusting = inputState.up;
-    // Note: 'down' input currently does nothing against gravity directly in input handling
+    // Note: 'down' input currently does nothing against gravity directly here.
+    // Physics engine handles gravity.
 
-    // Update target facing direction based on horizontal velocity intent
-    if (playerState.vx > 0) {
+    // --- Target Facing Direction based on Input ---
+    // The target direction is now set based *purely* on the last horizontal input.
+    // This prevents the animation from triggering if the player stops pressing keys
+    // but is still sliding due to inertia.
+    if (inputState.right) {
         playerState.targetFacingDirection = 1; // Right
-    } else if (playerState.vx < 0) {
+    } else if (inputState.left) {
         playerState.targetFacingDirection = -1; // Left
     }
-    // If vx is 0, targetFacingDirection remains unchanged
+    // If neither left nor right is pressed, targetFacingDirection remains unchanged.
 }

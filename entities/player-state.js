@@ -5,11 +5,16 @@ export const PLAYER_PHYSICS = {
     GRAVITY: 350, // pixels/sec^2
     THRUST_FORCE: 700, // pixels/sec^2
     MAX_VERTICAL_SPEED: 300, // pixels/sec
-    VERTICAL_DRAG_FACTOR: 0.5, // Higher = more drag
+    VERTICAL_DRAG_FACTOR: 0.5, // Higher = more drag when airborne
     MAX_TILT_ANGLE: Math.PI / 2.5, // ~72 degrees - Increased from PI / 9
     TILT_SPEED: 6, // How quickly the sprite tilts
-    PLAYER_SPEED: 150, // Pixels per second (horizontal)
-    GROUND_FRICTION: 0.8, // Multiplier applied to vx when on ground
+
+    // Horizontal Movement (NEW/Updated)
+    HORIZONTAL_ACCELERATION: 800, // pixels/sec^2
+    MAX_HORIZONTAL_SPEED: 250, // pixels/sec
+    AIR_FRICTION_FACTOR: 0.3, // Factor for horizontal drag when airborne (lower = less drag)
+    GROUND_FRICTION_FACTOR: 1.5, // Factor for horizontal friction when grounded (higher = more friction)
+
     SPARK_EMIT_RATE: 5, // Sparks per physics frame when scraping
     SMOKE_EMIT_RATE: 1, // Smoke puffs per physics frame when scraping
 };
@@ -27,7 +32,8 @@ export class PlayerState {
         this.y = y;
         this.vx = 0;
         this.vy = 0;
-        this.ay = 0;
+        this.ax = 0; // Horizontal acceleration
+        this.ay = 0; // Vertical acceleration
         this.rotation = 0; // Radians
 
         // Appearance & Input Status
@@ -36,7 +42,9 @@ export class PlayerState {
         this.targetFacingDirection = -1; // The direction the player intends to face based on input/velocity
         this.visualFacingDirection = -1; // The direction currently rendered (changes after animation delay)
         this.flipAnimationStart = 0; // Timestamp when the current flip animation started, 0 if not flipping
-        this.isThrusting = false;
+        this.isThrusting = false; // Vertical thrust (up key)
+        this.isMovingLeft = false; // Horizontal thrust (left key)
+        this.isMovingRight = false; // Horizontal thrust (right key)
         this.isOnGround = false;
 
         // Network Synchronization (for remote players)
