@@ -3,25 +3,26 @@
 const BASE_DAMAGE = {
     'player-player': 15,
     'player-projectile': 10, // Base damage, projectile might override this
-    // Ground damage amount is defined in player-physics.js
+    'player-spaceobject': 10, // Base damage from player/object collision (applies to both)
+    'projectile-spaceobject': 0, // Damage comes from projectile's value
 };
 
 // Cooldown durations in milliseconds
 const COLLISION_COOLDOWN = {
     'player-player': 500,
-    // Ground damage cooldown is handled separately in player-physics.js
+    'player-spaceobject': 300, // Cooldown for player taking damage from *any* object collision
 }
 
 // Store last collision time between specific pairs or types
-const lastCollisionTimes = {}; // Example: { "playerA-playerB": timestamp }
+const lastCollisionTimes = {}; // Examples: { "playerA-playerB": timestamp, "playerA-spaceobject": timestamp }
 
 /**
  * Calculates the damage amount for a collision.
- * Incorporates basic cooldown logic for player-player collisions.
+ * Incorporates basic cooldown logic for player-player and player-object collisions.
  * Note: Ground damage is handled separately in player-physics.
- * @param {string} type - Collision type ('player-player', 'player-projectile').
- * @param {Player} targetEntity - The entity taking the damage.
- * @param {Player | Projectile} sourceEntity - The entity causing the damage.
+ * @param {string} type - Collision type ('player-player', 'player-projectile', 'player-spaceobject', 'projectile-spaceobject').
+ * @param {Player | SpaceObject} targetEntity - The entity taking the damage.
+ * @param {Player | Projectile | SpaceObject} sourceEntity - The entity causing the damage.
  * @param {number} currentTime - Current game time (performance.now()).
  * @returns {number} - The calculated damage amount (0 if on cooldown).
  */
@@ -42,6 +43,15 @@ export function calculateCollisionDamage(type, targetEntity, sourceEntity, curre
         damage = sourceEntity?.damage ?? BASE_DAMAGE['player-projectile'];
         // Projectiles don't have cooldowns handled here, they are destroyed on impact
         return damage;
+    } else if (type === 'player-spaceobject') {
+        // For player-object collisions, we need to consider the cooldown for the player
+        collisionKey = `player-${targetEntity.id}`;
+    } else if (type === 'projectile-spaceobject') {
+        // Projectiles have their own damage, potentially overriding base
+        // Ensure sourceEntity is a projectile and has a damage property
+        damage = sourceEntity?.damage ?? 0;
+        // Projectiles don't have cooldowns handled here, they are destroyed on impact
+        return damage;
     } else {
         // Unknown or unhandled collision type for damage calculation
         console.warn(`Unhandled damage calculation type: ${type}`);
@@ -52,11 +62,11 @@ export function calculateCollisionDamage(type, targetEntity, sourceEntity, curre
     if (collisionKey && cooldownDuration > 0) {
         const lastTime = lastCollisionTimes[collisionKey] || 0;
         if (currentTime - lastTime < cooldownDuration) {
-            // console.log(`Player-player collision on cooldown for ${collisionKey}`);
+            // console.log(`Collision on cooldown for ${collisionKey}`);
             return 0; // On cooldown
         }
         lastCollisionTimes[collisionKey] = currentTime; // Update last collision time
-        // console.log(`Player-player collision damage applied for ${collisionKey}. Updating cooldown.`);
+        // console.log(`Collision damage applied for ${collisionKey}. Updating cooldown.`);
     }
 
     // Apply modifiers later (e.g., velocity, armor)

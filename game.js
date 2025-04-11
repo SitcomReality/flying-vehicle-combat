@@ -15,6 +15,7 @@ import StatusBarRenderer from 'ui/status-bars.js';
 import PowerupManager from 'entities/powerups/powerup-manager.js';
 import CollisionManager from 'entities/combat/collision-manager.js';
 import PlayerLifecycleManager from 'entities/player-lifecycle-manager.js';
+import SpaceObjectManager from 'entities/space-objects/space-object-manager.js';
 
 console.log("Game starting...");
 
@@ -49,6 +50,7 @@ let groundLevelY = GAME_HEIGHT;
 // --- Game Logic Modules (Initialized later) ---
 let playerManager = null;
 let powerupManager = null;
+let spaceObjectManager = null;
 let networkEventHandler = null;
 let debugRenderer = null;
 let backgroundRenderer = null;
@@ -80,6 +82,8 @@ async function initializeGame() {
         backgroundRenderer = new BackgroundRenderer(renderer.getContext(), GAME_WIDTH, GAME_HEIGHT);
         groundLevelY = backgroundRenderer.getGroundLevel();
 
+        spaceObjectManager = new SpaceObjectManager(networkManager, assets, GAME_WIDTH, GAME_HEIGHT, groundLevelY);
+
         particleSystem = new ParticleSystem();
 
         vehicleSelector = new VehicleSelector(vehicleSelectorEl, assets, (type) => {
@@ -101,7 +105,14 @@ async function initializeGame() {
 
         statusBarRenderer = new StatusBarRenderer(renderer.getContext(), playerManager, RENDER_SCALE);
 
-        collisionManager = new CollisionManager(playerManager, projectileManager, powerupManager, particleSystem, RENDER_SCALE);
+        collisionManager = new CollisionManager(
+            playerManager,
+            projectileManager,
+            powerupManager,
+            spaceObjectManager,
+            particleSystem,
+            RENDER_SCALE
+        );
 
         playerManager.setManagers(projectileManager, networkManager, playerLifecycleManager, particleSystem, powerupManager);
 
@@ -155,6 +166,7 @@ function update(deltaTime, currentTime) {
     particleSystem.update(deltaTime);
     projectileManager.update(deltaTime, groundLevelY);
     powerupManager.update(deltaTime);
+    spaceObjectManager.update(deltaTime);
 
     powerupManager.attemptSpawnPowerup(currentTime, GAME_WIDTH, GAME_HEIGHT, groundLevelY);
 
@@ -189,6 +201,7 @@ function update(deltaTime, currentTime) {
 function draw() {
     renderer.clear();
     backgroundRenderer.draw();
+    spaceObjectManager.draw(renderer.getContext());
     particleSystem.draw(renderer.getContext());
     projectileManager.draw(renderer.getContext());
     powerupManager.draw(renderer.getContext());
@@ -203,7 +216,7 @@ function gameLoop(currentTime) {
     const deltaTime = Math.min(rawDeltaTime, MAX_DELTA_TIME);
     lastUpdateTime = currentTime;
 
-    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager) {
+    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager || !spaceObjectManager) {
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
         return;

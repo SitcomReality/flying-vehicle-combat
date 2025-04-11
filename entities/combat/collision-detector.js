@@ -2,6 +2,8 @@
 import { PlayerLifecycleState } from '../player-lifecycle.js'; // Import lifecycle states
 // Import powerup effects for application on pickup
 import { applyPowerupEffect } from '../powerups/powerup-effects.js';
+// Import SpaceObject for type checking (though not strictly necessary for AABB)
+import { SpaceObject } from '../space-objects/space-object.js';
 
 /**
  * Checks for collision between two axis-aligned bounding boxes (AABB).
@@ -12,7 +14,7 @@ import { applyPowerupEffect } from '../powerups/powerup-effects.js';
  */
 function checkAABBCollision(rect1, rect2) {
     // Check if either rectangle is invalid (e.g., zero width/height)
-    if (rect1.width <= 0 || rect1.height <= 0 || rect2.width <= 0 || rect2.height <= 0) {
+    if (!rect1 || !rect2 || rect1.width <= 0 || rect1.height <= 0 || rect2.width <= 0 || rect2.height <= 0) {
         return false;
     }
     return (
@@ -217,6 +219,129 @@ export function checkPowerupCollisions(localPlayer, activePowerups, renderScale,
             // A player can only pick up one powerup per collision check loop frame
             // (prevents multi-pickup from overlapping powerups instantly)
             break;
+        }
+    }
+}
+
+/**
+ * Checks for collisions between players and space objects.
+ * Applies damage TO the local player if involved, and TO the space object.
+ * @param {Object.<string, Player>} activePlayers - Active player objects.
+ * @param {Object.<string, SpaceObject>} activeSpaceObjects - Active space objects.
+ * @param {number} renderScale - The game's render scale (for player hitbox).
+ * @param {function} calculateDamageFunc - Function to calculate damage.
+ * @param {number} currentTime - The current game time.
+ * @param {PlayerManager} playerManager - PlayerManager for player damage application.
+ * @param {SpaceObjectManager} spaceObjectManager - SpaceObjectManager for object damage application.
+ */
+export function checkPlayerSpaceObjectCollisions(activePlayers, activeSpaceObjects, renderScale, calculateDamageFunc, currentTime, playerManager, spaceObjectManager) {
+    const playerIds = Object.keys(activePlayers);
+    const spaceObjectIds = Object.keys(activeSpaceObjects);
+
+    for (const playerId of playerIds) {
+        const player = activePlayers[playerId];
+        if (!player || !player.state || player.isMarkedForRemoval) continue;
+
+        const playerRect = {
+            x: player.state.x,
+            y: player.state.y,
+            width: player.state.width * renderScale,
+            height: player.state.height * renderScale,
+        };
+        if (playerRect.width <= 0 || playerRect.height <= 0) continue;
+
+        for (const objectId of spaceObjectIds) {
+            const spaceObject = activeSpaceObjects[objectId];
+            if (!spaceObject || spaceObject.isMarkedForRemoval) continue;
+
+            const objectRect = spaceObject.getHitbox(); // Use the object's hitbox calculation
+            if (!objectRect || objectRect.width <= 0 || objectRect.height <= 0) continue;
+
+            if (checkAABBCollision(playerRect, objectRect)) {
+                 // Collision detected!
+                // console.log(`Collision detected between player ${playerId} and space object ${objectId}`);
+
+                // Calculate damage
+                const damageToObject = calculateDamageFunc('player-spaceobject', spaceObject, player, currentTime);
+                const damageToPlayer = calculateDamageFunc('player-spaceobject', player, spaceObject, currentTime);
+
+                // Apply damage to the space object (handled by manager)
+                if (damageToObject > 0) {
+                    console.log(`Applying ${damageToObject} collision damage to space object ${objectId} from player ${playerId}`);
+                    spaceObjectManager.applyDamageToObject(objectId, damageToObject);
+                }
+
+                // Apply damage ONLY to the LOCAL player
+                if (player.isLocalPlayer && damageToPlayer > 0) {
+                    console.log(`Applying ${damageToPlayer} collision damage to local player ${playerId} from space object ${objectId}`);
+                    player.takeDamage(damageToPlayer, currentTime);
+                }
+
+                 // Apply physics response (e.g., knockback)? - Future enhancement
+                 // Since an object might be destroyed, we continue checking other objects
+                 // If player is destroyed, their state change will handle future collisions
+            }
+        }
+    }
+}
+
+/**
+ * Checks for collisions between projectiles and space objects.
+ * Applies damage to the space object and removes the projectile.
+ * @param {Object.<string, Projectile>} activeProjectiles - Active projectile objects.
+ * @param {Object.<string, SpaceObject>} activeSpaceObjects - Active space objects.
+ * @param {number} renderScale - Not directly used here, but kept for consistency.
+ * @param {function} calculateDamageFunc - Function to calculate damage.
+ * @param {number} currentTime - The current game time.
+ * @param {SpaceObjectManager} spaceObjectManager - Manager to apply damage to objects.
+ * @param {ParticleSystem | null} particleSystem - For collision effects.
+ */
+export function checkProjectileSpaceObjectCollisions(activeProjectiles, activeSpaceObjects, renderScale, calculateDamageFunc, currentTime, spaceObjectManager, particleSystem) {
+    const projectileIds = Object.keys(activeProjectiles);
+    const spaceObjectIds = Object.keys(activeSpaceObjects);
+
+    for (const projId of projectileIds) {
+        const projectile = activeProjectiles[projId];
+        if (!projectile || projectile.isMarkedForRemoval) continue;
+
+        const projRect = {
+            x: projectile.x - projectile.radius,
+            y: projectile.y - projectile.radius,
+            width: projectile.radius * 2,
+            height: projectile.radius * 2,
+        };
+        if (projRect.width <= 0 || projRect.height <= 0) continue;
+
+        for (const objectId of spaceObjectIds) {
+             const spaceObject = activeSpaceObjects[objectId];
+             if (!spaceObject || spaceObject.isMarkedForRemoval) continue;
+
+             const objectRect = spaceObject.getHitbox();
+             if (!objectRect || objectRect.width <= 0 || objectRect.height <= 0) continue;
+
+             if (checkAABBCollision(projRect, objectRect)) {
+                 // Collision detected!
+                 console.log(`Collision detected between projectile ${projId} (owner: ${projectile.ownerId}) and space object ${objectId}`);
+
+                 // Calculate damage to the space object
+                 const damage = calculateDamageFunc('projectile-spaceobject', spaceObject, projectile, currentTime);
+
+                 // Apply damage to the space object via the manager
+                 if (damage > 0) {
+                     console.log(`Applying ${damage} projectile damage to space object ${objectId}`);
+                     spaceObjectManager.applyDamageToObject(objectId, damage);
+                     // applyDamageToObject returns true if destroyed
+                 }
+
+                 // Emit impact effect
+                 particleSystem?.emitSparks(projectile.x, projectile.y, 10, projectile.vx * 0.05, projectile.vy * 0.05);
+
+                 // Mark the projectile for removal
+                 projectile.isMarkedForRemoval = true;
+
+                 // A projectile hits only one thing
+                 break;
+             }
         }
     }
 }
