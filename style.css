@@ -53,3 +53,98 @@ canvas {
     vertical-align: middle;
     margin-right: 3px;
 }
+
+/* Vehicle Selector Styles */
+.ui-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 20px;
+    border: 5px solid #555;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+    z-index: 20; /* Ensure selector is above debug and canvas */
+}
+
+#vehicleSelector h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+#vehicleOptions {
+    display: flex;
+    justify-content: space-around;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.vehicle-option {
+    border: 3px solid transparent;
+    padding: 10px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+    background-color: #eee;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.vehicle-option:hover {
+    background-color: #ddd;
+}
+
+.vehicle-option.selected {
+    border-color: #333;
+    background-color: #ccf; /* Highlight selected */
+}
+
+.vehicle-option canvas {
+    width: 100px; /* Scaled preview */
+    height: 100px;
+    margin-bottom: 10px;
+    background-color: #667; /* Simple background for preview */
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+.vehicle-option h3 {
+    margin: 5px 0;
+    font-size: 1em;
+    color: #444;
+}
+.vehicle-option p {
+    margin: 2px 0;
+    font-size: 0.8em;
+    color: #666;
+    white-space: nowrap; /* Prevent wrapping */
+}
+
+
+#confirmSelection {
+    padding: 10px 20px;
+    font-size: 1.1em;
+    font-family: 'Comic Sans MS', 'Chalkduster', 'cursive';
+    background-color: #5cb85c;
+    color: white;
+    border: 2px solid #4cae4c;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#confirmSelection:hover {
+    background-color: #4cae4c;
+}
+
+#confirmSelection:disabled {
+    background-color: #aaa;
+    border-color: #999;
+    cursor: not-allowed;
+}
