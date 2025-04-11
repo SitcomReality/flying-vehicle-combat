@@ -75,8 +75,8 @@ export function checkPlayerCollisions(activePlayers, renderScale, calculateDamag
 
                 // Calculate potential damage for both players based on the collision
                 // calculateDamageFunc handles the cooldown logic internally based on the pair
-                const damageToA = calculateDamageFunc('player-player', playerA, playerB, currentTime);
-                const damageToB = calculateDamageFunc('player-player', playerB, playerA, currentTime);
+                const damageToA = calculateDamageFunc('player-player', playerA.state, playerB.state, currentTime); // Pass state object
+                const damageToB = calculateDamageFunc('player-player', playerB.state, playerA.state, currentTime); // Pass state object
 
                 // Apply damage ONLY if the target player is the local player and damage > 0
                 if (playerA.isLocalPlayer && damageToA > 0) {
@@ -149,7 +149,7 @@ export function checkProjectileCollisions(activePlayers, activeProjectiles, rend
                 console.log(`Collision detected between projectile ${projId} (owner: ${projectile.ownerId}) and local player ${playerId}`);
 
                 // Calculate damage using the damage calculator
-                const damage = calculateDamageFunc('player-projectile', player, projectile, currentTime);
+                const damage = calculateDamageFunc('player-projectile', player.state, projectile, currentTime); // Pass player state
 
                 // Apply damage directly to the local player if damage > 0
                 if (damage > 0) {
@@ -226,6 +226,58 @@ export function checkPowerupCollisions(localPlayer, activePowerups, renderScale,
 }
 
 /**
+ * Checks for collisions between the local player and collectibles.
+ * Triggers pickup logic if a collision occurs.
+ * @param {Player} localPlayer - The local player instance.
+ * @param {Array<Collectible>} activeCollectibles - Array of active Collectible instances.
+ * @param {number} renderScale - The game's render scale.
+ * @param {number} currentTime - The current game time.
+ * @param {CollectibleManager} collectibleManager - CollectibleManager instance for pickup logic.
+ */
+export function checkPlayerCollectibleCollisions(localPlayer, activeCollectibles, renderScale, currentTime, collectibleManager) {
+    if (!localPlayer || !localPlayer.state || localPlayer.isMarkedForRemoval || localPlayer.state.lifecycleState !== PlayerLifecycleState.ACTIVE) {
+        return; // Only check for active local player
+    }
+
+    const playerRect = {
+        x: localPlayer.state.x,
+        y: localPlayer.state.y,
+        width: localPlayer.state.width * renderScale,
+        height: localPlayer.state.height * renderScale,
+    };
+    // If dimensions are invalid, skip check
+    if (playerRect.width <= 0 || playerRect.height <= 0) return;
+
+    for (const collectible of activeCollectibles) {
+        if (!collectible || collectible.isMarkedForRemoval) continue;
+
+        // Use collectible's radius for collision check
+        const collectibleRect = {
+            x: collectible.x - collectible.radius,
+            y: collectible.y - collectible.radius,
+            width: collectible.radius * 2,
+            height: collectible.radius * 2,
+        };
+        // If dimensions are invalid, skip check
+        if (collectibleRect.width <= 0 || collectibleRect.height <= 0) continue;
+
+        if (checkAABBCollision(playerRect, collectibleRect)) {
+            console.log(`Collision detected between local player ${localPlayer.id} and collectible ${collectible.id}`);
+
+            // Tell the collectible manager that the local player picked this up
+            const pickedUpCollectible = collectibleManager.pickupCollectible(collectible.id);
+
+            // If pickup was successful, add score to the player
+            if (pickedUpCollectible) {
+                localPlayer.addScore(pickedUpCollectible.value);
+                // TODO: Play pickup sound effect here
+            }
+            // Allow picking up multiple collectibles per frame if overlapping
+        }
+    }
+}
+
+/**
  * Checks for collisions between players and space objects.
  * Applies damage TO the local player if involved, and TO the space object.
  * @param {Object.<string, Player>} activePlayers - Active player objects.
@@ -264,13 +316,15 @@ export function checkPlayerSpaceObjectCollisions(activePlayers, activeSpaceObjec
                 // console.log(`Collision detected between player ${playerId} and space object ${objectId}`);
 
                 // Calculate damage
-                const damageToObject = calculateDamageFunc('player-spaceobject', spaceObject, player, currentTime);
-                const damageToPlayer = calculateDamageFunc('player-spaceobject', player, spaceObject, currentTime);
+                // Pass state objects for damage calculation context if needed
+                const damageToObject = calculateDamageFunc('player-spaceobject', spaceObject, player.state, currentTime);
+                const damageToPlayer = calculateDamageFunc('player-spaceobject', player.state, spaceObject, currentTime);
 
                 // Apply damage to the space object (handled by manager)
                 if (damageToObject > 0) {
                     console.log(`Applying ${damageToObject} collision damage to space object ${objectId} from player ${playerId}`);
-                    spaceObjectManager.applyDamageToObject(objectId, damageToObject);
+                    // Pass player reference to know who caused the potential drop
+                    spaceObjectManager.applyDamageToObject(objectId, damageToObject, playerId);
                 }
 
                 // Apply damage ONLY to the LOCAL player
@@ -331,7 +385,8 @@ export function checkProjectileSpaceObjectCollisions(activeProjectiles, activeSp
                  // Apply damage to the space object via the manager
                  if (damage > 0) {
                      console.log(`Applying ${damage} projectile damage to space object ${objectId}`);
-                     spaceObjectManager.applyDamageToObject(objectId, damage);
+                     // Pass projectile owner ID to know who caused the potential drop
+                     spaceObjectManager.applyDamageToObject(objectId, damage, projectile.ownerId);
                      // applyDamageToObject returns true if destroyed
                  }
 

@@ -1,18 +1,20 @@
 // New file: Manages collision detection and response logic
 
-import { checkPlayerCollisions, checkProjectileCollisions, checkPowerupCollisions } from './collision-detector.js';
+import { checkPlayerCollisions, checkProjectileCollisions, checkPowerupCollisions, checkPlayerCollectibleCollisions, checkPlayerSpaceObjectCollisions, checkProjectileSpaceObjectCollisions } from './collision-detector.js'; 
 import { calculateCollisionDamage } from './damage-calculator.js';
-import { PlayerLifecycleState } from '../player-lifecycle.js'; // Needed for filtering players
+import { PlayerLifecycleState } from '../player-lifecycle.js'; 
 
 class CollisionManager {
-    constructor(playerManager, projectileManager, powerupManager, particleSystem, renderScale) {
+    constructor(playerManager, projectileManager, powerupManager, spaceObjectManager, collectibleManager, particleSystem, renderScale) {
         this.playerManager = playerManager;
         this.projectileManager = projectileManager;
         this.powerupManager = powerupManager;
+        this.spaceObjectManager = spaceObjectManager; 
+        this.collectibleManager = collectibleManager; 
         this.particleSystem = particleSystem;
         this.renderScale = renderScale;
 
-        if (!this.playerManager || !this.projectileManager || !this.powerupManager || !this.particleSystem) {
+        if (!this.playerManager || !this.projectileManager || !this.powerupManager || !this.particleSystem || !this.spaceObjectManager || !this.collectibleManager) {
             console.error("CollisionManager is missing required manager references!");
         }
     }
@@ -22,53 +24,73 @@ class CollisionManager {
      * @param {number} currentTime - The current game time (performance.now()).
      */
     checkAllCollisions(currentTime) {
-        // Ensure managers are available before proceeding
-        if (!this.playerManager || !this.projectileManager || !this.particleSystem || !this.powerupManager) {
+        if (!this.playerManager || !this.projectileManager || !this.particleSystem || !this.powerupManager || !this.spaceObjectManager || !this.collectibleManager) {
             console.warn("Collision detection skipped: One or more managers are missing in CollisionManager.");
             return;
         }
 
-        // Get active entities for collision checks
-        const activePlayers = this.playerManager.getAllActivePlayers(); // Gets only players in ACTIVE state
+        const activePlayers = this.playerManager.getAllActivePlayers(); 
         const localPlayer = this.playerManager.getLocalPlayer();
-        const activeProjectilesObject = this.projectileManager.getProjectiles();
+        const activeProjectilesMap = this.projectileManager.getProjectiles(); 
         const activePowerupsArray = this.powerupManager.getActivePowerups();
+        const activeSpaceObjectsMap = this.spaceObjectManager.getActiveObjectsMap(); 
+        const activeCollectiblesArray = this.collectibleManager.getActiveCollectibles(); 
 
-        // --- Check Player-Player Collisions ---
         checkPlayerCollisions(
             activePlayers,
             this.renderScale,
-            calculateCollisionDamage, // Pass the damage calculation function
+            calculateCollisionDamage, 
             currentTime,
-            this.playerManager // Pass PlayerManager for damage application/death handling
+            this.playerManager 
         );
 
-        // --- Check Projectile-Player Collisions ---
         checkProjectileCollisions(
             activePlayers,
-            activeProjectilesObject,
+            activeProjectilesMap,
             this.renderScale,
             calculateCollisionDamage,
             currentTime,
             this.playerManager,
-            this.particleSystem // Pass particle system for collision effects
+            this.particleSystem 
         );
 
-        // --- Check Player-Powerup Collisions ---
-        // Only the local player can authoritatively pick up powerups
         if (localPlayer && localPlayer.lifecycleState === PlayerLifecycleState.ACTIVE) {
             checkPowerupCollisions(
                 localPlayer,
                 activePowerupsArray,
                 this.renderScale,
                 currentTime,
-                this.powerupManager // Pass powerup manager for pickup logic
+                this.powerupManager 
+            );
+
+            checkPlayerCollectibleCollisions(
+                localPlayer,
+                activeCollectiblesArray,
+                this.renderScale,
+                currentTime,
+                this.collectibleManager 
             );
         }
 
-        // --- Future Collision Checks ---
-        // TODO: Check Player-SpaceObject collisions
-        // TODO: Check Projectile-SpaceObject collisions
+        checkPlayerSpaceObjectCollisions(
+            activePlayers,
+            activeSpaceObjectsMap,
+            this.renderScale,
+            calculateCollisionDamage,
+            currentTime,
+            this.playerManager,
+            this.spaceObjectManager 
+        );
+
+        checkProjectileSpaceObjectCollisions(
+            activeProjectilesMap,
+            activeSpaceObjectsMap,
+            this.renderScale,
+            calculateCollisionDamage,
+            currentTime,
+            this.spaceObjectManager, 
+            this.particleSystem 
+        );
     }
 }
 

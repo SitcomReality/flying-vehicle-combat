@@ -17,15 +17,18 @@ const SPACE_OBJECT_CLASSES = {
 const SPAWN_INTERVAL = 5000; // Try to spawn every 5 seconds
 const MAX_ACTIVE_OBJECTS = 8;
 const OBJECT_TYPES_TO_SPAWN = ['asteroid']; // Only spawn asteroids for now
+const COLLECTIBLE_DROP_CHANCE = 0.6; // 60% chance to drop something
 
 class SpaceObjectManager {
-    constructor(networkManager, assets, gameWidth, gameHeight, groundLevelY) {
+    // Added collectibleManager dependency
+    constructor(networkManager, assets, gameWidth, gameHeight, groundLevelY, collectibleManager) {
         this.networkManager = networkManager;
         this.assets = assets;
         this.gameWidth = gameWidth;
         this.gameHeight = gameHeight;
         this.groundLevelY = groundLevelY;
         this.gameBounds = { width: gameWidth, height: gameHeight };
+        this.collectibleManager = collectibleManager; // Store reference
 
         this.activeObjects = {}; // Stores local SpaceObject instances { id: SpaceObject }
         this.lastSpawnAttemptTime = 0;
@@ -126,7 +129,6 @@ class SpaceObjectManager {
              const tempInstance = new ObjectClass(newId, type, spawnX, spawnY, initialState);
              const syncData = tempInstance.getSyncData();
 
-
             // Update room state to add the new object
             this.networkManager.updateRoomState({
                 spaceObjects: {
@@ -140,42 +142,42 @@ class SpaceObjectManager {
         return this.activeObjects[id];
     }
 
-     // Destroys an object locally and notifies the network
-     destroyObject(id) {
-         const obj = this.activeObjects[id];
-         if (obj) {
-             obj.isMarkedForRemoval = true; // Mark for local cleanup
-             delete this.activeObjects[id]; // Remove immediately from local active list
+    // Destroys an object locally and notifies the network
+    destroyObject(id) {
+        const obj = this.activeObjects[id];
+        if (obj) {
+            obj.isMarkedForRemoval = true; // Mark for local cleanup
+            delete this.activeObjects[id]; // Remove immediately from local active list
 
-             // Trigger removal from roomState
-             this.networkManager.updateRoomState({
-                 spaceObjects: {
-                     [id]: null // Set to null to remove
-                 }
-             });
-             console.log(`Space object ${id} destroyed and removed from roomState.`);
-
-             // TODO: Trigger collectible drop based on obj.type?
-         }
-     }
-
-     // Called when an object takes damage (e.g., from a projectile)
-     applyDamageToObject(id, amount) {
-         const obj = this.getObject(id);
-         if (obj && obj.takeDamage(amount)) { // takeDamage returns true if destroyed
-             this.destroyObject(id); // Destroy and notify network
-             return true; // Indicate destruction
-         }
-         // If damaged but not destroyed, update roomState with new health
-         else if (obj) {
+            // Trigger removal from roomState
             this.networkManager.updateRoomState({
                 spaceObjects: {
-                     [id]: obj.getSyncData() // Send updated state
+                    [id]: null // Set to null to remove
                 }
             });
-         }
-         return false; // Indicate not destroyed (or object not found)
-     }
+            console.log(`Space object ${id} destroyed and removed from roomState.`);
+
+            // TODO: Trigger collectible drop based on obj.type?
+        }
+    }
+
+    // Called when an object takes damage (e.g., from a projectile)
+    applyDamageToObject(id, amount) {
+        const obj = this.getObject(id);
+        if (obj && obj.takeDamage(amount)) { // takeDamage returns true if destroyed
+            this.destroyObject(id); // Destroy and notify network
+            return true; // Indicate destruction
+        }
+        // If damaged but not destroyed, update roomState with new health
+        else if (obj) {
+            this.networkManager.updateRoomState({
+                spaceObjects: {
+                    [id]: obj.getSyncData() // Send updated state
+                }
+            });
+        }
+        return false; // Indicate not destroyed (or object not found)
+    }
 
     getActiveObjects() {
         // Return objects suitable for collision detection/drawing
@@ -184,13 +186,13 @@ class SpaceObjectManager {
 
     getActiveObjectsMap() {
         // Return objects as a map { id: object }
-         const map = {};
-         for(const id in this.activeObjects) {
-             if (!this.activeObjects[id].isMarkedForRemoval) {
-                 map[id] = this.activeObjects[id];
-             }
-         }
-         return map;
+        const map = {};
+        for(const id in this.activeObjects) {
+            if (!this.activeObjects[id].isMarkedForRemoval) {
+                map[id] = this.activeObjects[id];
+            }
+        }
+        return map;
     }
 
     update(deltaTime) {
@@ -204,11 +206,11 @@ class SpaceObjectManager {
                 const roomState = this.networkManager.getRoomState();
                 if (roomState?.spaceObjects?.[id]) {
                     console.log(`Object ${id} marked itself for removal. Notifying network.`);
-                     this.networkManager.updateRoomState({
+                    this.networkManager.updateRoomState({
                         spaceObjects: {
                             [id]: null
                         }
-                     });
+                    });
                 }
                 delete this.activeObjects[id];
             }
