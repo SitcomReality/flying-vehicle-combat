@@ -176,22 +176,24 @@ class Player {
         const speed = PLAYER_PHYSICS.PROJECTILE_BASE_SPEED + (PLAYER_PHYSICS.PROJECTILE_SPEED_SCALE * state.chargeLevel);
 
         // Calculate firing angle based on sprite rotation and visual direction
-        // Angle 0 is right, PI/2 is up, PI is left, 3*PI/2 is down.
-        // state.rotation is the tilt relative to the *unflipped* sprite's horizontal.
-        // Positive rotation means the left side of the *unflipped* sprite tilts up.
+        // Angle 0 is right, positive angles are counter-clockwise (PI/2 is up), negative clockwise (3*PI/2 or -PI/2 is down).
+        // state.rotation represents the visual tilt of the sprite.
+        // When facing left, a positive rotation tilts the nose up.
+        // When facing right, the physics calculation results in a negative rotation tilting the nose up.
         let angle;
         if (state.visualFacingDirection === 1) { // Facing Right (sprite is flipped)
             // Base direction is 0 (right).
-            // A positive state.rotation (left side up on original) means the right side (nose) tilts up when flipped.
-            // Tilting up means a negative angle relative to the horizontal axis.
-            angle = -state.rotation;
+            // The physics update results in a NEGATIVE state.rotation when the player moves UP.
+            // To get an angle pointing UP relative to the horizontal axis (which should be negative),
+            // we use the state.rotation directly.
+            // Example: Moving UP -> state.rotation becomes negative (e.g., -0.2 rad). angle = -0.2 rad (points slightly up from right).
+            angle = state.rotation; 
         } else { // Facing Left (sprite is not flipped)
             // Base direction is PI (left).
-            // A positive state.rotation (left side up) means the nose tilts up relative to the horizontal axis.
-            // This angle needs to be relative to the positive X-axis (0 radians).
-            // The angle relative to the horizontal is state.rotation, but it points leftwards.
-            // The angle relative to the positive X-axis is PI + state.rotation.
-             angle = Math.PI + state.rotation; // Corrected: was just state.rotation which is relative to the sprite's facing direction not the world x-axis
+            // The physics update results in a POSITIVE state.rotation when the player moves UP.
+            // The angle relative to the positive X-axis (0 radians) is PI + state.rotation.
+            // Example: Moving UP -> state.rotation becomes positive (e.g., 0.2 rad). angle = PI + 0.2 rad (points slightly up from left).
+             angle = Math.PI + state.rotation;
         }
 
         // Calculate base velocity vector based on angle and speed
