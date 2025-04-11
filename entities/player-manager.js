@@ -2,6 +2,7 @@
 
 import Player from './player.js';
 import { SPRITES } from 'config/sprites.js';
+import { PlayerLifecycleState } from './player-lifecycle.js'; // Import states
 
 class PlayerManager {
     constructor(assets, ctx, renderScale, gameWidth, gameHeight) {
@@ -18,11 +19,13 @@ class PlayerManager {
         // References to other managers needed by players (set externally)
         this.projectileManager = null;
         this.networkManager = null;
+        this.vehicleSelector = null; // Reference to the UI selector
     }
 
-    setManagers(projectileManager, networkManager) {
+    setManagers(projectileManager, networkManager, vehicleSelector) {
         this.projectileManager = projectileManager;
         this.networkManager = networkManager;
+        this.vehicleSelector = vehicleSelector; // Store reference
 
         // Pass managers to already existing players
         for (const id in this.players) {
@@ -70,6 +73,7 @@ class PlayerManager {
             vehicleType: initialState?.vehicleType ?? 0,
             facingDirection: initialState?.facingDirection ?? -1,
             rotation: initialState?.rotation ?? 0,
+            lifecycleState: initialState?.lifecycleState ?? (isLocal ? PlayerLifecycleState.SELECTING : PlayerLifecycleState.CONNECTING), // Start local player in selection
         };
 
         // Validate vehicleType before creating PlayerState
@@ -78,7 +82,7 @@ class PlayerManager {
             safeInitialState.vehicleType = 0;
         }
 
-        console.log(`Creating player ${clientId} (Local: ${isLocal}) with state:`, safeInitialState);
+        console.log(`Creating player ${clientId} (Local: ${isLocal}) with initial state:`, safeInitialState);
 
         const player = new Player(
             clientId,
@@ -98,11 +102,12 @@ class PlayerManager {
             player.setManagers(this.projectileManager, this.networkManager);
         }
 
+        // Set initial lifecycle state explicitly
+        player.state.lifecycleState = safeInitialState.lifecycleState;
+
         // Set visual state directly after creation
         player.state.facingDirection = safeInitialState.facingDirection;
         player.state.rotation = safeInitialState.rotation;
-
-        this.players[clientId] = player;
 
         // For remote players, immediately set their server state and snap visual state
         if (!isLocal) {
@@ -111,9 +116,17 @@ class PlayerManager {
             player.state.y = player.state.serverY;
             player.state.rotation = player.state.serverRotation; // Snap visual rotation
             player.state.facingDirection = player.state.serverFacingDirection; // Snap visual direction
+            player.state.lifecycleState = player.state.serverLifecycleState ?? PlayerLifecycleState.ACTIVE; // Sync lifecycle or assume active
         }
 
-        console.log(`Player ${clientId} (Local: ${isLocal}) created successfully. Position: ${player.state.x.toFixed(0)},${player.state.y.toFixed(0)} Vehicle: ${player.state.vehicleType}`);
+        this.players[clientId] = player;
+
+        // If the local player was just created and is in SELECTING state, show the selector
+        if (isLocal && player.state.lifecycleState === PlayerLifecycleState.SELECTING) {
+            this.vehicleSelector?.show();
+        }
+
+        console.log(`Player ${clientId} (Local: ${isLocal}) created successfully. State: ${player.state.lifecycleState}, Pos: ${player.state.x.toFixed(0)},${player.state.y.toFixed(0)} Vehicle: ${player.state.vehicleType}`);
         return player;
     }
 
@@ -133,9 +146,9 @@ class PlayerManager {
     updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime) { 
         for (const id in this.players) {
              const player = this.players[id];
+             // Only update if player exists and is not marked for removal
              if (player && player.state && !player.isMarkedForRemoval) {
-                 // Call update for all players
-                 player.update(deltaTime, groundLevelY, particleSystem, currentTime); 
+                 player.update(deltaTime, groundLevelY, particleSystem, currentTime);
              }
         }
     }
@@ -154,9 +167,63 @@ class PlayerManager {
 
         for (const id of sortedPlayerIds) {
             const player = this.players[id];
-            if (player && !player.isMarkedForRemoval) {
+            // Only draw if player exists, not marked for removal, and maybe filter by state?
+            if (player && !player.isMarkedForRemoval && player.state.lifecycleState !== PlayerLifecycleState.CONNECTING) {
                 player.draw(); // Player draw method uses the context stored during creation
             }
+        }
+    }
+
+    // --- Player Lifecycle Management ---
+
+    // Called when the local player needs to respawn (e.g., after death)
+    triggerLocalPlayerRespawn() {
+        const localPlayer = this.getLocalPlayer();
+        if (localPlayer && localPlayer.transitionToState(PlayerLifecycleState.SELECTING)) {
+            this.vehicleSelector?.show(); // Show the UI
+            // Send presence update immediately
+            this.networkManager?.updatePresence(localPlayer.getPresenceData());
+        }
+    }
+
+    // Called by the VehicleSelector UI when a selection is made
+    confirmLocalPlayerVehicleSelection(selectedVehicleType) {
+        const localPlayer = this.getLocalPlayer();
+        if (!localPlayer || localPlayer.state.lifecycleState !== PlayerLifecycleState.SELECTING) {
+            console.warn("Attempted to confirm vehicle selection, but player is not in SELECTING state.");
+            return;
+        }
+
+        console.log(`Local player selected vehicle type: ${selectedVehicleType}`);
+        localPlayer.setVehicle(selectedVehicleType); // This also resets health/fuel
+
+        // Determine spawn position (e.g., random, center, depends on game mode)
+        // For now, near bottom center
+        const spawnX = this.gameWidth / 2;
+        const spawnY = this.gameHeight - (SPRITES.vehicles.hitboxHeight * this.renderScale) - 50;
+
+        // Reset state and set to ACTIVE
+        localPlayer.resetStateForSpawn(spawnX, spawnY);
+
+        // Hide the selector UI
+        this.vehicleSelector?.hide();
+
+        // Send presence update immediately
+        this.networkManager?.updatePresence(localPlayer.getPresenceData());
+    }
+
+    // Placeholder for triggering death (will be replaced by health system)
+    killLocalPlayer() {
+        const localPlayer = this.getLocalPlayer();
+        if (localPlayer && localPlayer.transitionToState(PlayerLifecycleState.DEAD)) {
+            console.log("Local player killed (Debug).");
+            // Send presence update immediately
+            this.networkManager?.updatePresence(localPlayer.getPresenceData());
+
+            // Automatically trigger respawn selection after a short delay
+            setTimeout(() => {
+                 this.triggerLocalPlayerRespawn();
+            }, 1500); // 1.5 second delay before showing selector
         }
     }
 }

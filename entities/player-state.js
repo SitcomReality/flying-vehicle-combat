@@ -1,5 +1,6 @@
 import { SPRITES } from 'config/sprites.js';
 import { VEHICLE_TYPES, getVehicleConfig } from './vehicles/vehicle-types.js'; // Import new vehicle types
+import { PlayerLifecycleState } from './player-lifecycle.js'; // Import lifecycle states
 
 // --- Constants that likely remain global or part of base physics ---
 // These could potentially move into VEHICLE_TYPES' BASE_PLAYER_PHYSICS if needed,
@@ -49,6 +50,9 @@ export class PlayerState {
         this.isMovingRight = false;
         this.isOnGround = false;
 
+        // Lifecycle State
+        this.lifecycleState = PlayerLifecycleState.CONNECTING; // Initial state
+
         // Firing Mechanics
         this.isCharging = false;
         this.chargeLevel = 0;
@@ -83,7 +87,7 @@ export class PlayerState {
         this.lastServerUpdateTime = 0;
 
         // Flags
-        this.isMarkedForRemoval = false;
+        this.isMarkedForRemoval = false; // May eventually be replaced/managed by lifecycle state
 
         // Derived properties (calculated based on vehicleType)
         this.width = 0;
@@ -148,9 +152,6 @@ export class PlayerState {
         }
          // Ensure fuel doesn't exceed new max if switching to a lower capacity vehicle
          this.fuel = Math.min(this.fuel, this.maxFuel);
-         // Optionally fully heal/refuel on vehicle change - requires game design decision
-         // this.health = this.maxHealth;
-         // this.fuel = this.maxFuel;
     }
 
     setVehicle(vehicleTypeIndex) {
@@ -159,8 +160,10 @@ export class PlayerState {
             if (oldType !== vehicleTypeIndex) {
                  this.vehicleType = vehicleTypeIndex;
                  this.updateVehicleProperties(); // This will update stats and dimensions
-                 console.log(`Player ${this.id} vehicle state changed from type ${oldType} to ${this.vehicleType}`);
-                 // Potentially trigger visual effect for vehicle change here
+                 // Reset health and fuel to max when changing vehicle
+                 this.health = this.maxHealth;
+                 this.fuel = this.maxFuel;
+                 console.log(`Player ${this.id} vehicle state changed from type ${oldType} to ${this.vehicleType}. Health/Fuel reset.`);
             }
         } else {
             console.warn(`Invalid vehicleTypeIndex: ${vehicleTypeIndex} for player ${this.id}`);
@@ -175,11 +178,48 @@ export class PlayerState {
             facingDirection: this.facingDirection,
             rotation: this.rotation,
             isOnGround: this.isOnGround,
-            health: this.health, // Sync current health
-            fuel: this.fuel,     // Sync current fuel
-            // maxHealth/maxFuel might be needed if they change dynamically later
-            // maxHealth: this.maxHealth,
-            // maxFuel: this.maxFuel,
+            health: this.health,
+            fuel: this.fuel,
+            lifecycleState: this.lifecycleState, // Sync lifecycle state
         };
+    }
+
+    // Reset state for respawn/selection confirmation
+    resetForSpawn(x, y) {
+        this.x = x;
+        this.y = y;
+        this.vx = 0;
+        this.vy = 0;
+        this.ax = 0;
+        this.ay = 0;
+        this.rotation = 0;
+        this.facingDirection = -1;
+        this.targetFacingDirection = -1;
+        this.visualFacingDirection = -1;
+        this.flipAnimationStart = 0;
+        this.isThrusting = false;
+        this.isMovingLeft = false;
+        this.isMovingRight = false;
+        this.isOnGround = false; // Assume spawning in air or reset ground state
+        this.isCharging = false;
+        this.chargeLevel = 0;
+        this.wantsToFire = false;
+
+        // Reset health and fuel to max based on current vehicle type
+        this.health = this.maxHealth;
+        this.fuel = this.maxFuel;
+
+        // Reset server state for interpolation
+        this.serverX = x;
+        this.serverY = y;
+        this.serverRotation = 0;
+        this.serverFacingDirection = -1;
+        this.serverIsOnGround = false;
+        this.serverHealth = this.health;
+        this.serverFuel = this.fuel;
+        this.lastServerUpdateTime = 0;
+
+        this.isMarkedForRemoval = false;
+        this.lifecycleState = PlayerLifecycleState.ACTIVE; // Set state to active
     }
 }

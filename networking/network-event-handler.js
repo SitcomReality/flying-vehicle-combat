@@ -1,6 +1,7 @@
 // New file: Handles incoming network events and updates game state accordingly
 
 import { SPRITES } from 'config/sprites.js';
+import { PlayerLifecycleState } from '../entities/player-lifecycle.js'; // Import lifecycle states
 
 class NetworkEventHandler {
     constructor(networkManager, playerManager, projectileManager, gameConfig) {
@@ -38,7 +39,15 @@ class NetworkEventHandler {
 
             if (!existingPlayer) {
                 if (isLocal && this.playerManager.getLocalPlayer()) {
-                    continue;
+                    // Avoid recreating local player if already exists but presence arrives late
+                    if (this.playerManager.getLocalPlayer().lifecycleState !== PlayerLifecycleState.CONNECTING) {
+                         continue;
+                    } else {
+                        console.log("Updating local player state from early presence data during CONNECTING phase.");
+                        // Update state but don't recreate
+                        this.playerManager.getLocalPlayer().updateFromServer(presenceData, now);
+                        continue;
+                    }
                 }
 
                 console.log("New player detected from presence:", clientId, peerInfo?.username);
@@ -48,10 +57,28 @@ class NetworkEventHandler {
                     vehicleType: presenceData.vehicleType ?? 0,
                     facingDirection: presenceData.facingDirection ?? -1,
                     rotation: presenceData.rotation ?? 0,
+                    lifecycleState: presenceData.lifecycleState ?? PlayerLifecycleState.ACTIVE, // Default remote players to ACTIVE if state missing initially
                 };
-                this.playerManager.createPlayer(clientId, initialState, false);
+                 // Only create if not already present (double check, createPlayer has guards too)
+                 if (!this.playerManager.getPlayer(clientId)) {
+                    this.playerManager.createPlayer(clientId, initialState, false);
+                 }
+
             } else if (!isLocal && existingPlayer) {
+                // Update existing remote player
                 existingPlayer.updateFromServer(presenceData, now);
+            } else if (isLocal && existingPlayer && existingPlayer.lifecycleState === PlayerLifecycleState.CONNECTING) {
+                 // Handle the case where the local player was created but still in CONNECTING state
+                 // and receives its own initial presence data. Update internal state.
+                 console.log("Local player received initial presence data while CONNECTING. Updating state.");
+                 existingPlayer.updateFromServer(presenceData, now);
+                 // If the server confirmed a different state (e.g., ACTIVE), update local state
+                 if (presenceData.lifecycleState && presenceData.lifecycleState !== PlayerLifecycleState.CONNECTING) {
+                      existingPlayer.transitionToState(presenceData.lifecycleState);
+                      if (existingPlayer.lifecycleState === PlayerLifecycleState.SELECTING) {
+                           this.playerManager.vehicleSelector?.show();
+                      }
+                 }
             }
         }
 
