@@ -1,4 +1,4 @@
-import { PlayerState, FLIP_ANIMATION_DURATION } from './player-state.js';
+import { PlayerState, FLIP_ANIMATION_DURATION, PLAYER_PHYSICS } from './player-state.js';
 import { handlePlayerInput } from './player-input.js';
 import { updatePlayerPhysics } from './player-physics.js';
 import { drawPlayer } from './player-renderer.js';
@@ -17,7 +17,17 @@ class Player {
         this.renderScale = renderScale;
         this.gameBounds = { width: gameWidth, height: gameHeight };
 
+        // Add reference for firing projectiles (will be set externally)
+        this.projectileManager = null;
+        this.networkManager = null; // Needed to send fire events
+
         console.log(`Player ${id} instance created. Local: ${isLocalPlayer}, Vehicle: ${this.state.vehicleType}, Pos: ${this.state.x.toFixed(0)},${this.state.y.toFixed(0)}, Scale: ${renderScale}`);
+    }
+
+    // Set references to managers needed for actions
+    setManagers(projectileManager, networkManager) {
+        this.projectileManager = projectileManager;
+        this.networkManager = networkManager;
     }
 
     // --- Getters to access state properties easily (optional) ---
@@ -87,24 +97,42 @@ class Player {
         }
     }
 
-
     // --- Update Cycle ---
     update(deltaTime, groundLevelY, particleSystem, currentTime) {
         if (this.state.isMarkedForRemoval) return;
 
         // Update animations (like the flip) based on current time FIRST
-        // This uses the targetFacingDirection potentially set by input or network update
         this.updateAnimation(currentTime);
 
+        // Handle Charging Logic for Local Player
+        if (this.state.isLocalPlayer) {
+            if (this.state.isCharging) {
+                this.state.chargeLevel = Math.min(
+                    this.state.chargeLevel + PLAYER_PHYSICS.CHARGE_RATE * deltaTime,
+                    PLAYER_PHYSICS.MAX_CHARGE_LEVEL
+                );
+            }
+
+            // Handle Firing Logic
+            if (this.state.wantsToFire && this.projectileManager && this.networkManager) {
+                 this.fireProjectile();
+                 this.state.wantsToFire = false; // Consume the fire request
+                 this.state.chargeLevel = 0; // Reset charge after firing
+            } else if (!this.state.isCharging) {
+                // Decay charge level if not charging and didn't just fire
+                // this.state.chargeLevel = Math.max(0, this.state.chargeLevel - PLAYER_PHYSICS.CHARGE_RATE * deltaTime * 2); // Optional decay
+                 this.state.chargeLevel = 0; // Or just reset if not charging
+            }
+        }
+
+        // --- Physics and Interpolation ---
         if (this.state.isLocalPlayer) {
             // Local player calculates physics based on input
-            // Note: updatePlayerPhysics uses logical facingDirection for tilt calc
             updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem);
         } else {
             // Remote players interpolate towards server state
             interpolatePlayerState(this.state, REMOTE_PLAYER_INTERPOLATION_FACTOR);
             // Apply ground effects visually based on server state for remote players
-            // Use visualFacingDirection for particle positioning relative to sprite
             if (this.state.serverIsOnGround && particleSystem) {
                  const spriteDrawWidth = this.state.currentVehicle.width * this.renderScale;
                  const contactX = (this.state.x - this.state.drawOffsetX * this.renderScale + spriteDrawWidth / 2)
@@ -116,6 +144,56 @@ class Player {
                  particleSystem.emitSmoke(contactX, contactY, 1, baseSmokeVX);
             }
         }
+    }
+
+    // --- Firing Logic ---
+    fireProjectile() {
+        const state = this.state;
+        if (!this.projectileManager || !this.networkManager || state.chargeLevel <= 0) {
+            // console.log("Cannot fire: No manager, network, or charge.");
+            return;
+        }
+
+        // Calculate projectile initial state
+        const noseOffsetFactor = 0.5; // How far from the center the projectile starts (0=center, 0.5=edge)
+        const spriteDrawWidth = state.currentVehicle.width * this.renderScale;
+        const startX = this.getVisualCenter().x + (state.visualFacingDirection * spriteDrawWidth * noseOffsetFactor);
+        const startY = this.getVisualCenter().y; // Start from vertical center
+
+        const chargeRatio = state.chargeLevel / PLAYER_PHYSICS.MAX_CHARGE_LEVEL;
+        const speed = PLAYER_PHYSICS.PROJECTILE_BASE_SPEED + (PLAYER_PHYSICS.PROJECTILE_SPEED_SCALE * state.chargeLevel);
+
+        // Base velocity based on direction and speed
+        let vx = state.visualFacingDirection * speed;
+        let vy = 0;
+
+        // Optional: Add slight angle based on ship tilt? (Keep simple for now)
+        // if (Math.abs(state.rotation) > 0.05) {
+        //    const angle = state.rotation + (state.visualFacingDirection === 1 ? 0 : Math.PI); // Adjust angle based on facing
+        //    vx = Math.cos(angle) * speed;
+        //    vy = Math.sin(angle) * speed;
+        // }
+
+        // Add player's current velocity to the projectile (inherited velocity) - Optional but adds realism
+        vx += state.vx * 0.5; // Inherit half of player's velocity
+        vy += state.vy * 0.5;
+
+        // Create projectile locally AND get data to broadcast
+        const projectileData = this.projectileManager.createAndGetData(
+            state.id,
+            startX, startY,
+            vx, vy,
+            '#FFD700' // Gold color for projectile
+        );
+
+        // Broadcast the fire event to other clients
+        this.networkManager.sendEvent({
+            type: 'fireProjectile',
+            projectile: projectileData,
+            echo: false // Don't send back to self
+        });
+
+        // console.log(`Player ${state.id} fired projectile ${projectileData.id} with charge ${state.chargeLevel.toFixed(0)}`);
     }
 
     // --- Rendering ---

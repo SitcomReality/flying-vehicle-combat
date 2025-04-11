@@ -17,6 +17,11 @@ export const PLAYER_PHYSICS = {
 
     SPARK_EMIT_RATE: 5, // Sparks per physics frame when scraping
     SMOKE_EMIT_RATE: 1, // Smoke puffs per physics frame when scraping
+    MAX_CHARGE_LEVEL: 100, // Max charge value
+    CHARGE_RATE: 50, // Units per second
+    PROJECTILE_BASE_SPEED: 400, // Minimum projectile speed
+    PROJECTILE_SPEED_SCALE: 3, // Multiplier for charge level -> added speed
+    PROJECTILE_GRAVITY_FACTOR: 0.5, // How much gravity affects projectiles (0=none, 1=same as player)
 };
 
 export const INTERPOLATION_SNAP_THRESHOLD = 0.5; // Pixels
@@ -46,6 +51,11 @@ export class PlayerState {
         this.isMovingLeft = false; // Horizontal thrust (left key)
         this.isMovingRight = false; // Horizontal thrust (right key)
         this.isOnGround = false;
+
+        // Firing Mechanics
+        this.isCharging = false;
+        this.chargeLevel = 0; // Current charge amount (0 to MAX_CHARGE_LEVEL)
+        this.wantsToFire = false; // Flag set when charge key is released
 
         // Network Synchronization (for remote players)
         this.serverX = x;
@@ -112,6 +122,7 @@ export class PlayerState {
             facingDirection: this.facingDirection, // Send the actual logical direction
             rotation: this.rotation,
             isOnGround: this.isOnGround,
+            // Note: Firing state is transient, handled by events, not presence
         };
     }
 }

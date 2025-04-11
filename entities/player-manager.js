@@ -14,6 +14,20 @@ class PlayerManager {
         this.renderScale = renderScale;
         this.gameWidth = gameWidth;
         this.gameHeight = gameHeight;
+
+        // References to other managers needed by players (set externally)
+        this.projectileManager = null;
+        this.networkManager = null;
+    }
+
+    setManagers(projectileManager, networkManager) {
+        this.projectileManager = projectileManager;
+        this.networkManager = networkManager;
+
+        // Pass managers to already existing players
+        for (const id in this.players) {
+            this.players[id].setManagers(projectileManager, networkManager);
+        }
     }
 
     setLocalPlayerId(id) {
@@ -79,6 +93,11 @@ class PlayerManager {
             this.gameHeight
         );
 
+        // Pass managers if they've been set already
+        if (this.projectileManager && this.networkManager) {
+            player.setManagers(this.projectileManager, this.networkManager);
+        }
+
         // Set visual state directly after creation
         player.state.facingDirection = safeInitialState.facingDirection;
         player.state.rotation = safeInitialState.rotation;
@@ -115,8 +134,7 @@ class PlayerManager {
         for (const id in this.players) {
              const player = this.players[id];
              if (player && player.state && !player.isMarkedForRemoval) {
-                 // Call update for all players, but only local player calculates physics inside its update
-                 // Pass consistent arguments
+                 // Call update for all players
                  player.update(deltaTime, groundLevelY, particleSystem, currentTime); 
              }
         }

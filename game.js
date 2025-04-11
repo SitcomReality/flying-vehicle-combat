@@ -3,6 +3,7 @@ import InputManager from 'core/input-manager.js';
 import Renderer from 'rendering/renderer.js';
 import NetworkManager from 'networking/network-manager.js';
 import PlayerManager from 'entities/player-manager.js'; 
+import ProjectileManager from 'core/projectile-manager.js'; 
 import NetworkEventHandler from 'networking/network-event-handler.js'; 
 import DebugRenderer from 'rendering/debug-renderer.js'; 
 import BackgroundRenderer from 'rendering/background-renderer.js'; 
@@ -27,6 +28,7 @@ const renderer = new Renderer(canvas, GAME_WIDTH, GAME_HEIGHT);
 const inputManager = new InputManager();
 const networkManager = new NetworkManager();
 const assetLoader = new AssetLoader();
+const projectileManager = new ProjectileManager();
 
 // --- Game State ---
 let assets = {};
@@ -63,7 +65,7 @@ async function initializeGame() {
         particleSystem = new ParticleSystem(); 
 
         const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE, groundLevelY }; 
-        networkEventHandler = new NetworkEventHandler(networkManager, playerManager, gameConfig);
+        networkEventHandler = new NetworkEventHandler(networkManager, playerManager, projectileManager, gameConfig);
         debugRenderer = new DebugRenderer(debugEl, playerManager, networkManager, inputManager, gameConfig);
         debugRenderer.setLocalPlayerId(localPlayerId);
 
@@ -79,7 +81,11 @@ async function initializeGame() {
             rotation: 0,
             isOnGround: false 
         };
-        playerManager.createPlayer(localPlayerId, initialState, true);
+        const localPlayer = playerManager.createPlayer(localPlayerId, initialState, true);
+        // Pass managers to the local player instance so it can fire projectiles
+        if (localPlayer) {
+             localPlayer.setManagers(projectileManager, networkManager);
+        }
         console.log("Local player object created via PlayerManager.");
 
         // 5. Send Initial Presence
@@ -87,7 +93,7 @@ async function initializeGame() {
         lastPresenceUpdateTime = performance.now();
         console.log("Initial presence sent via NetworkEventHandler.");
 
-        // 6. Setup Network Handlers (now done by NetworkEventHandler)
+        // 6. Setup Network Handlers
         networkEventHandler.setupNetworkHandlers();
 
         // 7. Start Game Loop
@@ -111,17 +117,19 @@ function update(deltaTime, currentTime) {
     // Update Particle System
     particleSystem.update(deltaTime);
 
+    // Update Projectiles
+    projectileManager.update(deltaTime, groundLevelY);
+
     // --- Player Updates ---
     const localPlayer = playerManager.getLocalPlayer();
 
     // Handle local player input first
     if (localPlayer && localPlayer.state && !localPlayer.isMarkedForRemoval) {
         const input = inputManager.getInputState();
-        localPlayer.handleInput(input); // Sets targetFacingDirection
+        localPlayer.handleInput(input); // Sets targetFacingDirection, isCharging, wantsToFire
     }
 
-    // Update ALL players (Physics for local, Interpolation for remote, Animation for all)
-    // Pass currentTime needed for animation updates
+    // Update ALL players (Physics for local, Interpolation for remote, Animation/Charging for all)
     playerManager.updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime);
 
     // Send local player presence periodically (after physics update)
@@ -140,16 +148,19 @@ function draw() {
     // Draw Background first (includes ground)
     backgroundRenderer.draw();
 
-    // Draw Particles (before players, so players are on top)
+    // Draw Particles
     particleSystem.draw(renderer.getContext());
 
-    // Draw all players (handled by PlayerManager, includes sorting)
+    // Draw Projectiles (draw before players?)
+    projectileManager.draw(renderer.getContext());
+
+    // Draw all players
     playerManager.drawPlayers(renderer);
 
-    // Draw player names/info (handled by DebugRenderer)
+    // Draw player names/info
     debugRenderer.drawPlayerInfo(renderer);
 
-    // Update debug div text (handled by DebugRenderer)
+    // Update debug div text
     debugRenderer.updateDebugInfo();
 }
 

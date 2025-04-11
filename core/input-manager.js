@@ -1,7 +1,7 @@
 class InputManager {
     constructor() {
         this.keys = {}; // Store state of relevant keys
-        this.trackedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', ' ']; // Example keys
+        this.trackedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', ' ']; // Added ' ' for space
 
         this._handleKeyDown = this._handleKeyDown.bind(this);
         this._handleKeyUp = this._handleKeyUp.bind(this);
@@ -22,14 +22,19 @@ class InputManager {
     _handleKeyDown(event) {
         if (this.trackedKeys.includes(event.key)) {
             this.keys[event.key] = true;
-            // event.preventDefault(); // Prevent default browser actions for game keys
+            // Prevent default browser actions for game keys, especially space scrolling
+            if (event.key === ' ') {
+                event.preventDefault();
+            }
         }
     }
 
     _handleKeyUp(event) {
         if (this.trackedKeys.includes(event.key)) {
             this.keys[event.key] = false;
-           // event.preventDefault();
+            if (event.key === ' ') {
+               event.preventDefault();
+            }
         }
     }
 
@@ -44,7 +49,7 @@ class InputManager {
             down: this.isKeyPressed('ArrowDown') || this.isKeyPressed('s'),
             left: this.isKeyPressed('ArrowLeft') || this.isKeyPressed('a'),
             right: this.isKeyPressed('ArrowRight') || this.isKeyPressed('d'),
-            action: this.isKeyPressed(' '), // Example action key
+            action: this.isKeyPressed(' '), // Space bar press state
         };
     }
 
@@ -55,4 +60,3 @@ class InputManager {
 }
 
 export default InputManager;
-
