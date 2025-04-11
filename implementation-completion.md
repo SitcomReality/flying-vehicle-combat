@@ -15,21 +15,21 @@ This document tracks the completion status of the features outlined in `implemen
 
 ### 1.2 Player Lifecycle System
 
-*   **[ ] Create `entities/player-lifecycle.js`**
-*   **[ ] Create `ui/vehicle-selector.js`**
-*   **[ ] Update `player-manager.js`**
+*   **[X] Create `entities/player-lifecycle.js`**: File created with states.
+*   **[X] Create `ui/vehicle-selector.js`**: UI component created and integrated.
+*   **[X] Update `player-manager.js`**: Handles state transitions, respawn flow, and vehicle selection confirmation. Player creation defaults local player to SELECTING state. Network syncs lifecycle state. Debug 'kill' command triggers death sequence.
 
-**Status:** NOT STARTED
+**Status:** COMPLETE
 
 ## Phase 2: Game Mechanics
 
 ### 2.1 Health and Fuel Systems
 
-*   **[ ] Create `entities/vehicles/health-system.js`**
-*   **[ ] Create `entities/vehicles/fuel-system.js`** (Basic fuel consumption/regen exists in `player-physics.js`, but dedicated system needed for more complex logic/events).
-*   **[ ] Create `ui/status-bars.js`**
+*   **[X] Create `entities/vehicles/health-system.js`**: Created `applyDamage` and `updateHealth` functions. Handles damage taking, invulnerability timer, and notifies `PlayerManager` on local player death.
+*   **[X] Create `entities/vehicles/fuel-system.js`**: Created `updateFuel` (for regen) and `consumeFuel` functions. Integrated into `player.js` and `player-physics.js`.
+*   **[X] Create `ui/status-bars.js`**: Created `StatusBarRenderer` class to draw health/fuel bars below active players. Integrated into `game.js`.
 
-**Status:** NOT STARTED (Partial fuel logic exists)
+**Status:** COMPLETE
 
 ### 2.2 Combat System Enhancement
 

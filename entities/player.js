@@ -7,8 +7,8 @@ import { updatePlayerAnimation } from './player-animation.js';
 import { updatePlayerCharging, handlePlayerFiring } from './player-actions.js';
 import { getVisualCenter, getVisualNosePosition } from './player-visuals.js';
 import { PlayerLifecycleState } from './player-lifecycle.js'; // Import lifecycle states
-import { updateFuel } from './vehicles/fuel-system.js'; // Import fuel system logic
-import { updateHealth } from './vehicles/health-system.js'; // Import health system logic
+import { updateFuel, consumeFuel } from './vehicles/fuel-system.js'; // Use functions from fuel-system
+import { updateHealth, applyDamage } from './vehicles/health-system.js'; // Use functions from health-system
 
 // Configuration Constants
 const REMOTE_PLAYER_INTERPOLATION_FACTOR = 0.15;
@@ -85,19 +85,27 @@ class Player {
     // --- Update Cycle ---
     update(deltaTime, groundLevelY, particleSystem, currentTime) {
         // Skip updates if marked for removal or in a non-updatable state
-        if (this.state.isMarkedForRemoval || this.state.lifecycleState === PlayerLifecycleState.DEAD || this.state.lifecycleState === PlayerLifecycleState.SELECTING || this.state.lifecycleState === PlayerLifecycleState.CONNECTING) {
-            // Still update health invulnerability timer even if dead/selecting etc.
-            if (this.state.isLocalPlayer) {
-                updateHealth(this.state, 0, currentTime, this.playerManager); // Pass playerManager
-            }
+        if (this.state.isMarkedForRemoval || this.state.lifecycleState === PlayerLifecycleState.CONNECTING) {
+             // Still update health invulnerability timer even if connecting (edge case?)
+            updateHealth(this.state, deltaTime, currentTime); // Call updateHealth from health-system
             return;
         }
 
-        // 1. Update animations (like the flip) based on current time FIRST
+        // 1. Update health/invulnerability timers FIRST
+        // (Needs to happen even if DEAD/SELECTING to clear invulnerability eventually)
+        updateHealth(this.state, deltaTime, currentTime);
+
+        // Exit early if DEAD or SELECTING (after health update)
+        if (this.state.lifecycleState === PlayerLifecycleState.DEAD || this.state.lifecycleState === PlayerLifecycleState.SELECTING) {
+            return;
+        }
+
+
+        // 2. Update animations (like the flip) based on current time
         // (Allow animation even if not ACTIVE, e.g., for spawn-in effect later)
         updatePlayerAnimation(this.state, currentTime);
 
-        // 2. Handle Local Player Actions (Charging & Firing) - Only if ACTIVE
+        // 3. Handle Local Player Actions (Charging & Firing) - Only if ACTIVE
         if (this.state.isLocalPlayer && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
             const boundGetVisualCenter = () => getVisualCenter(this.state, this.renderScale);
             const boundGetVisualNosePosition = () => getVisualNosePosition(this.state, this.renderScale);
@@ -116,15 +124,15 @@ class Player {
             );
         }
 
-        // 3. Physics and Interpolation
+        // 4. Physics, Fuel and Interpolation
         if (this.state.isLocalPlayer) {
              // Only apply physics if ACTIVE
              if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
                 updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem);
-                // Update fuel state (consumption handled in physics, regen here)
+                // Update fuel state (regen only) using fuel-system
                 updateFuel(this.state, deltaTime);
-                // Update health state (invulnerability timer, check for death)
-                updateHealth(this.state, 0, currentTime, this.playerManager); // Damage comes from elsewhere
+                // Health updates (damage application) happen elsewhere (e.g., collisions, projectiles)
+                // We already called updateHealth for the timer at the start.
              }
         } else {
             interpolatePlayerState(this.state, REMOTE_PLAYER_INTERPOLATION_FACTOR);
@@ -140,8 +148,6 @@ class Player {
                  particleSystem.emitSparks(contactX, contactY, 1, baseSparkVX);
                  particleSystem.emitSmoke(contactX, contactY, 1, baseSmokeVX);
             }
-             // Update remote player health/fuel visually (already synced by updateFromServer)
-             // No need to call updateHealth/updateFuel for remote players directly
         }
     }
 
@@ -186,7 +192,7 @@ class Player {
              this.state.lifecycleState = newState;
              // Add any side effects needed on state transition here
              if (newState === PlayerLifecycleState.DEAD) {
-                 // Stop movement, maybe trigger explosion effect
+                 // Stop movement, clear flags
                  this.state.vx = 0;
                  this.state.vy = 0;
                  this.state.ax = 0;
@@ -196,11 +202,16 @@ class Player {
                  this.state.isMovingRight = false;
                  this.state.isCharging = false;
                  this.state.wantsToFire = false;
-                 // Maybe set isMarkedForRemoval later after death animation?
+                 this.state.isOnGround = false; // Assume blown into air briefly
+                 // Ensure health is 0 on transition to DEAD
+                 this.state.health = 0;
              } else if (newState === PlayerLifecycleState.SELECTING) {
                  // Ensure player is visually static or hidden
              } else if (newState === PlayerLifecycleState.ACTIVE) {
                  // Ensure physics/input are enabled
+                 // Make player invulnerable for a short period on spawn?
+                 // applyDamage handles invulnerability on taking damage,
+                 // but we might want spawn protection later.
              }
 
              // If local player, immediately sync presence on state change
@@ -213,10 +224,16 @@ class Player {
          return false; // No transition needed
     }
 
-     // Resets the player state for spawning
+    // Resets the player state for spawning
     resetStateForSpawn(x, y) {
         this.state.resetForSpawn(x, y); // Calls the reset logic in PlayerState
         console.log(`Player ${this.id} state reset for spawn at (${x.toFixed(0)}, ${y.toFixed(0)}). State: ${this.state.lifecycleState}`);
+    }
+
+    // Method specifically for taking damage (called by collision/projectile hits)
+    takeDamage(amount, currentTime) {
+        // Pass call to the health system, providing the player manager reference
+        applyDamage(this.state, amount, currentTime, this.playerManager);
     }
 }
 

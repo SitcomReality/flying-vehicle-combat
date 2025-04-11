@@ -20,7 +20,7 @@ export const GLOBAL_PHYSICS = {
     PROJECTILE_BASE_SPEED: 400,
     PROJECTILE_SPEED_SCALE: 3,
     PROJECTILE_GRAVITY_FACTOR: 0.5,
-    INVULNERABILITY_DURATION: 1.0, // seconds - NEW for health system
+    INVULNERABILITY_DURATION: 1.5, // seconds - Increased duration slightly
 };
 
 export const INTERPOLATION_SNAP_THRESHOLD = 0.5; // Pixels

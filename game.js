@@ -11,6 +11,7 @@ import { ParticleSystem } from 'rendering/particle-system.js';
 import { SPRITES } from 'config/sprites.js';
 import VehicleSelector from 'ui/vehicle-selector.js';
 import { PlayerLifecycleState } from 'entities/player-lifecycle.js';
+import StatusBarRenderer from 'ui/status-bars.js';
 
 console.log("Game starting...");
 
@@ -48,6 +49,7 @@ let debugRenderer = null;
 let backgroundRenderer = null;
 let particleSystem = null;
 let vehicleSelector = null;
+let statusBarRenderer = null;
 
 // --- Initialization ---
 async function initializeGame() {
@@ -76,8 +78,11 @@ async function initializeGame() {
             playerManager.confirmLocalPlayerVehicleSelection(type);
         });
 
+        // Instantiate StatusBarRenderer AFTER PlayerManager
+        statusBarRenderer = new StatusBarRenderer(renderer.getContext(), playerManager, RENDER_SCALE);
+
         // Set managers in PlayerManager AFTER all managers are created
-        playerManager.setManagers(projectileManager, networkManager, vehicleSelector);
+        playerManager.setManagers(projectileManager, networkManager, vehicleSelector, particleSystem);
 
         const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE, groundLevelY };
         networkEventHandler = new NetworkEventHandler(networkManager, playerManager, projectileManager, gameConfig);
@@ -99,7 +104,6 @@ async function initializeGame() {
         const localPlayer = playerManager.createPlayer(localPlayerId, initialState, true);
         if (localPlayer) {
             // Ensure managers are set if player created successfully
-            localPlayer.setManagers(projectileManager, networkManager);
             console.log(`Local player ${localPlayerId} created, initial state: ${localPlayer.state.lifecycleState}`);
         } else {
             console.error("Failed to create local player!");
@@ -113,9 +117,8 @@ async function initializeGame() {
             lastPresenceUpdateTime = performance.now();
             console.log("Initial presence sent (player not in SELECTING state).");
         } else {
-             console.log("Initial presence deferred until vehicle selection.");
+            console.log("Initial presence deferred until vehicle selection.");
         }
-
 
         // 6. Setup Network Handlers
         networkEventHandler.setupNetworkHandlers();
@@ -141,27 +144,17 @@ function update(deltaTime, currentTime) {
 
     const localPlayer = playerManager.getLocalPlayer();
 
-    // Only process input if the player is ACTIVE
-    if (localPlayer && localPlayer.state && !localPlayer.isMarkedForRemoval && localPlayer.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
-        const input = inputManager.getInputState();
+    // Handle input globally, Player class handles state checking
+    const input = inputManager.getInputState();
+    if (localPlayer && localPlayer.state && !localPlayer.isMarkedForRemoval) {
         localPlayer.handleInput(input);
 
         // Handle debug kill key only when active
         if (inputManager.wasKeyJustPressed(DEBUG_KILL_KEY)) {
             console.log("Debug key pressed: Kill Local Player");
-            playerManager.killLocalPlayer(); // Request kill transition
+            playerManager.killLocalPlayer(); // Request kill
         }
-    } else {
-         // Clear input flags if not active to prevent unwanted actions on respawn
-         if (localPlayer && localPlayer.state) {
-            localPlayer.state.isThrusting = false;
-            localPlayer.state.isMovingLeft = false;
-            localPlayer.state.isMovingRight = false;
-            localPlayer.state.isCharging = false;
-            localPlayer.state.wantsToFire = false;
-         }
     }
-
 
     playerManager.updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime);
 }
@@ -173,6 +166,7 @@ function draw() {
     particleSystem.draw(renderer.getContext());
     projectileManager.draw(renderer.getContext());
     playerManager.drawPlayers(renderer);
+    statusBarRenderer.draw(); // Draw status bars after players
     debugRenderer.drawPlayerInfo(renderer);
     debugRenderer.updateDebugInfo();
 }

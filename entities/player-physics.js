@@ -17,19 +17,21 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
 
     const wasOnGround = playerState.isOnGround; // Store previous ground state
 
-    // --- Fuel Regeneration is handled in fuel-system.js ---
+    // --- Fuel Regeneration is handled in player.js using fuel-system.js ---
 
     // --- Vertical Movement ---
     if (!playerState.isOnGround || playerState.isThrusting) {
         playerState.ay = playerState.gravity; // Use gravity from playerState
         // Apply thrust only if there's fuel
-        if (playerState.isThrusting && playerState.fuel > 0) {
-            playerState.ay -= playerState.thrustForce; // Use thrustForce from playerState
+        if (playerState.isThrusting) {
             // Consume Fuel via the Fuel System
-            consumeFuel(playerState, playerState.fuelConsumeRate * deltaTime);
-        } else if (playerState.isThrusting && playerState.fuel <= 0) {
-            // Optional: visual/audio cue for out of fuel?
-             playerState.isThrusting = false; // Force thrust off if out of fuel (prevents holding key)
+            // consumeFuel returns true if fuel was available and consumed
+            if(consumeFuel(playerState, playerState.fuelConsumeRate * deltaTime)) {
+                 playerState.ay -= playerState.thrustForce; // Use thrustForce from playerState
+            } else {
+                // Optional: visual/audio cue for out of fuel?
+                playerState.isThrusting = false; // Force thrust off if out of fuel (prevents holding key)
+            }
         }
         if (!playerState.isOnGround) {
             // Use verticalDragFactor from playerState

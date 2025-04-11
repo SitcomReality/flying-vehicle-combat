@@ -2,6 +2,7 @@ import Player from './player.js';
 import { SPRITES } from 'config/sprites.js';
 import { PlayerLifecycleState } from './player-lifecycle.js'; // Import states
 import { getVehicleConfig } from './vehicles/vehicle-types.js'; // Import vehicle config getter
+import { applyDamage } from './vehicles/health-system.js'; // Import applyDamage
 
 class PlayerManager {
     constructor(assets, ctx, renderScale, gameWidth, gameHeight) {
@@ -19,16 +20,18 @@ class PlayerManager {
         this.projectileManager = null;
         this.networkManager = null;
         this.vehicleSelector = null; // Reference to the UI selector
+        this.particleSystem = null; // Add reference for effects
     }
 
-    setManagers(projectileManager, networkManager, vehicleSelector) {
+    setManagers(projectileManager, networkManager, vehicleSelector, particleSystem) { 
         this.projectileManager = projectileManager;
         this.networkManager = networkManager;
         this.vehicleSelector = vehicleSelector; // Store reference
+        this.particleSystem = particleSystem; // Store reference
 
         // Pass managers to already existing players
         for (const id in this.players) {
-            this.players[id].setManagers(projectileManager, networkManager);
+            this.players[id].setManagers(projectileManager, networkManager, this, particleSystem); // Pass self (PlayerManager)
         }
     }
 
@@ -110,7 +113,7 @@ class PlayerManager {
 
         // Pass managers if they've been set already
         if (this.projectileManager && this.networkManager) {
-            player.setManagers(this.projectileManager, this.networkManager);
+            player.setManagers(this.projectileManager, this.networkManager, this, this.particleSystem); // Pass self and particleSystem
         }
 
         // Set initial lifecycle state explicitly AFTER player is created
@@ -174,6 +177,7 @@ class PlayerManager {
              const player = this.players[id];
              // Only update if player exists and is not marked for removal
              if (player && player.state && !player.isMarkedForRemoval) {
+                 // Pass particleSystem directly to player update
                  player.update(deltaTime, groundLevelY, particleSystem, currentTime);
              }
         }
@@ -212,8 +216,7 @@ class PlayerManager {
         if (localPlayer && localPlayer.transitionToState(PlayerLifecycleState.SELECTING)) {
              console.log(`Player ${localPlayer.id} transitioning to SELECTING for respawn.`);
             this.vehicleSelector?.show(); // Show the UI
-            // Send presence update immediately
-            this.networkManager?.updatePresence(localPlayer.getPresenceData());
+            // Presence update happens inside transitionToState
         } else {
              console.warn(`Could not trigger respawn for player ${this.localPlayerId}. Player null or transition failed.`);
         }
@@ -252,22 +255,39 @@ class PlayerManager {
     }
 
     // Placeholder for triggering death (will be replaced by health system)
+    // This is now a helper for debugging/testing death
     killLocalPlayer() {
         const localPlayer = this.getLocalPlayer();
-        // Only allow killing if currently ACTIVE
-        if (localPlayer && localPlayer.state.lifecycleState === PlayerLifecycleState.ACTIVE && localPlayer.transitionToState(PlayerLifecycleState.DEAD)) {
-            console.log(`Local player ${localPlayer.id} killed (Debug). Transitioning to DEAD.`);
-            // Send presence update immediately
-            this.networkManager?.updatePresence(localPlayer.getPresenceData());
+        if (localPlayer && localPlayer.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
+            console.log(`DEBUG: Applying lethal damage to local player ${localPlayer.id}`);
+            // Apply enough damage to ensure death, passing current time and self (playerManager)
+            localPlayer.takeDamage(localPlayer.state.maxHealth * 2, performance.now());
+        } else {
+            console.log(`Could not kill local player ${this.localPlayerId} via debug. State was ${localPlayer?.state.lifecycleState}.`);
+        }
+    }
 
-            // TODO: Add explosion particle effect here
+    // Called by Health System when local player health reaches 0
+    handlePlayerDeath(playerId) {
+        const player = this.getPlayer(playerId);
+        if (!player || !player.isLocalPlayer || player.state.lifecycleState === PlayerLifecycleState.DEAD) {
+            console.warn(`handlePlayerDeath called for invalid player: ${playerId} or player already dead.`);
+            return;
+        }
+
+        // Transition to DEAD state (this also syncs presence)
+        if (player.transitionToState(PlayerLifecycleState.DEAD)) {
+            console.log(`Local player ${player.id} officially DEAD.`);
+
+            // TODO: Add explosion particle effect here using this.particleSystem
+            // Example: this.particleSystem?.emitExplosion(player.x, player.y);
 
             // Automatically trigger respawn selection after a short delay
             setTimeout(() => {
                  this.triggerLocalPlayerRespawn();
             }, 1500); // 1.5 second delay before showing selector
         } else {
-            console.log(`Could not kill local player ${this.localPlayerId}. State was ${localPlayer?.state.lifecycleState}.`);
+            console.error(`Failed to transition player ${playerId} to DEAD state.`);
         }
     }
 }
