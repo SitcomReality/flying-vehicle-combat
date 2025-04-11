@@ -14,7 +14,7 @@ const RENDER_SCALE = 0.2; // Render sprites smaller
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 const LOCAL_PLAYER_UPDATE_INTERVAL = 50; // ms - How often to send updates
-const REMOTE_PLAYER_INTERPOLATION_FACTOR = 0.1; // How quickly remote players snap to server position (lower = smoother, higher = more responsive)
+const REMOTE_PLAYER_INTERPOLATION_FACTOR = 0.15; // Slightly higher for faster response to server state
 
 let assets = {};
 let players = {}; // Store all players { clientId: Player instance }
@@ -35,11 +35,11 @@ function updateDebugInfo() {
         const p = players[id];
         const peerInfo = networkManager.getPeer(id);
         const name = peerInfo?.username || 'Unknown';
-        debugText += `  ${name} (${id.substring(0, 4)}): ${p.x.toFixed(0)}, ${p.y.toFixed(0)} Facing: ${p.facingDirection === 1 ? 'R' : 'L'}\n`;
+        debugText += `  ${name} (${id.substring(0, 4)}): P(${p.x.toFixed(0)}, ${p.y.toFixed(0)}) V(${p.vx.toFixed(0)}, ${p.vy.toFixed(0)}) R:${p.rotation.toFixed(2)} F:${p.facingDirection === 1 ? 'R' : 'L'}\n`;
         if (p.isLocalPlayer) {
-             debugText += `    Input: ${JSON.stringify(inputManager.getInputState())}\n`;
+             debugText += `    Input: ${JSON.stringify(inputManager.getInputState())} Thrust:${p.isThrusting}\n`;
         } else {
-             debugText += `    Server: ${p.serverX?.toFixed(0)}, ${p.serverY?.toFixed(0)}\n`;
+             debugText += `    Server: P(${p.serverX?.toFixed(0)}, ${p.serverY?.toFixed(0)}) R:${p.serverRotation?.toFixed(2)}\n`;
         }
 
     }
@@ -56,15 +56,19 @@ async function initializeGame() {
         localPlayerId = networkManager.getClientId();
         console.log("Network initialized. Client ID:", localPlayerId);
 
-        createPlayer(localPlayerId, {
-            x: Math.random() * (GAME_WIDTH - (SPRITES.vehicles.frameWidth * RENDER_SCALE)),
-            y: Math.random() * (GAME_HEIGHT - (SPRITES.vehicles.hitboxHeight * RENDER_SCALE)),
-            vehicleType: Math.floor(Math.random() * SPRITES.vehicles.frames.length),
-            facingDirection: -1
-        }, true);
+        const initialVehicleType = Math.floor(Math.random() * SPRITES.vehicles.frames.length);
+        const initialPlayerState = {
+             x: Math.random() * (GAME_WIDTH * 0.8) + GAME_WIDTH * 0.1, 
+             y: GAME_HEIGHT / 2, 
+             vehicleType: initialVehicleType,
+             facingDirection: -1,
+             rotation: 0,
+        };
+
+        createPlayer(localPlayerId, initialPlayerState, true);
         console.log("Local player object created.");
 
-        updateLocalPlayerPresence();
+        updateLocalPlayerPresence(); 
         console.log("Initial presence sent.");
 
         setupNetworkHandlers();
@@ -89,27 +93,31 @@ function setupNetworkHandlers() {
                 continue;
             }
 
+            const presenceData = presence[clientId];
             if (!players[clientId]) {
                 if (clientId === localPlayerId) {
                     if (players[localPlayerId]) {
-                        players[localPlayerId].updateFromServer(presence[clientId], now);
+                        players[localPlayerId].updateFromServer(presenceData, now);
                     } else {
-                        console.warn("Presence update for local player but local player object not found?");
+                        console.warn("Presence update for local player but local player object not found? Recreating.");
+                        createPlayer(clientId, presenceData, true); 
                     }
-                    continue;
+                    continue; 
                 }
                 console.log("New player joined:", clientId, networkManager.getPeer(clientId)?.username);
-                createPlayer(clientId, presence[clientId]);
+                createPlayer(clientId, presenceData, false); 
             } else if (clientId !== localPlayerId) {
-                players[clientId].updateFromServer(presence[clientId], now);
+                players[clientId].updateFromServer(presenceData, now);
             }
         }
 
         for (const existingPlayerId in players) {
-            if (!(existingPlayerId in presence) || !currentPeerIds.includes(existingPlayerId)) {
-                if (existingPlayerId === localPlayerId) continue;
-                if (!players[existingPlayerId].isMarkedForRemoval) {
-                    console.log("Player left or timed out:", existingPlayerId, networkManager.getPeer(existingPlayerId)?.username ?? '(no peer info)');
+            if (existingPlayerId === localPlayerId) continue; 
+
+            if (!presence[existingPlayerId] || !currentPeerIds.includes(existingPlayerId)) {
+                if (players[existingPlayerId] && !players[existingPlayerId].isMarkedForRemoval) {
+                    const peerInfo = networkManager.getPeer(existingPlayerId);
+                    console.log("Player left or timed out:", existingPlayerId, peerInfo?.username ?? '(no peer info)');
                     removePlayer(existingPlayerId);
                 }
             }
@@ -117,6 +125,7 @@ function setupNetworkHandlers() {
     });
 
     networkManager.onRoomStateUpdate((roomState) => {
+        // Handle room state updates (e.g., world items) if needed
     });
 
     networkManager.onPresenceUpdateRequest((updateRequest, fromClientId) => {
@@ -129,12 +138,13 @@ function setupNetworkHandlers() {
             const totalVehicles = SPRITES.vehicles.frames.length;
             const nextVehicle = (currentVehicle + 1) % totalVehicles;
             localPlayer.setVehicle(nextVehicle);
-            updateLocalPlayerPresence();
+            updateLocalPlayerPresence(); 
             console.log(`Changed vehicle to ${nextVehicle} via request from ${fromClientId}`);
         }
     });
 
     networkManager.onMessage((event) => {
+        // Handle broadcasted events (e.g., sound effects, temporary visuals)
     });
 
     console.log("Network event handlers are fully registered.");
@@ -143,7 +153,18 @@ function setupNetworkHandlers() {
 function createPlayer(clientId, initialState, isLocal = false) {
     if (players[clientId]) {
         console.warn(`Attempted to create player ${clientId} but they already exist.`);
-        return;
+        if (players[clientId].isLocalPlayer !== isLocal) {
+            console.error(`Mismatch in local status for player ${clientId}!`);
+        }
+        players[clientId].x = initialState?.x ?? GAME_WIDTH / 2;
+        players[clientId].y = initialState?.y ?? GAME_HEIGHT / 2;
+        players[clientId].rotation = initialState?.rotation ?? 0;
+        players[clientId].facingDirection = initialState?.facingDirection ?? -1;
+        players[clientId].setVehicle(initialState?.vehicleType ?? 0);
+        if (!isLocal) {
+            players[clientId].updateFromServer(initialState, performance.now());
+        }
+        return players[clientId]; 
     }
 
     const player = new Player(
@@ -154,16 +175,21 @@ function createPlayer(clientId, initialState, isLocal = false) {
         isLocal,
         assets,
         renderer.getContext(),
-        RENDER_SCALE
+        RENDER_SCALE,
+        GAME_WIDTH, 
+        GAME_HEIGHT
     );
+
     player.facingDirection = initialState?.facingDirection ?? -1;
+    player.rotation = initialState?.rotation ?? 0; 
 
     players[clientId] = player;
 
     if (!isLocal) {
         player.updateFromServer(initialState, performance.now());
-        player.x = player.serverX;
+        player.x = player.serverX; 
         player.y = player.serverY;
+        player.rotation = player.serverRotation; 
     }
 
     console.log(`Player ${isLocal ? '(Local)' : ''} created: ${clientId} at ${player.x.toFixed(0)},${player.y.toFixed(0)}`);
@@ -188,6 +214,7 @@ function updateLocalPlayerPresence() {
         y: player.y,
         vehicleType: player.vehicleType,
         facingDirection: player.facingDirection,
+        rotation: player.rotation,
     };
     networkManager.updatePresence(presenceData);
     lastPresenceUpdateTime = performance.now();
