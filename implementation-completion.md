@@ -84,9 +84,13 @@ This document tracks the completion status of the features outlined in `implemen
 
 ### 4.2 Collectibles System
 
-*   **[ ] Implement Collectibles System**
+*   **[X] Create `entities/collectibles/collectible.js`**
+*   **[X] Create `entities/collectibles/collectible-types.js`** (Note: not in subfolder)
+*   **[X] Create `entities/collectibles/collectible-manager.js`**
+*   **[X] Create `entities/collectibles/drop-system.js`**
+*   **[X] Integrate drops into Space Object destruction**
 
-**Status:** NOT STARTED
+**Status:** COMPLETE (Core system implemented)
 
 ## Phase 5: User Interface and Persistence
 

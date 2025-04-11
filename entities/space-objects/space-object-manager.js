@@ -1,12 +1,12 @@
-// New file: Manages active space objects in the game world
+// Manages active space objects in the game world
 
 import { SpaceObject } from './space-object.js';
 import { Asteroid } from './space-object-types/asteroid.js'; // Import specific types
 // Import Lander and Rover later when created
 // import { Lander } from './space-object-types/lander.js';
 // import { Rover } from './space-object-types/rover.js';
-// Import collectible helpers for drops
-import { getRandomCollectibleType } from '../collectibles/collectible-types.js';
+// Import the new drop system handler
+import { handleObjectDestructionDrop } from '../collectibles/drop-system.js';
 
 // Map types to classes for easy instantiation
 const SPACE_OBJECT_CLASSES = {
@@ -19,7 +19,7 @@ const SPACE_OBJECT_CLASSES = {
 const SPAWN_INTERVAL = 5000; // Try to spawn every 5 seconds
 const MAX_ACTIVE_OBJECTS = 8;
 const OBJECT_TYPES_TO_SPAWN = ['asteroid']; // Only spawn asteroids for now
-const COLLECTIBLE_DROP_CHANCE = 0.6; // 60% chance to drop something
+// Removed collectible drop chance - now handled in drop-system.js
 
 class SpaceObjectManager {
     // Added collectibleManager dependency
@@ -155,16 +155,10 @@ class SpaceObjectManager {
         if (obj) {
             obj.isMarkedForRemoval = true; // Mark for local cleanup
 
-            // --- Collectible Drop Logic ---
-            if (this.collectibleManager && Math.random() < COLLECTIBLE_DROP_CHANCE) {
-                const dropType = getRandomCollectibleType();
-                console.log(`Space object ${id} destroyed by ${playerDestroyerId || 'environment'}. Dropping ${dropType}.`);
-                // Spawn collectible at the object's last position
-                this.collectibleManager.spawnCollectible(obj.x, obj.y, dropType);
-            } else {
-                 console.log(`Space object ${id} destroyed by ${playerDestroyerId || 'environment'}. No drop.`);
-            }
-            // --- End Drop Logic ---
+            // --- Call Drop System ---
+            // Moved drop logic to handleObjectDestructionDrop
+            handleObjectDestructionDrop(obj, playerDestroyerId, this.collectibleManager);
+            // --- End Drop System Call ---
 
             delete this.activeObjects[id]; // Remove immediately from local active list
 
@@ -174,7 +168,7 @@ class SpaceObjectManager {
                     [id]: null // Set to null to remove
                 }
             });
-            // console.log(`Space object ${id} destroyed and removed from roomState.`); // Redundant with drop log
+            // console.log(`Space object ${id} destroyed and removed from roomState.`); // Log is now in drop handler
 
         }
     }
