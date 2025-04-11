@@ -1,3 +1,5 @@
+import { PLAYER_PHYSICS } from './player-state.js'; // Import the physics constants
+
 /**
  * Updates the player's physics state (position, velocity, rotation) based on forces and time.
  * @param {PlayerState} playerState - The state object of the player.
