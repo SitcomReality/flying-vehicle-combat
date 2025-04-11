@@ -61,6 +61,9 @@ export class PlayerState {
         this.fuel = 100;
         this.maxFuel = 100;
 
+        // --- Scoring ---
+        this.score = 0; 
+
         // --- Vehicle-specific physics properties ---
         this.fuelRegenRate = 0;
         this.fuelConsumeRate = 0;
@@ -85,7 +88,6 @@ export class PlayerState {
         this.isInvulnerable = false;
 
         // --- Powerup State ---
-        // Stores active timed powerups: { type: { expiryTime: number, config: object }, ... }
         this.activePowerups = {};
 
         // Network Synchronization
@@ -98,6 +100,7 @@ export class PlayerState {
         this.serverFuel = 100;
         this.serverIsInvulnerable = false;
         this.serverLifecycleState = PlayerLifecycleState.CONNECTING;
+        this.serverScore = 0; 
         this.lastServerUpdateTime = 0;
 
         // Flags
@@ -110,20 +113,19 @@ export class PlayerState {
         this.drawOffsetY = 0;
         this.currentVehicle = null;
 
-        this.updateVehicleProperties(); // Initialize derived properties and stats
+        this.updateVehicleProperties(); 
 
-        // Initialize directions consistently
         const initialDirection = -1;
         this.facingDirection = initialDirection;
         this.targetFacingDirection = initialDirection;
         this.visualFacingDirection = initialDirection;
         this.serverFacingDirection = initialDirection;
 
-        // Set initial server state
         this.serverHealth = this.health;
         this.serverFuel = this.fuel;
         this.serverIsInvulnerable = this.isInvulnerable;
         this.serverLifecycleState = this.lifecycleState;
+        this.serverScore = this.score; 
     }
 
     updateVehicleProperties() {
@@ -187,7 +189,7 @@ export class PlayerState {
                  this.serverHealth = this.health;
                  this.serverFuel = this.fuel;
                  this.chargeLevel = 0;
-                 this.activePowerups = {}; // Clear active powerups on vehicle change
+                 this.activePowerups = {}; 
             }
         } else {
             console.warn(`Invalid vehicleTypeIndex: ${vehicleTypeIndex} for player ${this.id}`);
@@ -195,7 +197,6 @@ export class PlayerState {
     }
 
     getPresenceData() {
-        // Note: activePowerups are NOT synced via presence, only via roomState for the powerups themselves
         return {
             x: this.x,
             y: this.y,
@@ -207,6 +208,7 @@ export class PlayerState {
             fuel: this.fuel,
             isInvulnerable: this.isInvulnerable,
             lifecycleState: this.lifecycleState,
+            score: this.score, 
         };
     }
 
@@ -225,21 +227,20 @@ export class PlayerState {
         this.isThrusting = false;
         this.isMovingLeft = false;
         this.isMovingRight = false;
-        this.isOnGround = false; // Assume spawning in air or reset ground state
+        this.isOnGround = false; 
         this.isCharging = false;
         this.chargeLevel = 0;
         this.wantsToFire = false;
 
-        // Reset health and fuel to max based on current vehicle type
         this.health = this.maxHealth;
         this.fuel = this.maxFuel;
 
-        // Reset invulnerability state
         this.lastDamageTime = 0;
         this.isInvulnerable = false;
-        this.lastGroundDamageTime = 0; // Reset ground damage timer
+        this.lastGroundDamageTime = 0; 
 
-        // Reset server state for interpolation
+        this.score = 0;
+
         this.serverX = x;
         this.serverY = y;
         this.serverRotation = 0;
@@ -248,10 +249,11 @@ export class PlayerState {
         this.serverHealth = this.health;
         this.serverFuel = this.fuel;
         this.serverIsInvulnerable = this.isInvulnerable;
-        this.serverLifecycleState = PlayerLifecycleState.ACTIVE; // Assume server state matches
+        this.serverLifecycleState = PlayerLifecycleState.ACTIVE; 
+        this.serverScore = this.score; 
         this.lastServerUpdateTime = 0;
 
         this.isMarkedForRemoval = false;
-        this.lifecycleState = PlayerLifecycleState.ACTIVE; // Set state to active
+        this.lifecycleState = PlayerLifecycleState.ACTIVE; 
     }
 }

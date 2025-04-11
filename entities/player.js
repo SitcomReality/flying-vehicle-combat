@@ -64,11 +64,12 @@ class Player {
              // If they become active, ensure interpolation targets are updated.
         }
 
-        // Sync health/fuel/invulnerability from server for remote players
+        // Sync health/fuel/invulnerability/score from server for remote players
         if (!this.state.isLocalPlayer) {
              if (serverStateData.health !== undefined) this.state.health = serverStateData.health;
              if (serverStateData.fuel !== undefined) this.state.fuel = serverStateData.fuel;
              if (serverStateData.isInvulnerable !== undefined) this.state.isInvulnerable = serverStateData.isInvulnerable;
+             if (serverStateData.score !== undefined) this.state.score = serverStateData.score; // Sync score
         }
     }
 

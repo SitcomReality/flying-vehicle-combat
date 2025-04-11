@@ -5,6 +5,8 @@ import { Asteroid } from './space-object-types/asteroid.js'; // Import specific 
 // Import Lander and Rover later when created
 // import { Lander } from './space-object-types/lander.js';
 // import { Rover } from './space-object-types/rover.js';
+// Import collectible helpers for drops
+import { getRandomCollectibleType } from '../collectibles/collectible-types.js';
 
 // Map types to classes for easy instantiation
 const SPACE_OBJECT_CLASSES = {
@@ -32,6 +34,10 @@ class SpaceObjectManager {
 
         this.activeObjects = {}; // Stores local SpaceObject instances { id: SpaceObject }
         this.lastSpawnAttemptTime = 0;
+
+        if (!this.collectibleManager) {
+            console.error("SpaceObjectManager requires a CollectibleManager instance for drops!");
+        }
 
         // Listen for room state changes to sync objects
         this.networkManager.onRoomStateUpdate(this._handleRoomStateUpdate.bind(this));
@@ -143,10 +149,23 @@ class SpaceObjectManager {
     }
 
     // Destroys an object locally and notifies the network
-    destroyObject(id) {
+    // Added optional playerDestroyerId for drop logic attribution
+    destroyObject(id, playerDestroyerId = null) {
         const obj = this.activeObjects[id];
         if (obj) {
             obj.isMarkedForRemoval = true; // Mark for local cleanup
+
+            // --- Collectible Drop Logic ---
+            if (this.collectibleManager && Math.random() < COLLECTIBLE_DROP_CHANCE) {
+                const dropType = getRandomCollectibleType();
+                console.log(`Space object ${id} destroyed by ${playerDestroyerId || 'environment'}. Dropping ${dropType}.`);
+                // Spawn collectible at the object's last position
+                this.collectibleManager.spawnCollectible(obj.x, obj.y, dropType);
+            } else {
+                 console.log(`Space object ${id} destroyed by ${playerDestroyerId || 'environment'}. No drop.`);
+            }
+            // --- End Drop Logic ---
+
             delete this.activeObjects[id]; // Remove immediately from local active list
 
             // Trigger removal from roomState
@@ -155,17 +174,18 @@ class SpaceObjectManager {
                     [id]: null // Set to null to remove
                 }
             });
-            console.log(`Space object ${id} destroyed and removed from roomState.`);
+            // console.log(`Space object ${id} destroyed and removed from roomState.`); // Redundant with drop log
 
-            // TODO: Trigger collectible drop based on obj.type?
         }
     }
 
-    // Called when an object takes damage (e.g., from a projectile)
-    applyDamageToObject(id, amount) {
+    // Called when an object takes damage (e.g., from a projectile or player collision)
+    // Added playerDestroyerId parameter
+    applyDamageToObject(id, amount, playerDestroyerId = null) {
         const obj = this.getObject(id);
         if (obj && obj.takeDamage(amount)) { // takeDamage returns true if destroyed
-            this.destroyObject(id); // Destroy and notify network
+            // Pass playerDestroyerId to destroyObject for potential drop attribution
+            this.destroyObject(id, playerDestroyerId);
             return true; // Indicate destruction
         }
         // If damaged but not destroyed, update roomState with new health
@@ -211,6 +231,7 @@ class SpaceObjectManager {
                             [id]: null
                         }
                     });
+                    // No drop if object removes itself (e.g., off-screen)
                 }
                 delete this.activeObjects[id];
             }
