@@ -16,15 +16,15 @@ class PlayerManager {
         // References to other managers needed by players (set externally)
         this.projectileManager = null;
         this.networkManager = null;
-        this.vehicleSelector = null; // Reference to the UI selector
         this.particleSystem = null; // Add reference for effects
         this.powerupManager = null; // Add reference for powerups
+        this.playerLifecycleManager = null; // NEW: Reference to lifecycle manager
     }
 
-    setManagers(projectileManager, networkManager, vehicleSelector, particleSystem, powerupManager) { // Added powerupManager
+    setManagers(projectileManager, networkManager, playerLifecycleManager, particleSystem, powerupManager) { // Added playerLifecycleManager
         this.projectileManager = projectileManager;
         this.networkManager = networkManager;
-        this.vehicleSelector = vehicleSelector; // Store reference
+        this.playerLifecycleManager = playerLifecycleManager; // Store reference
         this.particleSystem = particleSystem; // Store reference
         this.powerupManager = powerupManager; // Store reference
 
@@ -166,7 +166,10 @@ class PlayerManager {
         // If the local player was just created and is in SELECTING state, show the selector
         if (isLocal && player.state.lifecycleState === PlayerLifecycleState.SELECTING) {
             console.log(`Local player ${clientId} entering SELECTING state. Showing selector.`);
-            this.vehicleSelector?.show();
+            // Vehicle selector is now managed by PlayerLifecycleManager, access it there if needed,
+            // but the state transition should handle showing it via `triggerLocalPlayerRespawn`.
+            // However, initial creation directly into SELECTING needs to show it.
+             this.playerLifecycleManager?.vehicleSelector?.show();
         } else if (isLocal) {
              console.log(`Local player ${clientId} created in state ${player.state.lifecycleState}.`);
         }
@@ -223,83 +226,6 @@ class PlayerManager {
                 player.draw(); // Player draw method uses the context stored during creation
             }
         }
-    }
-
-    // --- Player Lifecycle Management ---
-
-    triggerLocalPlayerRespawn() {
-        const localPlayer = this.getLocalPlayer();
-        if (localPlayer && localPlayer.transitionToState(PlayerLifecycleState.SELECTING)) {
-             console.log(`Player ${localPlayer.id} transitioning to SELECTING for respawn.`);
-            this.vehicleSelector?.show(); // Show the UI
-            // Presence update happens inside transitionToState
-        } else {
-             console.warn(`Could not trigger respawn for player ${this.localPlayerId}. Player null or transition failed.`);
-        }
-    }
-
-    confirmLocalPlayerVehicleSelection(selectedVehicleType) {
-        const localPlayer = this.getLocalPlayer();
-        if (!localPlayer || localPlayer.state.lifecycleState !== PlayerLifecycleState.SELECTING) {
-            console.warn("Attempted to confirm vehicle selection, but player is not in SELECTING state.");
-            return;
-        }
-
-        console.log(`Local player ${localPlayer.id} selected vehicle type: ${selectedVehicleType}`);
-        localPlayer.setVehicle(selectedVehicleType); // This also resets health/fuel
-
-        // Determine spawn position
-        const vehicleConfig = getVehicleConfig(selectedVehicleType);
-        // Estimate vehicle height using known render scale and sprite data
-        const vehicleHeight = (SPRITES.vehicles.hitboxHeight ?? SPRITES.vehicles.frameHeight) * this.renderScale;
-        const spawnX = this.gameWidth / 2;
-        // Estimate ground level (needs refinement if dynamic)
-        const groundY = this.gameHeight - 30; // Use consistent ground estimate
-        const spawnY = groundY - vehicleHeight - 10; // Spawn slightly above ground
-
-        // Reset state and set to ACTIVE
-        localPlayer.resetStateForSpawn(spawnX, spawnY);
-
-        // Hide UI
-        this.vehicleSelector?.hide();
-
-        // Send presence update
-        this.networkManager?.updatePresence(localPlayer.getPresenceData());
-        console.log(`Player ${localPlayer.id} spawned and set to ACTIVE. Presence updated.`);
-    }
-
-    killLocalPlayer() {
-        const localPlayer = this.getLocalPlayer();
-        if (localPlayer && localPlayer.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
-            console.log(`DEBUG: Applying lethal damage to local player ${localPlayer.id}`);
-            // Apply enough damage to ensure death, passing current time and self (playerManager)
-            localPlayer.takeDamage(localPlayer.state.maxHealth * 2, performance.now());
-        } else {
-            console.log(`Could not kill local player ${this.localPlayerId} via debug. State was ${localPlayer?.state.lifecycleState}.`);
-        }
-    }
-
-    handlePlayerDeath(playerId) {
-       const player = this.getPlayer(playerId);
-       if (!player || !player.isLocalPlayer || player.state.lifecycleState === PlayerLifecycleState.DEAD) {
-           console.warn(`handlePlayerDeath called for invalid player: ${playerId} or player already dead.`);
-           return;
-       }
-
-       // Transition to DEAD state (this also syncs presence)
-       if (player.transitionToState(PlayerLifecycleState.DEAD)) {
-           console.log(`Local player ${player.id} officially DEAD.`);
-
-           // TODO: Add explosion particle effect here using this.particleSystem
-           // Example: this.particleSystem?.emitExplosion(player.x, player.y);
-
-           // Automatically trigger respawn selection after a short delay
-           setTimeout(() => {
-                this.triggerLocalPlayerRespawn();
-           }, 1500); // 1.5 second delay before showing selector
-       } else {
-           console.error(`Failed to transition player ${playerId} to DEAD state.`);
-       }
     }
 }
 

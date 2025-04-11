@@ -29,12 +29,14 @@ This plan outlines the steps to refactor large player-related files into smaller
         *   Remove the `handleCollisions` method from `entities/player-manager.js`.
     *   **Goal:** Isolate collision detection logic into its own manager.
 
-4.  **Refactor `entities/player-manager.js` - Extract Lifecycle Logic:**
+4.  **[X] Refactor `entities/player-manager.js` - Extract Lifecycle Logic:**
     *   **Action:**
         *   Create a new file `entities/player-lifecycle-manager.js`.
         *   Move the lifecycle-specific methods (`triggerLocalPlayerRespawn`, `confirmLocalPlayerVehicleSelection`, `killLocalPlayer`, `handlePlayerDeath`) from `entities/player-manager.js` to `PlayerLifecycleManager`.
-        *   `PlayerLifecycleManager` will need references to `PlayerManager`, `NetworkManager`, `VehicleSelector`, etc.
-        *   Update `game.js` (or other relevant callers like `InputManager` for the debug key) to interact with `PlayerLifecycleManager` for these actions.
+        *   `PlayerLifecycleManager` will need references to `PlayerManager`, `NetworkManager`, `VehicleSelector`, `gameWidth`, `gameHeight`, `renderScale`, `SPRITES`, `getVehicleConfig`.
+        *   Update `game.js` to instantiate `PlayerLifecycleManager` and pass it to `PlayerManager`. Update the `VehicleSelector` callback and debug key check in `game.js` to use `PlayerLifecycleManager`.
+        *   Update `PlayerManager` to store the `PlayerLifecycleManager` reference.
+        *   Update `entities/vehicles/health-system.js` to call `playerManager.playerLifecycleManager.handlePlayerDeath`.
         *   Remove these specific lifecycle methods from `entities/player-manager.js`. `PlayerManager` will still manage player creation/removal and updates.
     *   **Goal:** Centralize player state transition management (respawn, death, selection).
 

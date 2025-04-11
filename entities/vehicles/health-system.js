@@ -2,13 +2,14 @@
 
 import { GLOBAL_PHYSICS } from '../player-state.js'; // For INVULNERABILITY_DURATION
 import { PlayerLifecycleState } from '../player-lifecycle.js';
+import { PowerupType } from '../powerups/powerup-types.js';
 
 /**
  * Applies damage to the player, triggers invulnerability, and checks for death.
  * @param {PlayerState} playerState - The player's state.
  * @param {number} damageAmount - The amount of damage to apply.
  * @param {number} currentTime - The current game time (performance.now()).
- * @param {PlayerManager | null} playerManager - Reference to the player manager to handle death.
+ * @param {PlayerManager | null} playerManager - Reference to the player manager containing the lifecycle manager.
  */
 export function applyDamage(playerState, damageAmount, currentTime, playerManager) {
     // Cannot take damage if already dead, selecting, or invulnerable
@@ -27,14 +28,14 @@ export function applyDamage(playerState, damageAmount, currentTime, playerManage
     // Check for death
     if (playerState.health <= 0) {
         console.log(`Player ${playerState.id} has died.`);
-        // If it's the local player, notify the PlayerManager to handle the death process
-        if (playerState.isLocalPlayer && playerManager) {
-            playerManager.handlePlayerDeath(playerState.id);
+        // If it's the local player, notify the PlayerLifecycleManager via PlayerManager
+        // Check if playerManager and its lifecycle manager exist
+        if (playerState.isLocalPlayer && playerManager && playerManager.playerLifecycleManager) {
+            playerManager.playerLifecycleManager.handlePlayerDeath(playerState.id);
+        } else if (playerState.isLocalPlayer) {
+            console.error(`Cannot handle player death for ${playerState.id}. playerManager or playerLifecycleManager is missing.`);
         }
         // For remote players, their death state transition will come via presence update.
-        // We might visually mark them as dead locally, but the official state change
-        // should wait for network confirmation or be handled directly in player-manager/network-handler.
-        // For now, local player death is handled via playerManager.
     }
 }
 
@@ -49,7 +50,14 @@ export function updateHealth(playerState, deltaTime, currentTime) {
     if (playerState.isInvulnerable) {
         const invulnerableTimeElapsed = currentTime - playerState.lastDamageTime;
         if (invulnerableTimeElapsed > GLOBAL_PHYSICS.INVULNERABILITY_DURATION * 1000) {
-            playerState.isInvulnerable = false;
+             // Check if an INVULNERABILITY powerup is active before turning it off
+             if (!playerState.activePowerups[PowerupType.INVULNERABILITY]) {
+                 playerState.isInvulnerable = false;
+             } else {
+                 // If powerup is active, keep invulnerable, but reset lastDamageTime
+                 // so the damage timer doesn't clash with the powerup timer check.
+                 playerState.lastDamageTime = 0;
+             }
         }
     }
 }

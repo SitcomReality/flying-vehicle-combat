@@ -14,6 +14,7 @@ import { PlayerLifecycleState } from 'entities/player-lifecycle.js';
 import StatusBarRenderer from 'ui/status-bars.js';
 import PowerupManager from 'entities/powerups/powerup-manager.js';
 import CollisionManager from 'entities/combat/collision-manager.js';
+import PlayerLifecycleManager from 'entities/player-lifecycle-manager.js';
 
 console.log("Game starting...");
 
@@ -55,6 +56,7 @@ let particleSystem = null;
 let vehicleSelector = null;
 let statusBarRenderer = null;
 let collisionManager = null;
+let playerLifecycleManager = null;
 
 // --- Initialization ---
 async function initializeGame() {
@@ -81,15 +83,27 @@ async function initializeGame() {
         particleSystem = new ParticleSystem();
 
         vehicleSelector = new VehicleSelector(vehicleSelectorEl, assets, (type) => {
-            playerManager.confirmLocalPlayerVehicleSelection(type);
+            if (playerLifecycleManager) {
+                playerLifecycleManager.confirmLocalPlayerVehicleSelection(type);
+            } else {
+                console.error("PlayerLifecycleManager not initialized when vehicle selection confirmed.");
+            }
         });
+
+        playerLifecycleManager = new PlayerLifecycleManager(
+            playerManager,
+            networkManager,
+            vehicleSelector,
+            GAME_WIDTH,
+            GAME_HEIGHT,
+            RENDER_SCALE
+        );
 
         statusBarRenderer = new StatusBarRenderer(renderer.getContext(), playerManager, RENDER_SCALE);
 
-        // Instantiate CollisionManager after its dependencies
         collisionManager = new CollisionManager(playerManager, projectileManager, powerupManager, particleSystem, RENDER_SCALE);
 
-        playerManager.setManagers(projectileManager, networkManager, vehicleSelector, particleSystem, powerupManager);
+        playerManager.setManagers(projectileManager, networkManager, playerLifecycleManager, particleSystem, powerupManager);
 
         const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE, groundLevelY };
         networkEventHandler = new NetworkEventHandler(networkManager, playerManager, projectileManager, gameConfig);
@@ -116,13 +130,11 @@ async function initializeGame() {
             throw new Error("Local player creation failed.");
         }
 
-        if (localPlayer && localPlayer.state.lifecycleState !== PlayerLifecycleState.SELECTING) {
-            networkEventHandler.updateLocalPlayerPresence(performance.now());
-            lastPresenceUpdateTime = performance.now();
-            console.log("Initial presence sent (player not in SELECTING state).");
-        } else {
-            console.log("Initial presence deferred until vehicle selection.");
+        if (localPlayer && localPlayer.state.lifecycleState === PlayerLifecycleState.SELECTING) {
+            vehicleSelector.show();
         }
+
+        console.log("Initial presence deferred until vehicle selection.");
 
         networkEventHandler.setupNetworkHandlers();
 
@@ -160,7 +172,6 @@ function update(deltaTime, currentTime) {
 
     playerManager.updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime);
 
-    // Use CollisionManager for collision checks
     if (collisionManager) {
         collisionManager.checkAllCollisions(currentTime);
     } else {
@@ -168,8 +179,8 @@ function update(deltaTime, currentTime) {
     }
 
     if (currentTime - lastPresenceUpdateTime > PRESENCE_UPDATE_THROTTLE) {
-         networkEventHandler.updateLocalPlayerPresence(currentTime);
-         lastPresenceUpdateTime = currentTime;
+        networkEventHandler.updateLocalPlayerPresence(currentTime);
+        lastPresenceUpdateTime = currentTime;
     }
 
     inputManager.update();
@@ -192,7 +203,6 @@ function gameLoop(currentTime) {
     const deltaTime = Math.min(rawDeltaTime, MAX_DELTA_TIME);
     lastUpdateTime = currentTime;
 
-    // Include collisionManager in the check
     if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager) {
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
