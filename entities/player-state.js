@@ -1,5 +1,3 @@
-// New file: Defines the core state of a player
-
 import { SPRITES } from 'config/sprites.js';
 
 // Physics Constants (keep central for reference)
@@ -17,6 +15,7 @@ export const PLAYER_PHYSICS = {
 };
 
 export const INTERPOLATION_SNAP_THRESHOLD = 0.5; // Pixels
+export const FLIP_ANIMATION_DURATION = 250; // Milliseconds for the direction flip visual delay
 
 export class PlayerState {
     constructor(id, x, y, vehicleType, isLocalPlayer) {
@@ -33,16 +32,19 @@ export class PlayerState {
 
         // Appearance & Input Status
         this.vehicleType = vehicleType;
-        this.facingDirection = -1; // -1 left, 1 right
+        this.facingDirection = -1; // Actual logical direction (-1 left, 1 right)
+        this.targetFacingDirection = -1; // The direction the player intends to face based on input/velocity
+        this.visualFacingDirection = -1; // The direction currently rendered (changes after animation delay)
+        this.flipAnimationStart = 0; // Timestamp when the current flip animation started, 0 if not flipping
         this.isThrusting = false;
-        this.isOnGround = false; // New flag for ground contact
+        this.isOnGround = false;
 
         // Network Synchronization (for remote players)
         this.serverX = x;
         this.serverY = y;
         this.serverRotation = 0;
-        this.serverFacingDirection = -1;
-        this.serverIsOnGround = false; // Sync ground state
+        this.serverFacingDirection = -1; // Last known server *logical* direction
+        this.serverIsOnGround = false;
         this.lastServerUpdateTime = 0;
 
         // Flags
@@ -56,6 +58,13 @@ export class PlayerState {
         this.currentVehicle = null; // Reference to the sprite frame config
 
         this.updateVehicleProperties(); // Initialize derived properties
+
+        // Initialize directions consistently
+        const initialDirection = -1; // Default starting direction
+        this.facingDirection = initialDirection;
+        this.targetFacingDirection = initialDirection;
+        this.visualFacingDirection = initialDirection;
+        this.serverFacingDirection = initialDirection;
     }
 
     updateVehicleProperties() {
@@ -92,12 +101,9 @@ export class PlayerState {
             x: this.x,
             y: this.y,
             vehicleType: this.vehicleType,
-            facingDirection: this.facingDirection,
+            facingDirection: this.facingDirection, // Send the actual logical direction
             rotation: this.rotation,
             isOnGround: this.isOnGround,
-            // Optionally include velocity if needed for prediction/effects
-            // vx: this.vx,
-            // vy: this.vy,
         };
     }
 }

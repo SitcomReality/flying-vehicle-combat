@@ -13,6 +13,10 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
     // Physics calculations are only authoritative for the local player
     if (!playerState.isLocalPlayer) return;
 
+    // --- Facing direction is no longer updated here based on vx ---
+    // It's handled by the input handler setting targetFacingDirection,
+    // and the animation update logic finalizing facingDirection.
+
     const wasOnGround = playerState.isOnGround; // Store previous ground state
 
     // --- Vertical Movement ---
@@ -41,7 +45,6 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
         playerState.ay = 0;
         playerState.vy = 0;
     }
-
 
     // --- Horizontal Movement ---
     // Apply friction if on ground and not actively moving horizontally
@@ -112,7 +115,6 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
         // playerState.vy = 0; // Velocity already zeroed if vy > 0
     }
 
-
     // --- Clamping Position (X and Top Y) ---
     const minX = 0;
     // Clamp X based on *visual* sprite bounds
@@ -136,19 +138,17 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
     }
 
     // --- Particle Effects on Ground ---
-    // Use the final state after corrections
-    // Always emit if on ground to simulate grinding due to background movement
     if (playerState.isOnGround && particleSystem) {
-        // Estimate contact point slightly behind the center based on facing direction
-        const contactX = (playerState.x - playerState.drawOffsetX * renderScale + spriteDrawWidth / 2) // Visual center X
-                       + (playerState.facingDirection === 1 ? -spriteDrawWidth * 0.3 : spriteDrawWidth * 0.3); // Offset based on facing
-        const contactY = groundLevelY - 2; // Slightly above ground line
+        const spriteDrawWidth = playerState.currentVehicle.width * renderScale;
+        // Use VISUAL facing direction for effect positioning
+        const contactX = (playerState.x - playerState.drawOffsetX * renderScale + spriteDrawWidth / 2)
+                       + (playerState.visualFacingDirection === 1 ? -spriteDrawWidth * 0.3 : spriteDrawWidth * 0.3);
+        const contactY = groundLevelY - 2;
 
-        // Use a fixed base velocity simulating movement against the ground,
-        // slightly adjusted by the player's own vx for variation.
-        const baseSparkVX = -80 + playerState.vx * 0.5; // Negative base to show grinding leftwards
-        const baseSmokeVX = -30 + playerState.vx * 0.3; // Negative base for smoke
+        const baseSparkVX = -80 + playerState.vx * 0.5;
+        const baseSmokeVX = -30 + playerState.vx * 0.3;
 
+        // Use constants for emit rate
         particleSystem.emitSparks(contactX, contactY, PLAYER_PHYSICS.SPARK_EMIT_RATE, baseSparkVX);
         particleSystem.emitSmoke(contactX, contactY, PLAYER_PHYSICS.SMOKE_EMIT_RATE, baseSmokeVX);
     }
@@ -156,19 +156,15 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
     // --- Rotation Calculation ---
     let targetRotation = 0;
     if (!playerState.isOnGround) {
-        // Airborne rotation based on vertical velocity
         const normalizedVy = Math.max(-1, Math.min(1, playerState.vy / PLAYER_PHYSICS.MAX_VERTICAL_SPEED));
-        // Base rotation: Nose points up when vy is negative (moving up), down when vy is positive (moving down)
         targetRotation = -normalizedVy * PLAYER_PHYSICS.MAX_TILT_ANGLE;
 
-        // *** Important: Invert rotation when facing right ***
-        // The renderer flips the sprite horizontally when facing right (facingDirection = 1).
-        // To make the *nose* tilt correctly relative to the world, we must invert the rotation angle
-        // before applying the horizontal flip transformation during rendering.
+        // Invert rotation target based on the LOGICAL facing direction
+        // The renderer will handle the visual flip separately using visualFacingDirection.
         if (playerState.facingDirection === 1) {
             targetRotation *= -1;
         }
-    } // On ground, targetRotation smoothly returns to 0
+    }
 
     // Smoothly Interpolate Rotation
     // Avoid division by zero if deltaTime is extremely small

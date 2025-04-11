@@ -42,8 +42,8 @@ export function drawPlayer(ctx, playerState, assets, renderScale) {
         // Apply rotation
         ctx.rotate(playerState.rotation);
 
-        // Apply horizontal flip if facing right
-        if (playerState.facingDirection === 1) {
+        // Apply horizontal flip based on VISUAL facing direction
+        if (playerState.visualFacingDirection === 1) {
             ctx.scale(-1, 1); // Flip horizontally
         }
 

@@ -1,4 +1,4 @@
-import { PlayerState } from './player-state.js';
+import { PlayerState, FLIP_ANIMATION_DURATION } from './player-state.js';
 import { handlePlayerInput } from './player-input.js';
 import { updatePlayerPhysics } from './player-physics.js';
 import { drawPlayer } from './player-renderer.js';
@@ -44,23 +44,74 @@ class Player {
         handlePlayerInput(this.state, inputState);
     }
 
+    // --- Animation Update ---
+    updateAnimation(currentTime) {
+        const state = this.state;
+
+        // --- Flip Animation Logic ---
+        if (state.flipAnimationStart > 0) { // Currently flipping
+            const elapsed = currentTime - state.flipAnimationStart;
+
+            if (state.targetFacingDirection === state.facingDirection) {
+                 // Rapid reversal: Target flipped back to original before animation finished. Cancel the flip.
+                 state.flipAnimationStart = 0;
+                 // Visual direction remains the same as the actual direction.
+                 state.visualFacingDirection = state.facingDirection;
+
+            } else if (elapsed >= FLIP_ANIMATION_DURATION) {
+                // Animation finished
+                state.facingDirection = state.targetFacingDirection; // Update actual direction
+                state.visualFacingDirection = state.targetFacingDirection; // Update visual direction
+                state.flipAnimationStart = 0; // End animation
+            }
+             // Else: Animation still in progress. visualFacingDirection remains the old direction.
+
+        } else { // Not currently flipping
+            if (state.targetFacingDirection !== state.facingDirection) {
+                // Start a new flip animation
+                state.flipAnimationStart = currentTime;
+                // Keep visual direction as the current actual direction until animation completes
+                state.visualFacingDirection = state.facingDirection;
+            } else {
+                 // Ensure visual direction matches actual direction if not flipping
+                 state.visualFacingDirection = state.facingDirection;
+            }
+        }
+    }
+
     // --- Update Cycle ---
-    update(deltaTime, groundLevelY, particleSystem) {
+    update(deltaTime, groundLevelY, particleSystem, currentTime) { 
         if (this.state.isMarkedForRemoval) return;
+
+        // Update animations (like the flip) based on current time FIRST
+        // This uses the targetFacingDirection potentially set by input or network update
+        this.updateAnimation(currentTime);
 
         if (this.state.isLocalPlayer) {
             // Local player calculates physics based on input
+            // Note: updatePlayerPhysics no longer changes facingDirection directly
             updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem);
         } else {
             // Remote players interpolate towards server state
             interpolatePlayerState(this.state, REMOTE_PLAYER_INTERPOLATION_FACTOR);
-            // Physics is not calculated for remote players here, just interpolation
+            // Apply ground effects visually based on server state for remote players
+            if (this.state.serverIsOnGround && particleSystem) {
+                 const spriteDrawWidth = this.state.currentVehicle.width * this.renderScale;
+                 const contactX = (this.state.x - this.state.drawOffsetX * this.renderScale + spriteDrawWidth / 2)
+                                + (this.state.visualFacingDirection === 1 ? -spriteDrawWidth * 0.3 : spriteDrawWidth * 0.3);
+                 const contactY = groundLevelY - 2;
+                 const baseSparkVX = -80; // Base effect velocity
+                 const baseSmokeVX = -30;
+                 particleSystem.emitSparks(contactX, contactY, 1, baseSparkVX); // Less frequent for remote? Maybe adjust rate later.
+                 particleSystem.emitSmoke(contactX, contactY, 1, baseSmokeVX);
+            }
         }
     }
 
     // --- Rendering ---
     draw() {
         if (this.state.isMarkedForRemoval) return;
+        // drawPlayer now uses visualFacingDirection implicitly via playerState
         drawPlayer(this.ctx, this.state, this.assets, this.renderScale);
     }
 

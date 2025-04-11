@@ -1,6 +1,4 @@
-// New file: Handles network synchronization for remote players
-
-import { INTERPOLATION_SNAP_THRESHOLD } from './player-state.js'; 
+import { INTERPOLATION_SNAP_THRESHOLD } from './player-state.js';
 
 /**
  * Updates the player's server state based on received presence data.
@@ -17,9 +15,23 @@ export function updatePlayerFromServer(playerState, serverState, timestamp) {
     playerState.serverRotation = serverState.rotation ?? playerState.rotation; // Use current if missing
     playerState.lastServerUpdateTime = timestamp;
 
-    // Update server facing direction if provided
+    // Update server ground state if provided
+    if (serverState.isOnGround !== undefined) {
+        playerState.serverIsOnGround = serverState.isOnGround;
+    }
+
+    // Update server facing direction if provided - Set the TARGET direction
     if (serverState.facingDirection !== undefined) {
-        playerState.serverFacingDirection = serverState.facingDirection;
+        playerState.serverFacingDirection = serverState.facingDirection; // Store the server's logical direction
+        playerState.targetFacingDirection = serverState.facingDirection; // Aim the remote player towards this direction
+
+        // If the remote player is not currently in a flip animation locally,
+        // snap both the logical and visual direction immediately to match the server.
+        // This prevents visual lag for remote players' turns.
+        if (playerState.flipAnimationStart === 0) {
+            playerState.facingDirection = serverState.facingDirection;
+            playerState.visualFacingDirection = serverState.facingDirection;
+        }
     }
 
     // Update vehicle type immediately if it differs
@@ -43,15 +55,11 @@ export function interpolatePlayerState(playerState, factor) {
     playerState.y += (playerState.serverY - playerState.y) * factor;
 
     // Lerp rotation towards server rotation
-    // Simple lerp is usually sufficient for frequent updates. Consider slerp for angles if needed.
     playerState.rotation += (playerState.serverRotation - playerState.rotation) * factor;
 
-    // Update visual facing direction based on the *server's* facing direction
-    // This avoids the sprite flipping back and forth during interpolation if the server
-    // state indicates a different direction than the current interpolated velocity might suggest.
-    if (playerState.facingDirection !== playerState.serverFacingDirection) {
-        playerState.facingDirection = playerState.serverFacingDirection;
-    }
+    // *** Visual facing direction is now handled by the animation update logic ***
+    // We don't directly sync visual direction here anymore. The animation system
+    // reads the targetFacingDirection (updated from server) and handles the visual flip timing.
 
     // Snap to server position if very close to avoid jitter
     if (Math.abs(playerState.serverX - playerState.x) < INTERPOLATION_SNAP_THRESHOLD) {

@@ -111,13 +111,13 @@ class PlayerManager {
         console.log(`Player removed from players object: ${clientId}`);
     }
 
-    updatePlayers(deltaTime, groundLevelY, particleSystem) { 
+    updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime) { 
         for (const id in this.players) {
              const player = this.players[id];
              if (player && player.state && !player.isMarkedForRemoval) {
                  // Call update for all players, but only local player calculates physics inside its update
                  // Pass consistent arguments
-                 player.update(deltaTime, groundLevelY, particleSystem); 
+                 player.update(deltaTime, groundLevelY, particleSystem, currentTime); 
              }
         }
     }

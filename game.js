@@ -104,33 +104,33 @@ async function initializeGame() {
 }
 
 // --- Main Update Function ---
-function update(deltaTime) {
-    const now = performance.now();
-
+function update(deltaTime, currentTime) {
     // Update Background
     backgroundRenderer.update(deltaTime);
 
     // Update Particle System
     particleSystem.update(deltaTime);
 
-    // Update Local Player (Input + Physics + Clamping)
+    // --- Player Updates ---
     const localPlayer = playerManager.getLocalPlayer();
+
+    // Handle local player input first
     if (localPlayer && localPlayer.state && !localPlayer.isMarkedForRemoval) {
         const input = inputManager.getInputState();
-        localPlayer.handleInput(input);
-        // Pass groundLevelY and particleSystem to the local player's update
-        localPlayer.update(deltaTime, groundLevelY, particleSystem); 
-
-        // Send presence update periodically
-        if (now - lastPresenceUpdateTime > LOCAL_PLAYER_UPDATE_INTERVAL) {
-             networkEventHandler.updateLocalPlayerPresence(now);
-             lastPresenceUpdateTime = now;
-        }
+        localPlayer.handleInput(input); // Sets targetFacingDirection
     }
 
-    // Update Remote Players (Interpolation - now handled within PlayerManager)
-    // Pass groundLevelY and particleSystem for consistent method signature, though remote players won't use them for physics
-    playerManager.updatePlayers(deltaTime, groundLevelY, particleSystem); 
+    // Update ALL players (Physics for local, Interpolation for remote, Animation for all)
+    // Pass currentTime needed for animation updates
+    playerManager.updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime);
+
+    // Send local player presence periodically (after physics update)
+    if (localPlayer && localPlayer.state && !localPlayer.isMarkedForRemoval) {
+        if (currentTime - lastPresenceUpdateTime > LOCAL_PLAYER_UPDATE_INTERVAL) {
+             networkEventHandler.updateLocalPlayerPresence(currentTime); // Use current time
+             lastPresenceUpdateTime = currentTime;
+        }
+    }
 }
 
 // --- Main Draw Function ---
@@ -160,20 +160,22 @@ function gameLoop(currentTime) {
     lastUpdateTime = currentTime;
 
     // Ensure modules are initialized before proceeding
-    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem) { 
+    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem) {
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
         return;
     }
 
     try {
-        update(deltaTime);
+        update(deltaTime, currentTime); // Pass currentTime to update
         draw();
     } catch (error) {
         console.error("Error in game loop:", error);
         if (debugEl) {
              debugEl.textContent = `GAME LOOP ERROR:\n${error.message}\n${error.stack}`;
         }
+        // Optional: Stop the loop on error to prevent spamming
+        // return;
     }
 
     requestAnimationFrame(gameLoop);

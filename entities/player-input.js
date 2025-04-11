@@ -1,5 +1,3 @@
-// New file: Handles player input logic
-
 import { PLAYER_PHYSICS } from './player-state.js';
 
 /**
@@ -23,11 +21,11 @@ export function handlePlayerInput(playerState, inputState) {
     playerState.isThrusting = inputState.up;
     // Note: 'down' input currently does nothing against gravity directly in input handling
 
-    // Update facing direction based on horizontal velocity intent
+    // Update target facing direction based on horizontal velocity intent
     if (playerState.vx > 0) {
-        playerState.facingDirection = 1; // Right
+        playerState.targetFacingDirection = 1; // Right
     } else if (playerState.vx < 0) {
-        playerState.facingDirection = -1; // Left
+        playerState.targetFacingDirection = -1; // Left
     }
-    // If vx is 0, keep the current facing direction
+    // If vx is 0, targetFacingDirection remains unchanged
 }
