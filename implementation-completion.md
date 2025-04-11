@@ -56,13 +56,34 @@ This document tracks the completion status of the features outlined in `implemen
 
 ### 3.2 Powerup System
 
-*   **[ ] Implement Powerup System**
+*   **[X] Implement Powerup System**: Core management (`PowerupManager`), types (`powerup-types.js`), effects (`powerup-effects.js`), spawning, pickup, network sync via roomState, and visual rendering are implemented.
+*   **[X] Create `entities/powerups/powerup-types/`**: File created.
+*   **[X] Create `entities/powerups/powerup-effects.js`**: File created.
+*   **[X] Update `player-manager.js`**: Integrates powerup collision checks.
+*   **[X] Update `collision-detector.js`**: Adds `checkPowerupCollisions`.
+*   **[X] Update `Player` / `PlayerState`**: Integrates effects updates and state.
 
-**Status:** NOT STARTED
+**Status:** COMPLETE
 
 ## Phase 4: Game Objects and Collectibles
 
-*   **[ ] Implement Space Objects System**
+### 4.1 Space Objects System
+
+*   **[X] Create `entities/space-objects/space-object.js`**: Base class created.
+*   **[X] Create `entities/space-objects/space-object-manager.js`**: Manager created, handles roomState sync, update loop, drawing. Basic spawning logic included.
+*   **[X] Create `entities/space-objects/space-object-types/asteroid.js`**: Initial asteroid type created with basic tumbling behavior.
+*   **[X] Update `game.js`**: Integrate `SpaceObjectManager`.
+*   **[X] Update `collision-detector.js`**: Add `checkProjectileSpaceObjectCollisions`.
+*   **[X] Update `damage-calculator.js`**: Add `'projectile-spaceobject'` damage calculation.
+*   **[X] Update `player-manager.js`**: Update `handleCollisions` to include space object checks.
+*   **[ ] Create `entities/space-objects/space-object-types/lander.js`**: Not started.
+*   **[ ] Create `entities/space-objects/space-object-types/rover.js`**: Not started.
+*   **[ ] Create `entities/space-objects/space-object-spawner.js`**: Basic spawner logic in Manager, separate file deferred.
+
+**Status:** PARTIALLY IMPLEMENTED (Base, Manager, Asteroid, Spawning, Collision basics done)
+
+### 4.2 Collectibles System
+
 *   **[ ] Implement Collectibles System**
 
 **Status:** NOT STARTED
