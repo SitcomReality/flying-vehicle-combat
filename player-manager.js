@@ -2,7 +2,6 @@ import Player from './player.js';
 import { SPRITES } from 'config/sprites.js';
 import { PlayerLifecycleState } from './player-lifecycle.js'; // Import states
 import { getVehicleConfig } from './vehicles/vehicle-types.js'; // Import vehicle config getter
-import { applyDamage } from './vehicles/health-system.js'; // Import applyDamage
 // Import collision detection and damage calculation
 import { checkPlayerCollisions, checkProjectileCollisions } from './combat/collision-detector.js';
 import { calculateCollisionDamage } from './combat/damage-calculator.js';
@@ -32,6 +31,7 @@ class PlayerManager {
 
         // Pass managers to already existing players
         for (const id in this.players) {
+            // Ensure all required managers are passed to the Player instance
             this.players[id].setManagers(projectileManager, networkManager, this, particleSystem); // Pass self (PlayerManager) and particleSystem
         }
     }
@@ -52,6 +52,17 @@ class PlayerManager {
         return this.players;
     }
 
+    getAllActivePlayers() {
+        const activePlayers = {};
+        for (const id in this.players) {
+            const p = this.players[id];
+            if (p && !p.isMarkedForRemoval && p.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
+                activePlayers[id] = p;
+            }
+        }
+        return activePlayers;
+    }
+
     getAllPlayerIds() {
         return Object.keys(this.players);
     }
@@ -66,11 +77,11 @@ class PlayerManager {
             return this.players[clientId];
         }
 
-        let initialLifecycleState = PlayerLifecycleState.CONNECTING; 
+        let initialLifecycleState = PlayerLifecycleState.CONNECTING;
         if (isLocal) {
-            initialLifecycleState = initialState?.lifecycleState ?? PlayerLifecycleState.SELECTING; 
+            initialLifecycleState = initialState?.lifecycleState ?? PlayerLifecycleState.SELECTING;
         } else {
-            initialLifecycleState = initialState?.lifecycleState ?? PlayerLifecycleState.ACTIVE; 
+            initialLifecycleState = initialState?.lifecycleState ?? PlayerLifecycleState.ACTIVE;
         }
 
         const safeInitialState = {
@@ -82,6 +93,8 @@ class PlayerManager {
             lifecycleState: initialLifecycleState,
             health: getVehicleConfig(initialState?.vehicleType ?? 0).maxHealth,
             fuel: getVehicleConfig(initialState?.vehicleType ?? 0).maxFuel,
+            // Add ground damage timer initialization
+            lastGroundDamageTime: 0,
         };
 
         if (safeInitialState.vehicleType < 0 || safeInitialState.vehicleType >= SPRITES.vehicles.frames.length) {
@@ -104,25 +117,27 @@ class PlayerManager {
             this.gameHeight
         );
 
-        if (this.projectileManager && this.networkManager && this.particleSystem) { 
-            player.setManagers(this.projectileManager, this.networkManager, this, this.particleSystem); 
+        // Set managers immediately after creating player
+        if (this.projectileManager && this.networkManager && this.particleSystem) {
+            player.setManagers(this.projectileManager, this.networkManager, this, this.particleSystem);
         }
 
         player.state.lifecycleState = safeInitialState.lifecycleState;
-
         player.state.facingDirection = safeInitialState.facingDirection;
         player.state.rotation = safeInitialState.rotation;
         player.state.health = safeInitialState.health;
         player.state.fuel = safeInitialState.fuel;
+        player.state.lastGroundDamageTime = safeInitialState.lastGroundDamageTime; // Initialize timer
+
 
         if (!isLocal) {
-            player.updateFromServer(safeInitialState, performance.now()); 
-            player.state.x = player.state.serverX; 
+            player.updateFromServer(safeInitialState, performance.now());
+            player.state.x = player.state.serverX;
             player.state.y = player.state.serverY;
-            player.state.rotation = player.state.serverRotation; 
-            player.state.facingDirection = player.state.serverFacingDirection; 
-            player.state.visualFacingDirection = player.state.serverFacingDirection; 
-            player.state.lifecycleState = player.state.serverLifecycleState ?? PlayerLifecycleState.ACTIVE; 
+            player.state.rotation = player.state.serverRotation;
+            player.state.facingDirection = player.state.serverFacingDirection;
+            player.state.visualFacingDirection = player.state.serverFacingDirection;
+            player.state.lifecycleState = player.state.serverLifecycleState ?? PlayerLifecycleState.ACTIVE;
         } else {
             player.state.serverX = player.state.x;
             player.state.serverY = player.state.y;
@@ -130,6 +145,7 @@ class PlayerManager {
             player.state.serverFacingDirection = player.state.facingDirection;
             player.state.serverHealth = player.state.health;
             player.state.serverFuel = player.state.fuel;
+            player.state.serverLastGroundDamageTime = player.state.lastGroundDamageTime; // Sync timer state
         }
 
         this.players[clientId] = player;
@@ -151,6 +167,7 @@ class PlayerManager {
         this.players[clientId].isMarkedForRemoval = true;
         console.log(`Player marked for removal: ${clientId}`);
 
+        // Consider adding a small delay before actual deletion if needed for effects
         delete this.players[clientId];
         console.log(`Player removed from players object: ${clientId}`);
     }
@@ -159,20 +176,17 @@ class PlayerManager {
         for (const id in this.players) {
             const player = this.players[id];
             if (player && player.state && !player.isMarkedForRemoval) {
+                // Pass playerManager to player update for use in physics/damage calls
                 player.update(deltaTime, groundLevelY, particleSystem, currentTime, this);
             }
         }
     }
 
     handleCollisions(currentTime) {
-        if (!this.projectileManager) return; 
+        if (!this.projectileManager || !this.particleSystem) return;
 
-        const activePlayers = {};
-        for (const id in this.players) {
-            if (this.players[id] && !this.players[id].isMarkedForRemoval && this.players[id].state.lifecycleState === 'ACTIVE') {
-                activePlayers[id] = this.players[id];
-            }
-        }
+        const activePlayers = this.getAllActivePlayers(); // Get only active players
+
         const activeProjectiles = this.projectileManager.getProjectiles().reduce((acc, proj) => {
             if (!proj.isMarkedForRemoval) {
                 acc[proj.id] = proj;
@@ -180,7 +194,14 @@ class PlayerManager {
             return acc;
         }, {});
 
-        checkPlayerCollisions(activePlayers, this.renderScale, calculateCollisionDamage, currentTime);
+        // Pass playerManager to collision checkers so they can call player.takeDamage
+        checkPlayerCollisions(
+            activePlayers,
+            this.renderScale,
+            calculateCollisionDamage,
+            currentTime,
+            this // Pass self (PlayerManager)
+        );
 
         checkProjectileCollisions(
             activePlayers,
@@ -188,7 +209,8 @@ class PlayerManager {
             this.renderScale,
             calculateCollisionDamage,
             currentTime,
-            this.localPlayerId
+            this, // Pass self (PlayerManager)
+            this.particleSystem // Pass particle system for effects
         );
     }
 
@@ -199,7 +221,7 @@ class PlayerManager {
             const playerA = this.players[a];
             const playerB = this.players[b];
             if (playerA?.state && playerB?.state) {
-                return playerA.state.y - playerB.state.y; 
+                return playerA.state.y - playerB.state.y;
             }
             return 0;
         });
@@ -207,10 +229,10 @@ class PlayerManager {
         for (const id of sortedPlayerIds) {
             const player = this.players[id];
             if (player && !player.isMarkedForRemoval &&
-                player.state.lifecycleState !== PlayerLifecycleState.CONNECTING &&
-                player.state.lifecycleState !== PlayerLifecycleState.SELECTING)
+                player.state.lifecycleState !== PlayerLifecycleState.CONNECTING) // Don't draw connecting players
+                // Allow drawing SELECTING/DEAD states for potential visual feedback
             {
-                player.draw(); 
+                player.draw();
             }
         }
     }
@@ -219,9 +241,8 @@ class PlayerManager {
         const localPlayer = this.getLocalPlayer();
         if (localPlayer && localPlayer.transitionToState(PlayerLifecycleState.SELECTING)) {
             console.log(`Player ${localPlayer.id} transitioning to SELECTING for respawn.`);
-            this.vehicleSelector?.show(); 
-            this.networkManager?.updatePresence(localPlayer.getPresenceData());
-            console.log(`Local player ${localPlayer.id} presence updated due to state change: CONNECTING -> SELECTING`);
+            this.vehicleSelector?.show();
+            // Presence update handled within transitionToState
         } else {
             console.warn(`Could not trigger respawn for player ${this.localPlayerId}. Player null or transition failed.`);
         }
@@ -235,48 +256,8 @@ class PlayerManager {
         }
 
         console.log(`Local player ${localPlayer.id} selected vehicle type: ${selectedVehicleType}`);
-        localPlayer.setVehicle(selectedVehicleType); 
+        localPlayer.setVehicle(selectedVehicleType);
 
-        const vehicleConfig = getVehicleConfig(selectedVehicleType);
-        const vehicleHeight = (vehicleConfig.hitbox?.height ?? SPRITES.vehicles.frameHeight) * this.renderScale;
-        const spawnX = this.gameWidth / 2;
-        const estimatedGroundY = this.gameHeight - 30;
-        const spawnY = estimatedGroundY - vehicleHeight - 10; 
-
-        localPlayer.resetStateForSpawn(spawnX, spawnY); 
-
-        this.vehicleSelector?.hide();
-
-        this.networkManager?.updatePresence(localPlayer.getPresenceData());
-        console.log(`Player ${localPlayer.id} spawned and set to ACTIVE. Presence updated.`);
-    }
-
-    killLocalPlayer() {
-        const localPlayer = this.getLocalPlayer();
-        if (localPlayer && localPlayer.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
-            console.log(`DEBUG: Applying lethal damage to local player ${localPlayer.id}`);
-            localPlayer.takeDamage(localPlayer.state.maxHealth * 2, performance.now()); 
-        } else {
-            console.log(`Could not kill local player ${this.localPlayerId} via debug. State was ${localPlayer?.state.lifecycleState}.`);
-        }
-    }
-
-    handlePlayerDeath(playerId) {
-        const player = this.getPlayer(playerId);
-        if (!player || !player.isLocalPlayer || player.state.lifecycleState === PlayerLifecycleState.DEAD) {
-            console.warn(`handlePlayerDeath called for invalid player: ${playerId} or player already dead.`);
-            return;
-        }
-
-        if (player.transitionToState(PlayerLifecycleState.DEAD)) {
-            console.log(`Local player ${player.id} officially DEAD.`);
-            this.particleSystem?.emitExplosion(player.x, player.y);
-            setTimeout(() => {
-                this.triggerLocalPlayerRespawn();
-            }, 1500); 
-        } else {
-            console.error(`Failed to transition player ${playerId} to DEAD state.`);
-        }
     }
 }
 

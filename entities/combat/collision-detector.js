@@ -1,8 +1,8 @@
-// New file: Handles collision detection between game entities
+// Handles collision detection between game entities
 
 /**
  * Checks for collision between two axis-aligned bounding boxes (AABB).
- * Assumes x, y are top-left corners.
+ * Assumes x, y are top-left corners defined by the player's state.
  * @param {object} rect1 - { x, y, width, height }
  * @param {object} rect2 - { x, y, width, height }
  * @returns {boolean} - True if the rectangles collide, false otherwise.
@@ -17,17 +17,19 @@ function checkAABBCollision(rect1, rect2) {
 }
 
 /**
- * Checks for collisions between players.
- * @param {Object.<string, Player>} players - All player objects.
+ * Checks for collisions between players. Applies damage only TO the local player if involved.
+ * @param {Object.<string, Player>} players - All active player objects.
  * @param {number} renderScale - The game's render scale.
  * @param {function} calculateDamageFunc - Function to calculate damage based on collision.
  * @param {number} currentTime - The current game time.
+ * @param {PlayerManager} playerManager - PlayerManager instance for death handling via takeDamage.
  */
-export function checkPlayerCollisions(players, renderScale, calculateDamageFunc, currentTime) {
+export function checkPlayerCollisions(players, renderScale, calculateDamageFunc, currentTime, playerManager) {
     const playerIds = Object.keys(players);
 
     for (let i = 0; i < playerIds.length; i++) {
         const playerA = players[playerIds[i]];
+        // Ensure playerA is valid and active before checking
         if (!playerA || !playerA.state || playerA.isMarkedForRemoval || playerA.state.lifecycleState !== 'ACTIVE') continue;
 
         const rectA = {
@@ -39,13 +41,11 @@ export function checkPlayerCollisions(players, renderScale, calculateDamageFunc,
 
         for (let j = i + 1; j < playerIds.length; j++) {
             const playerB = players[playerIds[j]];
+             // Ensure playerB is valid and active before checking
             if (!playerB || !playerB.state || playerB.isMarkedForRemoval || playerB.state.lifecycleState !== 'ACTIVE') continue;
 
-             // Only check collisions between local player and others for now to simplify authority
-             // or require both players to be local (which isn't possible)
-             // For a full authoritative server, this logic would be server-side.
-             // For client-side prediction, we might only trigger damage *locally* if the local player is involved.
-             if (!playerA.isLocalPlayer && !playerB.isLocalPlayer) continue;
+            // Client-side authority: Only process collisions involving the local player
+            if (!playerA.isLocalPlayer && !playerB.isLocalPlayer) continue;
 
             const rectB = {
                 x: playerB.state.x,
@@ -55,24 +55,25 @@ export function checkPlayerCollisions(players, renderScale, calculateDamageFunc,
             };
 
             if (checkAABBCollision(rectA, rectB)) {
-                // Collision detected between playerA and playerB
-                 if(playerA.isLocalPlayer) {
-                    const damageToA = calculateDamageFunc('player-player', playerA, playerB);
-                    playerA.takeDamage(damageToA, currentTime);
-                    const damageToB = calculateDamageFunc('player-player', playerB, playerA);
-                    // Request damage update for remote player B
-                    // TODO: This should ideally be a request, not direct damage call.
-                    // For now, we only damage the local player involved.
-                    // playerB.takeDamage(damageToB, currentTime); // Need to request this for B
-                 } else if (playerB.isLocalPlayer) {
-                    const damageToA = calculateDamageFunc('player-player', playerA, playerB);
-                    // Request damage update for remote player A
-                    // playerA.takeDamage(damageToA, currentTime); // Need to request this for A
-                    const damageToB = calculateDamageFunc('player-player', playerB, playerA);
-                    playerB.takeDamage(damageToB, currentTime);
-                 }
-                // Add cooldown? Apply forces? For now, just damage.
+                // Collision detected!
                 console.log(`Collision detected between ${playerA.id} and ${playerB.id}`);
+
+                // Calculate potential damage for both players
+                // Note: calculateDamageFunc handles the cooldown based on the player pair
+                const damageToA = calculateDamageFunc('player-player', playerA, playerB, currentTime);
+                const damageToB = calculateDamageFunc('player-player', playerB, playerA, currentTime);
+
+                // Apply damage ONLY if the target player is the local player
+                if (playerA.isLocalPlayer && damageToA > 0) {
+                    console.log(`Applying ${damageToA} player-player damage to local player ${playerA.id} from ${playerB.id}`);
+                    playerA.takeDamage(damageToA, currentTime); // Uses player's internal method which calls health-system
+                }
+                if (playerB.isLocalPlayer && damageToB > 0) {
+                    console.log(`Applying ${damageToB} player-player damage to local player ${playerB.id} from ${playerA.id}`);
+                    playerB.takeDamage(damageToB, currentTime);
+                }
+
+                // TODO: Add knockback/physics response later
             }
         }
     }
@@ -80,14 +81,16 @@ export function checkPlayerCollisions(players, renderScale, calculateDamageFunc,
 
 /**
  * Checks for collisions between projectiles and players.
- * @param {Object.<string, Player>} players - All player objects.
- * @param {Object.<string, Projectile>} projectiles - All projectile objects.
+ * Applies damage ONLY TO the local player if hit.
+ * @param {Object.<string, Player>} players - All active player objects.
+ * @param {Object.<string, Projectile>} projectiles - All active projectile objects.
  * @param {number} renderScale - The game's render scale.
  * @param {function} calculateDamageFunc - Function to calculate damage based on collision.
  * @param {number} currentTime - The current game time.
- * @param {string | null} localPlayerId - The ID of the local player.
+ * @param {PlayerManager} playerManager - PlayerManager instance for death handling via takeDamage.
+ * @param {ParticleSystem | null} particleSystem - Reference to the particle system for effects.
  */
-export function checkProjectileCollisions(players, projectiles, renderScale, calculateDamageFunc, currentTime, localPlayerId) {
+export function checkProjectileCollisions(players, projectiles, renderScale, calculateDamageFunc, currentTime, playerManager, particleSystem) {
     const playerIds = Object.keys(players);
     const projectileIds = Object.keys(projectiles);
 
@@ -104,14 +107,14 @@ export function checkProjectileCollisions(players, projectiles, renderScale, cal
 
         for (const playerId of playerIds) {
             const player = players[playerId];
+             // Ensure player is valid and active before checking
             if (!player || !player.state || player.isMarkedForRemoval || player.state.lifecycleState !== 'ACTIVE') continue;
 
-            // Prevent projectile from hitting its owner
+            // Prevent projectile from hitting its owner immediately after firing (add small grace period later if needed)
             if (projectile.ownerId === playerId) continue;
 
-            // Only check collisions involving the local player or projectiles owned by the local player
-            // This simplifies authority for now. A server would handle all checks.
-            if (playerId !== localPlayerId && projectile.ownerId !== localPlayerId) continue;
+            // Client-side authority: Only process collisions hitting the local player
+            if (!player.isLocalPlayer) continue;
 
             const playerRect = {
                 x: player.state.x,
@@ -121,25 +124,24 @@ export function checkProjectileCollisions(players, projectiles, renderScale, cal
             };
 
             if (checkAABBCollision(playerRect, projRect)) {
-                // Collision detected between projectile and player
-                console.log(`Collision detected between projectile ${projId} (owner: ${projectile.ownerId}) and player ${playerId}`);
+                // Collision detected between projectile and local player
+                console.log(`Collision detected between projectile ${projId} (owner: ${projectile.ownerId}) and local player ${playerId}`);
 
-                // If the hit player is the local player, apply damage directly
-                 if (player.isLocalPlayer) {
-                    const damage = calculateDamageFunc('player-projectile', player, projectile);
+                // Apply damage directly to the local player
+                const damage = calculateDamageFunc('player-projectile', player, projectile, currentTime);
+                if (damage > 0) {
+                    console.log(`Applying ${damage} projectile damage to local player ${playerId}`);
                     player.takeDamage(damage, currentTime);
-                 } else {
-                    // If the projectile owner is the local player hitting a remote player,
-                    // we would need to send a damage request event to the server/other client.
-                    // For now, we skip applying damage to remote players on the client side.
-                    console.log(`Local player's projectile ${projId} hit remote player ${playerId}. Damage request needed.`);
-                 }
+                }
 
-                // Remove the projectile after hit
+                // Emit impact effect
+                // TODO: Define a specific impact effect
+                particleSystem?.emitSparks(projectile.x, projectile.y, 10); // Example spark burst
+
+                // Mark the projectile for removal after hit
                 projectile.isMarkedForRemoval = true;
-                // Add particle effect for impact?
 
-                // Break inner loop once projectile hits someone
+                // Break inner loop once projectile hits the local player
                 break;
             }
         }

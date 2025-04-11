@@ -103,7 +103,8 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
     let justLanded = false;
     if (currentEffectiveBottomY >= groundLevelY) {
         const penetration = currentEffectiveBottomY - groundLevelY;
-        if (penetration >= 0) {
+        // Check if penetration is significant enough (prevents tiny floating point issues sticking player)
+        if (penetration >= -0.1) { // Allow slight overlap
             playerState.y -= penetration;
             if (!wasOnGround && playerState.vy >= 0) {
                 justLanded = true;
@@ -119,8 +120,8 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
 
             // --- Apply recurring ground damage ---
             if (currentTime - playerState.lastGroundDamageTime > GROUND_DAMAGE_INTERVAL) {
-                 console.log(`Applying ground damage to ${playerState.id}`);
                  // Use the imported applyDamage function from health system
+                 // Pass playerManager for death handling
                  applyDamage(playerState, GROUND_DAMAGE_AMOUNT, currentTime, playerManager);
                  playerState.lastGroundDamageTime = currentTime; // Update time AFTER applying damage
             }
