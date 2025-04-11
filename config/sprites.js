@@ -44,6 +44,20 @@ const SPRITES = {
             { name: 'wave', x: 256, y: 192, width: 128, height: 192 },
             { name: 'star', x: 384, y: 192, width: 128, height: 192 }
         ]
+    },
+    // Added new spritesheet config
+    space_objects: {
+        sheet: '/iono_spaceobjects_spritesheet.png',
+        frameWidth: 256,
+        frameHeight: 256,
+        frames: [
+            // Frame 1: Asteroid/Moon Rock
+            { name: 'asteroid', x: 0, y: 0, width: 256, height: 256 },
+            // Frame 2: Rover/Lunar Module
+            { name: 'lander', x: 256, y: 0, width: 256, height: 256 },
+            // Frame 3: Small Spacecraft/Wheeled Vehicle
+            { name: 'rover', x: 512, y: 0, width: 256, height: 256 },
+        ]
     }
 };
 
