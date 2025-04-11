@@ -1,1 +1,64 @@
-QQ����1�a��11!��1a!1Qa�AQqaq1Q��QAqaq1aaA1q�!q�Qa��1a�QqqQ!qa!qQ�aAaaa�!!A1A!!111�a!A�!q1�!!q11���QQ1�Aq�AqAaaq!Aaa��qAAQ�QA�q1!!!1aQ�Q�Q1Q��1��Q1A!!QQq��AQqQ�!!!���QAQaQQ�1!q!qa1qQ�Q�aQA�!�Q1a!!!1q��A!!qqq�!q�!�11AQ��!A1�!!aq�qQ�aq�!Q�q��qa1!�A!A�a�qqqaaa�Q!q!Aq1Q1A�qqaAa1aA�Qaq���q!qaaaq��Q�qq1�q���QQQa�Q!!Q�!q�!�!!aQ�a1�!!1QQ�!q��aaq�q�1!�q!�Q��Q1Qa�qaa11�1!Q�aa��qaQQ�qQ�qQ!�!!q1!�qqAA���aq�aq1QQ!1qq�Q�q�1�Qqa�11qa�Q�1��1!�qAa11��qA�a�a�!�A1Q!�q!�qaqaQAAaqqQ!Qq�AQ!qq!QqQqA1!qq��1QaqAaaqA!1A1�a�q��Q1AA!�!A1aqa�aQA�a��qA!A!�aa�1a!QaAA�q1�Q1��A�11AaqQ!a�1�1!!�A1Q�A1�QQ�1��11��QqaQ�AQaqq!q!��1a�!1�1AA!A�QQ��AA!1qaaqa!1aq1�1Q��1aQ�AQ!�11!1q�qA1a!Qaq1!aA��a�Qqa1Q�Aqa!!11aAaQa�1a!q�1!Q1q1qQ�aqa���1q�!qAQ!Q�AQAqQ�!�1��aAq!a�A�!!Q1A1�q�!a!q�!a��aA!qa�aAA11!AQqAaQaA�Q��QQ�Q!Qa�q�!qAa11Q�a1�aaA!qaQaAQAaq�1�AQa!�Q��q!A�Q1!�1!1!!!Q11Q!a11�A���q�aAAaAq1��!�a!aaaA��qAaa1���1A��QQ!q!Aq1Q�q!��A!�!�q�Q1�1�A1aQqQQ�!�qQq1��Q!aQQQ!a!!1Q��qa!�qaq1qq!1Qq�aQa1��a1�!1qQ1AQQa��q�AQqQQ�AA�A1�1Qq�aQ�q�!Q��q�Qa�a�qaQqq1�QqQQQq!�11Qq��AQ1�AAqQA�A�1Qqqa1a!Q!�AQQ�a!�AQ�!!Q1�1��AA�q��qa1aQaQAAA��!�AQq�q�11aAaa!A�AqA1��AA�A1Q!1!a��a!!!1��1���!��1�q�Q�!�Aa��Aa1!1!a���QA1q�a�qa�qa!1aA�a����aQAq�q��Aqa�a1!q���a�a!�1QAaa�a�AQ��QA�!1Aa���qaa1Q�!A�qA�1aA�aqaa1�1�q1!Qaq11!�A11Q!�A!!�!qQ�aaQqq�QA�a1Aq!qq�1�A1�!!a��q!Q111Q!Q1Qa�1a!AA!�qQQ1!1!��Q�Q�Q!q��A��qQAQ11QaQ�Q!!AaQA�AA�!Q1qA!Q�Q1�q�1Aa�1Q��AQ�!!q!aAq!�1Aa��1�q�Q�AA�A!q1aAa��A�Q!q�qA1AQaa��QQAQaQ�!qA!1�aqQ1�!!!1!q�!�AA!Qaaa1Q!1��Aq�!q11a111�1aQ�a!!qQaa!�QaA�q�aqq�q1q1a!1aQq�Q1!1�aaA�Q1!!��qqa�aAaaqAQ1qA1Aqqq1Aqq1!Aqaqq��a�AaaA!�!Q!A���A�Qqq�Q1qQQ�a�QAqa1!A1QQ1�Q!��1!aAAa!Aa�A�aa!!A�AAq�1qqA1�a�QqAq1Qa1�q!�A�!��1a�!q!��a�QaA�Aqqqq�AA�A1Aq1a1AQ�!!a�1�a1q�qQQ!qAqq!qa!QaAqa��!QAq!a1aQa�!���QaA!aq��aAQ�qQQ!!1a�aaaA!Q!A��!aQa11�!�!�1�1�AQ��!�qaQa1Q1qq1QA!Qqa�AA��!��AAa�A�QQAA1QqQaq�qA��!a!�Aqq���Q!�A�q!Q!qaQa1���Q1aAa!q�Q�qq��Q�1A�Qaqq�!a1��qQqQQQa!Q1���a�Qa�1AqQQ�1�!!���1A�aQa�����!�1A1qA�Q��!Q��aQ1��qaq11AA!�!�aAQ�qQQQ�Q!1��!Q11�q11aaA�1a!q���!qAa!a��Q11A1QqqAqAQ
+// New file: Handles network synchronization for remote players
+
+import { INTERPOLATION_SNAP_THRESHOLD } from './player-state.js'; 
+
+/**
+ * Updates the player's server state based on received presence data.
+ * @param {PlayerState} playerState - The state object of the player.
+ * @param {object} serverState - The presence data received from the server.
+ * @param {number} timestamp - The time the update was received (e.g., performance.now()).
+ */
+export function updatePlayerFromServer(playerState, serverState, timestamp) {
+    if (playerState.isLocalPlayer) return; // Local player is authoritative locally
+
+    // Store the latest known server position, rotation, and time
+    playerState.serverX = serverState.x;
+    playerState.serverY = serverState.y;
+    playerState.serverRotation = serverState.rotation ?? playerState.rotation; // Use current if missing
+    playerState.lastServerUpdateTime = timestamp;
+
+    // Update server facing direction if provided
+    if (serverState.facingDirection !== undefined) {
+        playerState.serverFacingDirection = serverState.facingDirection;
+    }
+
+    // Update vehicle type immediately if it differs
+    if (serverState.vehicleType !== undefined && serverState.vehicleType !== playerState.vehicleType) {
+        playerState.setVehicle(serverState.vehicleType);
+    }
+
+    // Note: We don't directly set x, y, rotation here. Interpolation handles the smoothing.
+}
+
+/**
+ * Smoothly interpolates the player's visual state towards the last known server state.
+ * @param {PlayerState} playerState - The state object of the player.
+ * @param {number} factor - The interpolation factor (e.g., 0.1 for 10% move towards target each frame).
+ */
+export function interpolatePlayerState(playerState, factor) {
+    if (playerState.isLocalPlayer) return;
+
+    // Lerp position towards server position
+    playerState.x += (playerState.serverX - playerState.x) * factor;
+    playerState.y += (playerState.serverY - playerState.y) * factor;
+
+    // Lerp rotation towards server rotation
+    // Simple lerp is usually sufficient for frequent updates. Consider slerp for angles if needed.
+    playerState.rotation += (playerState.serverRotation - playerState.rotation) * factor;
+
+    // Update visual facing direction based on the *server's* facing direction
+    // This avoids the sprite flipping back and forth during interpolation if the server
+    // state indicates a different direction than the current interpolated velocity might suggest.
+    if (playerState.facingDirection !== playerState.serverFacingDirection) {
+        playerState.facingDirection = playerState.serverFacingDirection;
+    }
+
+    // Snap to server position if very close to avoid jitter
+    if (Math.abs(playerState.serverX - playerState.x) < INTERPOLATION_SNAP_THRESHOLD) {
+        playerState.x = playerState.serverX;
+    }
+    if (Math.abs(playerState.serverY - playerState.y) < INTERPOLATION_SNAP_THRESHOLD) {
+        playerState.y = playerState.serverY;
+    }
+    // No snap for rotation is usually needed as lerp handles it smoothly
+}
