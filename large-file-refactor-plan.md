@@ -40,15 +40,15 @@ This plan outlines the steps to refactor large player-related files into smaller
         *   Remove these specific lifecycle methods from `entities/player-manager.js`. `PlayerManager` will still manage player creation/removal and updates.
     *   **Goal:** Centralize player state transition management (respawn, death, selection).
 
-5.  **Refactor `entities/player.js` - Simplify Update & Interactions:**
+5.  **[X] Refactor `entities/player.js` - Simplify Update & Interactions:**
     *   **Action:**
-        *   Review the `Player.update` method. Ensure it primarily acts as an orchestrator, calling functions from imported modules (`player-physics`, `player-animation`, `player-actions`, `health-system`, `fuel-system`, `powerup-effects`).
-        *   Ensure `Player.takeDamage` correctly calls `applyDamage` from `entities/vehicles/health-system.js`.
+        *   Review the `Player.update` method. Ensure it primarily acts as an orchestrator, calling functions from imported modules (`player-physics`, `player-animation`, `player-actions`, `health-system`, `fuel-system`, `powerup-effects`). 
+        *   Ensure `Player.takeDamage` correctly calls `applyDamage` from `entities/vehicles/health-system.js`. 
         *   Ensure `Player.transitionToState` handles only the state change and immediate side-effects, possibly coordinating with `PlayerLifecycleManager` if complex transitions are needed later.
         *   Minimize complex calculations or state manipulations directly within `player.js`.
     *   **Goal:** Make `Player.js` a thinner class focused on coordinating its various systems based on its state.
 
-6.  **Review `entities/player-physics.js`:**
+6.  **[X] Review `entities/player-physics.js`:**
     *   **Action:**
         *   Verify that `updatePlayerPhysics` remains focused solely on calculating velocity, acceleration, position, and rotation based on the player's current state and input intent (flags like `isThrusting`, `isMovingLeft`, etc.).
         *   Confirm that interactions with other systems (like consuming fuel or taking ground damage) are done by calling the appropriate functions imported from `fuel-system.js` and `health-system.js`.
@@ -64,3 +64,5 @@ This plan outlines the steps to refactor large player-related files into smaller
 *   `entities/combat/collision-manager.js` handles all collision detection logic.
 *   `entities/player-lifecycle-manager.js` handles player state transitions like death, respawn, and vehicle selection confirmation.
 *   Other specialized modules (`player-input`, `player-renderer`, `player-actions`, `health-system`, etc.) continue their specific roles.
+
+**Refactoring Complete.**
