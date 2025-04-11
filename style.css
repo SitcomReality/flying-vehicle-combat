@@ -1,12 +1,14 @@
 body {
     margin: 0;
     overflow: hidden;
-    background-color: #f0f0f0; /* Light background */
+    /* background-color: #f0f0f0; Removed default background */
     font-family: 'Comic Sans MS', 'Chalkduster', 'cursive'; /* Crayon-like font */
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    background-image: url('/iono_bg.jpg'); /* Add the background image */
+    background-repeat: repeat; /* Tile the background */
 }
 
 canvas {
@@ -50,4 +52,3 @@ canvas {
     vertical-align: middle;
     margin-right: 3px;
 }
-
