@@ -8,6 +8,10 @@ const SPARK_SPEED_DEVIATION = 50;
 const SMOKE_SPEED_DEVIATION = 10;
 const SMOKE_SIZE_START = 3;
 const SMOKE_SIZE_END = 10;
+const CHARGE_PARTICLE_COLOR = 'rgba(150, 180, 255, 0.7)'; // Light blue/purple
+const CHARGE_PARTICLE_SPEED = 150; // Speed towards the target point
+const CHARGE_PARTICLE_SPAWN_RADIUS = 50; // How far from the center particles spawn
+const CHARGE_PARTICLE_LIFESPAN = 0.3; // Short lifespan
 
 class Particle {
     constructor(x, y, vx, vy, lifespan, colorStart, colorEnd = null, sizeStart = 2, sizeEnd = 2) {
@@ -75,30 +79,29 @@ export class ParticleSystem {
         this.maxParticles = maxParticles;
     }
 
-    emit(x, y, count, vxBase, vyBase, vxVariance, vyVariance, lifespan, colorStart, colorEnd, sizeStart, sizeEnd) {
-        for (let i = 0; i < count; i++) {
-            if (this.particles.length >= this.maxParticles) {
-                 // Optional: Remove oldest particle to make space
+    // Generic emitter used by specific types below
+    _emitInternal(x, y, count, vxBase, vyBase, vxVariance, vyVariance, lifespan, colorStart, colorEnd, sizeStart, sizeEnd) {
+         for (let i = 0; i < count; i++) {
+             if (this.particles.length >= this.maxParticles) {
                  this.particles.shift();
-                 // console.warn("Max particles reached, removing oldest.");
-            }
+             }
 
-            const vx = vxBase + (Math.random() - 0.5) * 2 * vxVariance;
-            const vy = vyBase + (Math.random() - 0.5) * 2 * vyVariance;
-            const particleLifespan = lifespan * (Math.random() * 0.5 + 0.75); // +/- 25% variation
+             const vx = vxBase + (Math.random() - 0.5) * 2 * vxVariance;
+             const vy = vyBase + (Math.random() - 0.5) * 2 * vyVariance;
+             const particleLifespan = lifespan * (Math.random() * 0.5 + 0.75); // +/- 25% variation
 
-            this.particles.push(new Particle(
-                x, y, vx, vy,
-                particleLifespan,
-                colorStart, colorEnd,
-                sizeStart, sizeEnd
-            ));
-        }
+             this.particles.push(new Particle(
+                 x, y, vx, vy,
+                 particleLifespan,
+                 colorStart, colorEnd,
+                 sizeStart, sizeEnd
+             ));
+         }
     }
 
     // Specific emitters
     emitSparks(x, y, count = 1, baseSpeedX = 0) {
-        this.emit(
+        this._emitInternal(
             x, y, count,
             baseSpeedX - 80, -50, // Base velocity (up and slightly against player movement)
             SPARK_SPEED_DEVIATION, SPARK_SPEED_DEVIATION, // Variance
@@ -109,7 +112,7 @@ export class ParticleSystem {
     }
 
     emitSmoke(x, y, count = 1, baseSpeedX = 0) {
-        this.emit(
+        this._emitInternal(
             x, y, count,
             baseSpeedX - 20, -10, // Base velocity (slowly drift up and slightly against player movement)
             SMOKE_SPEED_DEVIATION, SMOKE_SPEED_DEVIATION, // Variance
@@ -117,6 +120,40 @@ export class ParticleSystem {
             SMOKE_COLOR_START, SMOKE_COLOR_END, // Color (fade)
             SMOKE_SIZE_START, SMOKE_SIZE_END // Size (grows)
         );
+    }
+
+    // New emitter for charging effect
+    emitChargeParticles(spawnCenterX, spawnCenterY, count, targetX, targetY) {
+         for (let i = 0; i < count; i++) {
+             if (this.particles.length >= this.maxParticles) {
+                 this.particles.shift();
+             }
+
+             // Spawn at a random angle and distance around the spawn center
+             const angle = Math.random() * Math.PI * 2;
+             const radius = Math.random() * CHARGE_PARTICLE_SPAWN_RADIUS;
+             const spawnX = spawnCenterX + Math.cos(angle) * radius;
+             const spawnY = spawnCenterY + Math.sin(angle) * radius;
+
+             // Calculate velocity vector towards the target point
+             const dx = targetX - spawnX;
+             const dy = targetY - spawnY;
+             const dist = Math.sqrt(dx * dx + dy * dy);
+             let vx = 0;
+             let vy = 0;
+             if (dist > 0) {
+                 vx = (dx / dist) * CHARGE_PARTICLE_SPEED;
+                 vy = (dy / dist) * CHARGE_PARTICLE_SPEED;
+             }
+
+             // Add particle
+             this.particles.push(new Particle(
+                 spawnX, spawnY, vx, vy,
+                 CHARGE_PARTICLE_LIFESPAN,
+                 CHARGE_PARTICLE_COLOR, null, // Color (no fade)
+                 1, 1 // Size (small)
+             ));
+         }
     }
 
 

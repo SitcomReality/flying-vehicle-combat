@@ -6,6 +6,7 @@ import { updatePlayerFromServer, interpolatePlayerState } from './player-network
 
 // Configuration Constants (can be moved to a config file)
 const REMOTE_PLAYER_INTERPOLATION_FACTOR = 0.15; // Smoothing factor for remote players
+const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
 
 class Player {
     constructor(id, x, y, vehicleType, isLocalPlayer, assets, ctx, renderScale, gameWidth, gameHeight) {
@@ -111,6 +112,18 @@ class Player {
                     this.state.chargeLevel + PLAYER_PHYSICS.CHARGE_RATE * deltaTime,
                     PLAYER_PHYSICS.MAX_CHARGE_LEVEL
                 );
+
+                // Emit charging particles if system available
+                if (particleSystem) {
+                    const nosePos = this.getVisualNosePosition();
+                    const centerPos = this.getVisualCenter();
+                    particleSystem.emitChargeParticles(
+                        centerPos.x, centerPos.y, // Spawn around center
+                        CHARGE_PARTICLE_EMIT_RATE,
+                        nosePos.x, nosePos.y // Target is the nose
+                    );
+                }
+
             }
 
             // Handle Firing Logic
@@ -155,24 +168,23 @@ class Player {
         }
 
         // Calculate projectile initial state
-        const noseOffsetFactor = 0.5; // How far from the center the projectile starts (0=center, 0.5=edge)
-        const spriteDrawWidth = state.currentVehicle.width * this.renderScale;
-        const startX = this.getVisualCenter().x + (state.visualFacingDirection * spriteDrawWidth * noseOffsetFactor);
-        const startY = this.getVisualCenter().y; // Start from vertical center
+        const nosePos = this.getVisualNosePosition();
+        const startX = nosePos.x;
+        const startY = nosePos.y;
 
         const chargeRatio = state.chargeLevel / PLAYER_PHYSICS.MAX_CHARGE_LEVEL;
         const speed = PLAYER_PHYSICS.PROJECTILE_BASE_SPEED + (PLAYER_PHYSICS.PROJECTILE_SPEED_SCALE * state.chargeLevel);
 
-        // Base velocity based on direction and speed
-        let vx = state.visualFacingDirection * speed;
-        let vy = 0;
+        // Calculate firing angle based on sprite rotation and visual direction
+        // Angle 0 is right, PI/2 is up, PI is left, 3*PI/2 is down.
+        // state.rotation is the tilt relative to the *unflipped* sprite's horizontal.
+        // Positive rotation = left side up.
+        // If facing right (flipped), the base angle is PI, and the rotation effectively reverses.
+        const angle = (state.visualFacingDirection === 1) ? (Math.PI - state.rotation) : state.rotation;
 
-        // Optional: Add slight angle based on ship tilt? (Keep simple for now)
-        // if (Math.abs(state.rotation) > 0.05) {
-        //    const angle = state.rotation + (state.visualFacingDirection === 1 ? 0 : Math.PI); // Adjust angle based on facing
-        //    vx = Math.cos(angle) * speed;
-        //    vy = Math.sin(angle) * speed;
-        // }
+        // Calculate base velocity vector based on angle and speed
+        let vx = Math.cos(angle) * speed;
+        let vy = Math.sin(angle) * speed;
 
         // Add player's current velocity to the projectile (inherited velocity) - Optional but adds realism
         vx += state.vx * 0.5; // Inherit half of player's velocity
@@ -216,7 +228,7 @@ class Player {
     // Helper to get visual bounds/center for drawing names etc.
     getVisualCenter() {
          const spriteConfig = this.state.currentVehicle;
-         if (!spriteConfig) return { x: this.state.x, y: this.state.y }; // Fallback
+         if (!spriteConfig) return { x: this.state.x, y: this.state.y, topY: this.state.y };
 
          const spriteDrawWidth = spriteConfig.width * this.renderScale;
          const spriteDrawHeight = spriteConfig.height * this.renderScale;
@@ -228,6 +240,46 @@ class Player {
              topY: drawY // Provide top Y for positioning things above
          };
     }
+
+     // Helper to get the visual position of the vehicle's nose, considering rotation and facing direction
+     getVisualNosePosition() {
+        const state = this.state;
+        const center = this.getVisualCenter();
+        const spriteConfig = state.currentVehicle;
+        if (!spriteConfig) return center; // Fallback
+
+        const spriteDrawWidth = spriteConfig.width * this.renderScale;
+        const noseOffsetFactor = 0.45; // How far from the center the nose is (0=center, 0.5=edge)
+        const offsetX = state.visualFacingDirection * spriteDrawWidth * noseOffsetFactor;
+        const offsetY = 0; // Assuming nose is horizontally aligned with center before rotation
+
+        // Calculate the effective angle based on visual direction and rotation
+        // Same logic as in fireProjectile
+        const angle = (state.visualFacingDirection === 1) ? (Math.PI - state.rotation) : state.rotation;
+
+        // Rotate the offset vector (offsetX, offsetY) by the rotation angle
+        // This gives the nose position relative to the center *after* rotation
+        const rotatedOffsetX = offsetX * Math.cos(state.rotation) - offsetY * Math.sin(state.rotation);
+        const rotatedOffsetY = offsetX * Math.sin(state.rotation) + offsetY * Math.cos(state.rotation);
+
+
+         // The final nose position is the visual center plus the rotated offset.
+         // However, the rotation in drawPlayer happens *around* the visual center.
+         // So we just need to calculate the offset from the center *before* rotation,
+         // then apply the rotation to that offset.
+
+         // Vector from center to unrotated nose position
+         const noseVecX = state.visualFacingDirection * spriteDrawWidth * noseOffsetFactor;
+         const noseVecY = 0;
+
+         // Rotate this vector by state.rotation
+         const cosR = Math.cos(state.rotation);
+         const sinR = Math.sin(state.rotation);
+         const finalNoseX = center.x + (noseVecX * cosR - noseVecY * sinR);
+         const finalNoseY = center.y + (noseVecX * sinR + noseVecY * cosR);
+
+         return { x: finalNoseX, y: finalNoseY };
+     }
 }
 
 export default Player;
