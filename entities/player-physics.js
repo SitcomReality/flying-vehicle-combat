@@ -137,14 +137,20 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
 
     // --- Particle Effects on Ground ---
     // Use the final state after corrections
-    if (playerState.isOnGround && Math.abs(playerState.vx) > 5 && particleSystem) {
-        // Estimate contact point slightly behind the center based on direction
+    // Always emit if on ground to simulate grinding due to background movement
+    if (playerState.isOnGround && particleSystem) {
+        // Estimate contact point slightly behind the center based on facing direction
         const contactX = (playerState.x - playerState.drawOffsetX * renderScale + spriteDrawWidth / 2) // Visual center X
                        + (playerState.facingDirection === 1 ? -spriteDrawWidth * 0.3 : spriteDrawWidth * 0.3); // Offset based on facing
         const contactY = groundLevelY - 2; // Slightly above ground line
 
-        particleSystem.emitSparks(contactX, contactY, PLAYER_PHYSICS.SPARK_EMIT_RATE, playerState.vx * 0.5);
-        particleSystem.emitSmoke(contactX, contactY, PLAYER_PHYSICS.SMOKE_EMIT_RATE, playerState.vx * 0.3);
+        // Use a fixed base velocity simulating movement against the ground,
+        // slightly adjusted by the player's own vx for variation.
+        const baseSparkVX = -80 + playerState.vx * 0.5; // Negative base to show grinding leftwards
+        const baseSmokeVX = -30 + playerState.vx * 0.3; // Negative base for smoke
+
+        particleSystem.emitSparks(contactX, contactY, PLAYER_PHYSICS.SPARK_EMIT_RATE, baseSparkVX);
+        particleSystem.emitSmoke(contactX, contactY, PLAYER_PHYSICS.SMOKE_EMIT_RATE, baseSmokeVX);
     }
 
     // --- Rotation Calculation ---
