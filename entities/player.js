@@ -45,18 +45,16 @@ class Player {
     }
 
     // --- Update Cycle ---
-    update(deltaTime) {
+    update(deltaTime, groundLevelY, particleSystem) {
         if (this.state.isMarkedForRemoval) return;
 
         if (this.state.isLocalPlayer) {
             // Local player calculates physics based on input
-            updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale);
+            updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem);
         } else {
             // Remote players interpolate towards server state
             interpolatePlayerState(this.state, REMOTE_PLAYER_INTERPOLATION_FACTOR);
-            // We might still call updatePlayerPhysics for non-positional updates
-            // if needed in the future (e.g., local animations based on server velocity),
-            // but currently physics is only driven by the local player or interpolation.
+            // Physics is not calculated for remote players here, just interpolation
         }
     }
 

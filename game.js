@@ -118,7 +118,8 @@ function update(deltaTime) {
     if (localPlayer && localPlayer.state && !localPlayer.isMarkedForRemoval) {
         const input = inputManager.getInputState();
         localPlayer.handleInput(input);
-        localPlayer.update(deltaTime, groundLevelY, particleSystem);
+        // Pass groundLevelY and particleSystem to the local player's update
+        localPlayer.update(deltaTime, groundLevelY, particleSystem); 
 
         // Send presence update periodically
         if (now - lastPresenceUpdateTime > LOCAL_PLAYER_UPDATE_INTERVAL) {
@@ -128,7 +129,8 @@ function update(deltaTime) {
     }
 
     // Update Remote Players (Interpolation - now handled within PlayerManager)
-    playerManager.updatePlayers(deltaTime, groundLevelY, null); 
+    // Pass groundLevelY and particleSystem for consistent method signature, though remote players won't use them for physics
+    playerManager.updatePlayers(deltaTime, groundLevelY, particleSystem); 
 }
 
 // --- Main Draw Function ---

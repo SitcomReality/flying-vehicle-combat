@@ -111,16 +111,13 @@ class PlayerManager {
         console.log(`Player removed from players object: ${clientId}`);
     }
 
-    updatePlayers(deltaTime) {
+    updatePlayers(deltaTime, groundLevelY, particleSystem) { 
         for (const id in this.players) {
              const player = this.players[id];
              if (player && player.state && !player.isMarkedForRemoval) {
-                 if (id !== this.localPlayerId) {
-                     // Remote players only need interpolation update
-                     player.update(deltaTime);
-                 }
-                 // Note: Local player update is handled separately in the main update function
-                 // to ensure input is processed before physics/clamping.
+                 // Call update for all players, but only local player calculates physics inside its update
+                 // Pass consistent arguments
+                 player.update(deltaTime, groundLevelY, particleSystem); 
              }
         }
     }
