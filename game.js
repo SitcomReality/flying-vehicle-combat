@@ -14,7 +14,6 @@ const RENDER_SCALE = 0.2; // Render sprites smaller
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 const LOCAL_PLAYER_UPDATE_INTERVAL = 50; // ms - How often to send updates
-const REMOTE_PLAYER_INTERPOLATION_FACTOR = 0.15; // Slightly higher for faster response to server state
 
 let assets = {};
 let players = {}; // Store all players { clientId: Player instance }
@@ -33,15 +32,16 @@ function updateDebugInfo() {
     debugText += `Players (${Object.keys(players).length}):\n`;
     for (const id in players) {
         const p = players[id];
+        if (!p || p.isMarkedForRemoval) continue; // Skip removed players
+
         const peerInfo = networkManager.getPeer(id);
         const name = peerInfo?.username || 'Unknown';
-        debugText += `  ${name} (${id.substring(0, 4)}): P(${p.x.toFixed(0)}, ${p.y.toFixed(0)}) V(${p.vx.toFixed(0)}, ${p.vy.toFixed(0)}) R:${p.rotation.toFixed(2)} F:${p.facingDirection === 1 ? 'R' : 'L'}\n`;
+        debugText += `  ${name} (${id.substring(0, 4)}): P(${p.state.x.toFixed(0)}, ${p.state.y.toFixed(0)}) V(${p.state.vx.toFixed(0)}, ${p.state.vy.toFixed(0)}) R:${p.state.rotation.toFixed(2)} F:${p.state.facingDirection === 1 ? 'R' : 'L'}\n`;
         if (p.isLocalPlayer) {
              debugText += `    Input: ${JSON.stringify(inputManager.getInputState())} Thrust:${p.isThrusting}\n`;
         } else {
-             debugText += `    Server: P(${p.serverX?.toFixed(0)}, ${p.serverY?.toFixed(0)}) R:${p.serverRotation?.toFixed(2)}\n`;
+             debugText += `    Server: P(${p.state.serverX?.toFixed(0)}, ${p.state.serverY?.toFixed(0)}) R:${p.state.serverRotation?.toFixed(2)}\n`;
         }
-
     }
     debugEl.textContent = debugText;
 }
@@ -57,18 +57,21 @@ async function initializeGame() {
         console.log("Network initialized. Client ID:", localPlayerId);
 
         const initialVehicleType = Math.floor(Math.random() * SPRITES.vehicles.frames.length);
-        const initialPlayerState = {
-             x: Math.random() * (GAME_WIDTH * 0.8) + GAME_WIDTH * 0.1, 
-             y: GAME_HEIGHT / 2, 
-             vehicleType: initialVehicleType,
-             facingDirection: -1,
-             rotation: 0,
-        };
+        const initialX = Math.random() * (GAME_WIDTH * 0.8) + GAME_WIDTH * 0.1;
+        const initialY = GAME_HEIGHT / 2;
+        const initialRotation = 0;
+        const initialFacingDirection = -1; // Default left
 
-        createPlayer(localPlayerId, initialPlayerState, true);
+        createPlayer(localPlayerId, {
+             x: initialX,
+             y: initialY,
+             vehicleType: initialVehicleType,
+             facingDirection: initialFacingDirection,
+             rotation: initialRotation
+        }, true);
         console.log("Local player object created.");
 
-        updateLocalPlayerPresence(); 
+        updateLocalPlayerPresence();
         console.log("Initial presence sent.");
 
         setupNetworkHandlers();
@@ -86,26 +89,30 @@ async function initializeGame() {
 function setupNetworkHandlers() {
     networkManager.onPresenceUpdate((presence) => {
         const now = performance.now();
-        const currentPeerIds = networkManager.getPeers ? Object.keys(networkManager.getPeers()) : Object.keys(presence);
+        const currentPeerIds = networkManager.getPeers ? Object.keys(networkManager.getPeers()) : Object.keys(presence); 
 
         for (const clientId in presence) {
-            if (!currentPeerIds.includes(clientId)) {
-                continue;
+            if (!networkManager.peers[clientId]) {
+                if (clientId !== localPlayerId) {
+                     console.warn(`Presence received for unknown peer ${clientId}. Ignoring.`);
+                     continue;
+                }
             }
 
             const presenceData = presence[clientId];
             if (!players[clientId]) {
-                if (clientId === localPlayerId) {
-                    if (players[localPlayerId]) {
-                        players[localPlayerId].updateFromServer(presenceData, now);
-                    } else {
-                        console.warn("Presence update for local player but local player object not found? Recreating.");
-                        createPlayer(clientId, presenceData, true); 
-                    }
-                    continue; 
+                if (clientId === localPlayerId && players[localPlayerId]) {
+                    continue;
                 }
-                console.log("New player joined:", clientId, networkManager.getPeer(clientId)?.username);
-                createPlayer(clientId, presenceData, false); 
+                console.log("New player detected from presence:", clientId, networkManager.getPeer(clientId)?.username);
+                const initialState = {
+                    x: presenceData.x ?? GAME_WIDTH / 2,
+                    y: presenceData.y ?? GAME_HEIGHT / 2,
+                    vehicleType: presenceData.vehicleType ?? 0,
+                    facingDirection: presenceData.facingDirection ?? -1,
+                    rotation: presenceData.rotation ?? 0,
+                };
+                 createPlayer(clientId, initialState, clientId === localPlayerId); 
             } else if (clientId !== localPlayerId) {
                 players[clientId].updateFromServer(presenceData, now);
             }
@@ -114,10 +121,13 @@ function setupNetworkHandlers() {
         for (const existingPlayerId in players) {
             if (existingPlayerId === localPlayerId) continue; 
 
-            if (!presence[existingPlayerId] || !currentPeerIds.includes(existingPlayerId)) {
+            const isInPresence = !!presence[existingPlayerId];
+            const isInPeers = !!networkManager.peers[existingPlayerId];
+
+            if (!isInPresence && !isInPeers) {
                 if (players[existingPlayerId] && !players[existingPlayerId].isMarkedForRemoval) {
-                    const peerInfo = networkManager.getPeer(existingPlayerId);
-                    console.log("Player left or timed out:", existingPlayerId, peerInfo?.username ?? '(no peer info)');
+                    const peerInfo = networkManager.getPeer(existingPlayerId); 
+                    console.log("Player disconnected or timed out:", existingPlayerId, peerInfo?.username ?? '(info gone)');
                     removePlayer(existingPlayerId);
                 }
             }
@@ -145,33 +155,43 @@ function setupNetworkHandlers() {
 
     networkManager.onMessage((event) => {
         // Handle broadcasted events (e.g., sound effects, temporary visuals)
+        console.log("Received message:", event);
     });
 
     console.log("Network event handlers are fully registered.");
 }
 
 function createPlayer(clientId, initialState, isLocal = false) {
-    if (players[clientId]) {
+    if (players[clientId] && !players[clientId].isMarkedForRemoval) {
         console.warn(`Attempted to create player ${clientId} but they already exist.`);
         if (players[clientId].isLocalPlayer !== isLocal) {
-            console.error(`Mismatch in local status for player ${clientId}!`);
+            console.warn(`Correcting isLocal status for player ${clientId}.`);
+             players[clientId].state.isLocalPlayer = isLocal; 
         }
-        players[clientId].x = initialState?.x ?? GAME_WIDTH / 2;
-        players[clientId].y = initialState?.y ?? GAME_HEIGHT / 2;
-        players[clientId].rotation = initialState?.rotation ?? 0;
-        players[clientId].facingDirection = initialState?.facingDirection ?? -1;
-        players[clientId].setVehicle(initialState?.vehicleType ?? 0);
+        players[clientId].state.x = initialState.x;
+        players[clientId].state.y = initialState.y;
+        players[clientId].state.rotation = initialState.rotation;
+        players[clientId].state.facingDirection = initialState.facingDirection;
+        players[clientId].setVehicle(initialState.vehicleType);
         if (!isLocal) {
-            players[clientId].updateFromServer(initialState, performance.now());
+             players[clientId].updateFromServer(initialState, performance.now());
         }
         return players[clientId]; 
     }
 
+    const safeInitialState = {
+        x: initialState?.x ?? GAME_WIDTH / 2,
+        y: initialState?.y ?? GAME_HEIGHT / 2,
+        vehicleType: initialState?.vehicleType ?? 0,
+        facingDirection: initialState?.facingDirection ?? -1,
+        rotation: initialState?.rotation ?? 0,
+    };
+
     const player = new Player(
         clientId,
-        initialState?.x ?? GAME_WIDTH / 2,
-        initialState?.y ?? GAME_HEIGHT / 2,
-        initialState?.vehicleType ?? 0,
+        safeInitialState.x,
+        safeInitialState.y,
+        safeInitialState.vehicleType,
         isLocal,
         assets,
         renderer.getContext(),
@@ -180,19 +200,19 @@ function createPlayer(clientId, initialState, isLocal = false) {
         GAME_HEIGHT
     );
 
-    player.facingDirection = initialState?.facingDirection ?? -1;
-    player.rotation = initialState?.rotation ?? 0; 
+    player.state.facingDirection = safeInitialState.facingDirection;
+    player.state.rotation = safeInitialState.rotation; 
 
     players[clientId] = player;
 
     if (!isLocal) {
-        player.updateFromServer(initialState, performance.now());
-        player.x = player.serverX; 
-        player.y = player.serverY;
-        player.rotation = player.serverRotation; 
+        player.updateFromServer(safeInitialState, performance.now());
+        player.state.x = player.state.serverX; 
+        player.state.y = player.state.serverY;
+        player.state.rotation = player.state.serverRotation; 
     }
 
-    console.log(`Player ${isLocal ? '(Local)' : ''} created: ${clientId} at ${player.x.toFixed(0)},${player.y.toFixed(0)}`);
+    console.log(`Player ${isLocal ? '(Local)' : ''} created: ${clientId} at ${player.state.x.toFixed(0)},${player.state.y.toFixed(0)}`);
 }
 
 function removePlayer(clientId) {
@@ -210,11 +230,11 @@ function updateLocalPlayerPresence() {
     if (!player) return;
 
     const presenceData = {
-        x: player.x,
-        y: player.y,
+        x: player.state.x,
+        y: player.state.y,
         vehicleType: player.vehicleType,
-        facingDirection: player.facingDirection,
-        rotation: player.rotation,
+        facingDirection: player.state.facingDirection,
+        rotation: player.state.rotation,
     };
     networkManager.updatePresence(presenceData);
     lastPresenceUpdateTime = performance.now();
@@ -231,11 +251,11 @@ function update(deltaTime) {
 
         const drawnWidth = localPlayer.currentVehicle.width * RENDER_SCALE;
         const drawnHeight = localPlayer.currentVehicle.height * RENDER_SCALE;
-        const clampX = localPlayer.x - localPlayer.drawOffsetX * RENDER_SCALE;
-        const clampY = localPlayer.y - localPlayer.drawOffsetY * RENDER_SCALE;
+        const clampX = localPlayer.state.x - localPlayer.drawOffsetX * RENDER_SCALE;
+        const clampY = localPlayer.state.y - localPlayer.drawOffsetY * RENDER_SCALE;
 
-        localPlayer.x = Math.max(localPlayer.drawOffsetX * RENDER_SCALE, Math.min(GAME_WIDTH - drawnWidth + localPlayer.drawOffsetX * RENDER_SCALE, localPlayer.x));
-        localPlayer.y = Math.max(localPlayer.drawOffsetY * RENDER_SCALE, Math.min(GAME_HEIGHT - drawnHeight + localPlayer.drawOffsetY * RENDER_SCALE, localPlayer.y));
+        localPlayer.state.x = Math.max(localPlayer.drawOffsetX * RENDER_SCALE, Math.min(GAME_WIDTH - drawnWidth + localPlayer.drawOffsetX * RENDER_SCALE, localPlayer.state.x));
+        localPlayer.state.y = Math.max(localPlayer.drawOffsetY * RENDER_SCALE, Math.min(GAME_HEIGHT - drawnHeight + localPlayer.drawOffsetY * RENDER_SCALE, localPlayer.state.y));
 
         if (now - lastPresenceUpdateTime > LOCAL_PLAYER_UPDATE_INTERVAL) {
             updateLocalPlayerPresence();
@@ -244,7 +264,7 @@ function update(deltaTime) {
 
     for (const id in players) {
         if (id !== localPlayerId) {
-            players[id].interpolate(REMOTE_PLAYER_INTERPOLATION_FACTOR);
+            // players[id].interpolate(REMOTE_PLAYER_INTERPOLATION_FACTOR);
             players[id].update(deltaTime);
         }
     }
@@ -270,8 +290,8 @@ function draw() {
         if (!players[id].isMarkedForRemoval) {
             const peerInfo = networkManager.getPeer(id);
             if (peerInfo) {
-                const playerCenterX = players[id].x + (players[id].width * RENDER_SCALE / 2) - (players[id].drawOffsetX * RENDER_SCALE);
-                const playerTopY = players[id].y - (players[id].drawOffsetY * RENDER_SCALE);
+                const playerCenterX = players[id].state.x + (players[id].currentVehicle.width * RENDER_SCALE / 2) - (players[id].drawOffsetX * RENDER_SCALE);
+                const playerTopY = players[id].state.y - (players[id].drawOffsetY * RENDER_SCALE);
                 renderer.drawText(
                     peerInfo.username,
                     playerCenterX,
