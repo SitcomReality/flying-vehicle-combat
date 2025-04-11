@@ -6,7 +6,7 @@ import { PlayerLifecycleState } from './player-lifecycle.js'; // Import lifecycl
 // These could potentially move into VEHICLE_TYPES' BASE_PLAYER_PHYSICS if needed,
 // but keeping them separate might be okay for now.
 export const GLOBAL_PHYSICS = {
-    GRAVITY: 350, // pixels/sec^2
+    GRAVITY: 350, // pixels/sec^2 - Now mainly a fallback in vehicle types
     MAX_VERTICAL_SPEED: 300, // pixels/sec
     VERTICAL_DRAG_FACTOR: 0.5,
     MAX_TILT_ANGLE: Math.PI / 2.5,
@@ -15,10 +15,10 @@ export const GLOBAL_PHYSICS = {
     GROUND_FRICTION_FACTOR: 1.5,
     SPARK_EMIT_RATE: 5,
     SMOKE_EMIT_RATE: 1,
-    MAX_CHARGE_LEVEL: 100,
-    CHARGE_RATE: 50,
-    PROJECTILE_BASE_SPEED: 400,
-    PROJECTILE_SPEED_SCALE: 3,
+    // MAX_CHARGE_LEVEL: 100, // Moved to vehicle types
+    // CHARGE_RATE: 50, // Moved to vehicle types
+    // PROJECTILE_BASE_SPEED: 400, // Moved to vehicle types
+    PROJECTILE_SPEED_SCALE: 3, // How much speed increases with charge
     PROJECTILE_GRAVITY_FACTOR: 0.5,
     INVULNERABILITY_DURATION: 1.5, // seconds - Increased duration slightly
 };
@@ -50,6 +50,7 @@ export class PlayerState {
         this.isMovingLeft = false;
         this.isMovingRight = false;
         this.isOnGround = false;
+        this.lastGroundDamageTime = 0; // Timer for recurring ground damage
 
         // Lifecycle State
         this.lifecycleState = PlayerLifecycleState.CONNECTING; // Initial state
@@ -59,28 +60,35 @@ export class PlayerState {
         this.chargeLevel = 0;
         this.wantsToFire = false;
 
-        // --- NEW Stats ---
+        // --- Health & Fuel ---
         this.health = 100; // Default, will be set by updateVehicleProperties
         this.maxHealth = 100;
         this.fuel = 100;     // Default, will be set by updateVehicleProperties
         this.maxFuel = 100;
-        // Vehicle-specific physics properties (set by updateVehicleProperties)
+
+        // --- Vehicle-specific physics properties (set by updateVehicleProperties) ---
         this.fuelRegenRate = 0;
         this.fuelConsumeRate = 0;
         this.thrustForce = 0;
         this.horizontalAcceleration = 0;
         this.maxHorizontalSpeed = 0;
         // Reference other potential physics overrides if needed
-        this.gravity = GLOBAL_PHYSICS.GRAVITY;
+        this.gravity = GLOBAL_PHYSICS.GRAVITY; // Default gravity
         this.verticalDragFactor = GLOBAL_PHYSICS.VERTICAL_DRAG_FACTOR;
         this.airFrictionFactor = GLOBAL_PHYSICS.AIR_FRICTION_FACTOR;
         this.groundFrictionFactor = GLOBAL_PHYSICS.GROUND_FRICTION_FACTOR;
-        // --- End NEW Stats ---
+
+        // --- Vehicle-specific WEAPON properties (set by updateVehicleProperties) ---
+        this.projectileDamage = 10;
+        this.projectileSpeed = 400; // Base speed for projectile
+        this.projectileColor = '#FFFF00';
+        this.fireRate = 5; // Placeholder for potential auto-fire later
+        this.chargeRate = 50;
+        this.maxChargeLevel = 100;
 
         // --- Health System State ---
         this.lastDamageTime = 0;
         this.isInvulnerable = false;
-        // --- End Health System State ---
 
         // Network Synchronization
         this.serverX = x;
@@ -91,6 +99,7 @@ export class PlayerState {
         this.serverHealth = 100; // Track server health/fuel
         this.serverFuel = 100;
         this.serverIsInvulnerable = false; // Sync invulnerability state
+        this.serverLifecycleState = PlayerLifecycleState.CONNECTING; // Track server lifecycle
         this.lastServerUpdateTime = 0;
 
         // Flags
@@ -115,6 +124,8 @@ export class PlayerState {
         // Set initial server health/fuel based on properties
         this.serverHealth = this.health;
         this.serverFuel = this.fuel;
+        this.serverIsInvulnerable = this.isInvulnerable; // Initialize server invulnerability
+        this.serverLifecycleState = this.lifecycleState; // Initialize server lifecycle
     }
 
     updateVehicleProperties() {
@@ -140,7 +151,7 @@ export class PlayerState {
         // 3. Get Vehicle Stats Config
         const vehicleStats = getVehicleConfig(this.vehicleType);
 
-        // 4. Set Stats from Config
+        // 4. Set Physics Stats from Config
         this.maxHealth = vehicleStats.maxHealth;
         this.maxFuel = vehicleStats.maxFuel;
         this.fuelRegenRate = vehicleStats.fuelRegenRate;
@@ -148,12 +159,21 @@ export class PlayerState {
         this.thrustForce = vehicleStats.thrustForce;
         this.horizontalAcceleration = vehicleStats.horizontalAcceleration;
         this.maxHorizontalSpeed = vehicleStats.maxHorizontalSpeed;
-        this.gravity = vehicleStats.GRAVITY ?? GLOBAL_PHYSICS.GRAVITY; // Allow overrides
+        // Use vehicle-specific gravity/drag/friction, falling back to global constants if not defined
+        this.gravity = vehicleStats.GRAVITY ?? GLOBAL_PHYSICS.GRAVITY;
         this.verticalDragFactor = vehicleStats.VERTICAL_DRAG_FACTOR ?? GLOBAL_PHYSICS.VERTICAL_DRAG_FACTOR;
         this.airFrictionFactor = vehicleStats.AIR_FRICTION_FACTOR ?? GLOBAL_PHYSICS.AIR_FRICTION_FACTOR;
         this.groundFrictionFactor = vehicleStats.GROUND_FRICTION_FACTOR ?? GLOBAL_PHYSICS.GROUND_FRICTION_FACTOR;
 
-        // 5. Initialize current health/fuel (or reset if called mid-game)
+        // 5. Set Weapon Stats from Config
+        this.projectileDamage = vehicleStats.projectileDamage;
+        this.projectileSpeed = vehicleStats.projectileSpeed;
+        this.projectileColor = vehicleStats.projectileColor;
+        this.fireRate = vehicleStats.fireRate;
+        this.chargeRate = vehicleStats.chargeRate;
+        this.maxChargeLevel = vehicleStats.maxChargeLevel;
+
+        // 6. Initialize current health/fuel (or reset if called mid-game)
         // Only fully reset if health/fuel somehow became invalid. Otherwise, keep current values.
         if (this.health > this.maxHealth || this.health <= 0 || isNaN(this.health)) {
              this.health = this.maxHealth;
@@ -179,6 +199,8 @@ export class PlayerState {
                  // Also reset server state tracking
                  this.serverHealth = this.health;
                  this.serverFuel = this.fuel;
+                 // Reset charge level when changing vehicle
+                 this.chargeLevel = 0;
             }
         } else {
             console.warn(`Invalid vehicleTypeIndex: ${vehicleTypeIndex} for player ${this.id}`);
@@ -186,6 +208,7 @@ export class PlayerState {
     }
 
     getPresenceData() {
+        // Only include necessary data for sync
         return {
             x: this.x,
             y: this.y,
@@ -193,10 +216,10 @@ export class PlayerState {
             facingDirection: this.facingDirection,
             rotation: this.rotation,
             isOnGround: this.isOnGround,
-            health: this.health, // Sync health
-            fuel: this.fuel,     // Sync fuel
-            isInvulnerable: this.isInvulnerable, // Sync invulnerability
-            lifecycleState: this.lifecycleState, // Sync lifecycle state
+            health: this.health,
+            fuel: this.fuel,
+            isInvulnerable: this.isInvulnerable,
+            lifecycleState: this.lifecycleState,
         };
     }
 
@@ -228,6 +251,7 @@ export class PlayerState {
         // Reset invulnerability state
         this.lastDamageTime = 0;
         this.isInvulnerable = false;
+        this.lastGroundDamageTime = 0; // Reset ground damage timer
 
         // Reset server state for interpolation
         this.serverX = x;
@@ -238,6 +262,7 @@ export class PlayerState {
         this.serverHealth = this.health;
         this.serverFuel = this.fuel;
         this.serverIsInvulnerable = this.isInvulnerable;
+        this.serverLifecycleState = PlayerLifecycleState.ACTIVE; // Assume server state matches
         this.lastServerUpdateTime = 0;
 
         this.isMarkedForRemoval = false;

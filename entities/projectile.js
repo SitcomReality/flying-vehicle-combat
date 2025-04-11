@@ -6,9 +6,10 @@ const PROJECTILE_RADIUS = 4;
 const PROJECTILE_LIFESPAN = 3; // seconds
 
 class Projectile {
-    constructor(id, ownerId, x, y, vx, vy, color = 'yellow') {
-        this.id = id; 
-        this.ownerId = ownerId; 
+    // Added damage parameter to constructor
+    constructor(id, ownerId, x, y, vx, vy, color = 'yellow', damage = 10) {
+        this.id = id;
+        this.ownerId = ownerId;
         this.x = x;
         this.y = y;
         this.vx = vx;
@@ -18,8 +19,7 @@ class Projectile {
         this.creationTime = performance.now();
         this.lifespan = PROJECTILE_LIFESPAN * 1000; // milliseconds
         this.isMarkedForRemoval = false;
-        // TODO: Add damage property based on weapon/charge later
-        this.damage = 10; // Example base damage
+        this.damage = damage; // Store damage value
     }
 
     update(deltaTime, groundLevelY) {
@@ -45,12 +45,13 @@ class Projectile {
         }
 
         // Check screen bounds (simple removal for now)
-        // Add more robust bounds checking if needed
-        if (this.x < -this.radius || this.x > window.innerWidth + this.radius || this.y < -this.radius) {
+        // TODO: Use game bounds instead of window innerWidth if possible
+        const gameWidth = 800; // Assuming fixed width for now
+        if (this.x < -this.radius || this.x > gameWidth + this.radius || this.y < -this.radius) {
              this.isMarkedForRemoval = true;
         }
 
-        // TODO: Add collision detection with other players
+        // Collision detection moved to CollisionDetector
     }
 
     draw(ctx) {

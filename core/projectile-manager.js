@@ -9,21 +9,24 @@ class ProjectileManager {
     }
 
     // Creates a projectile locally (e.g., from network event)
-    createProjectile(id, ownerId, x, y, vx, vy, color) {
+    // Updated to accept damage parameter
+    createProjectile(id, ownerId, x, y, vx, vy, color, damage = 10) {
         if (this.projectiles[id]) {
             console.warn(`Projectile with ID ${id} already exists.`);
             return;
         }
-        const projectile = new Projectile(id, ownerId, x, y, vx, vy, color);
+        const projectile = new Projectile(id, ownerId, x, y, vx, vy, color, damage);
         this.projectiles[id] = projectile;
-        // console.log(`Projectile ${id} created by ${ownerId}`);
+        // console.log(`Projectile ${id} created by ${ownerId} with damage ${damage}`);
     }
 
     // Creates a projectile and returns its data (for local firing before network broadcast)
-    createAndGetData(ownerId, x, y, vx, vy, color) {
+    // Updated to accept damage parameter and include it in returned data
+    createAndGetData(ownerId, x, y, vx, vy, color, damage) {
          const id = `${ownerId}-${this.nextProjectileId++}`; // Generate a unique-enough ID locally
-         this.createProjectile(id, ownerId, x, y, vx, vy, color);
-         return { id, ownerId, x, y, vx, vy, color };
+         this.createProjectile(id, ownerId, x, y, vx, vy, color, damage);
+         // Include damage in the data to broadcast
+         return { id, ownerId, x, y, vx, vy, color, damage };
     }
 
     update(deltaTime, groundLevelY) {
@@ -45,7 +48,14 @@ class ProjectileManager {
     }
 
     getProjectiles() {
-        return Object.values(this.projectiles);
+        // Return only active projectiles as an object keyed by ID for collision checker
+        const activeProjectiles = {};
+        for (const id in this.projectiles) {
+            if (!this.projectiles[id].isMarkedForRemoval) {
+                activeProjectiles[id] = this.projectiles[id];
+            }
+        }
+        return activeProjectiles;
     }
 }
 

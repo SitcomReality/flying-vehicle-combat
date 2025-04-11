@@ -1,6 +1,6 @@
 // Handles player actions like charging and firing projectiles
 
-import { GLOBAL_PHYSICS } from './player-state.js'; // Use GLOBAL_PHYSICS for projectile constants
+import { GLOBAL_PHYSICS } from './player-state.js'; // Use GLOBAL_PHYSICS for projectile constants like SPEED_SCALE
 
 // Configuration
 const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
@@ -15,12 +15,12 @@ const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
  * @param {function} getVisualNosePositionFunc - Function to get the visual nose position ({x, y}).
  */
 export function updatePlayerCharging(playerState, deltaTime, particleSystem, getVisualCenterFunc, getVisualNosePositionFunc) {
-    if (!playerState.isLocalPlayer) return;
+    if (!playerState.isLocalPlayer || playerState.lifecycleState !== 'ACTIVE') return;
 
     if (playerState.isCharging) {
         playerState.chargeLevel = Math.min(
-            playerState.chargeLevel + GLOBAL_PHYSICS.CHARGE_RATE * deltaTime, // Use global constant
-            GLOBAL_PHYSICS.MAX_CHARGE_LEVEL // Use global constant
+            playerState.chargeLevel + playerState.chargeRate * deltaTime, // Use vehicle's chargeRate
+            playerState.maxChargeLevel // Use vehicle's maxChargeLevel
         );
 
         // Emit charging particles if system available
@@ -49,7 +49,7 @@ export function updatePlayerCharging(playerState, deltaTime, particleSystem, get
  */
 export function fireProjectile(playerState, projectileManager, networkManager, getVisualNosePositionFunc) {
     const state = playerState;
-    if (!projectileManager || !networkManager || state.chargeLevel <= 0 || !getVisualNosePositionFunc) {
+    if (!projectileManager || !networkManager || state.chargeLevel <= 0 || !getVisualNosePositionFunc || state.lifecycleState !== 'ACTIVE') {
         return;
     }
 
@@ -58,8 +58,10 @@ export function fireProjectile(playerState, projectileManager, networkManager, g
     const startX = nosePos.x;
     const startY = nosePos.y;
 
-    const chargeRatio = state.chargeLevel / GLOBAL_PHYSICS.MAX_CHARGE_LEVEL; // Use global constant
-    const speed = GLOBAL_PHYSICS.PROJECTILE_BASE_SPEED + (GLOBAL_PHYSICS.PROJECTILE_SPEED_SCALE * state.chargeLevel); // Use global constants
+    // Use vehicle's maxChargeLevel for ratio
+    const chargeRatio = state.chargeLevel / state.maxChargeLevel;
+    // Use vehicle's projectileSpeed as base, scale with charge level using global scale factor
+    const speed = state.projectileSpeed + (GLOBAL_PHYSICS.PROJECTILE_SPEED_SCALE * state.chargeLevel);
 
     // Calculate firing angle based on sprite rotation and visual direction
     let angle;
@@ -78,11 +80,13 @@ export function fireProjectile(playerState, projectileManager, networkManager, g
     vy += state.vy * 0.5;
 
     // Create projectile locally AND get data to broadcast
+    // Use vehicle's projectileDamage and projectileColor
     const projectileData = projectileManager.createAndGetData(
         state.id,
         startX, startY,
         vx, vy,
-        '#FFD700' // Gold color for projectile - TODO: Make weapon-dependent later
+        state.projectileColor,
+        state.projectileDamage // Pass damage value
     );
 
     // Broadcast the fire event to other clients
@@ -104,7 +108,7 @@ export function fireProjectile(playerState, projectileManager, networkManager, g
  * @param {function} getVisualNosePositionFunc - Function to get the visual nose position ({x, y}).
  */
 export function handlePlayerFiring(playerState, projectileManager, networkManager, getVisualNosePositionFunc) {
-     if (!playerState.isLocalPlayer) return;
+     if (!playerState.isLocalPlayer || playerState.lifecycleState !== 'ACTIVE') return;
 
      if (playerState.wantsToFire) {
          fireProjectile(playerState, projectileManager, networkManager, getVisualNosePositionFunc);
