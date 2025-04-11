@@ -8,7 +8,7 @@ export const PLAYER_PHYSICS = {
     THRUST_FORCE: 700, // pixels/sec^2
     MAX_VERTICAL_SPEED: 300, // pixels/sec
     VERTICAL_DRAG_FACTOR: 0.5, // Higher = more drag
-    MAX_TILT_ANGLE: Math.PI / 9, // ~20 degrees
+    MAX_TILT_ANGLE: Math.PI / 2.5, // ~72 degrees - Increased from PI / 9
     TILT_SPEED: 6, // How quickly the sprite tilts
     PLAYER_SPEED: 150, // Pixels per second (horizontal)
 };
