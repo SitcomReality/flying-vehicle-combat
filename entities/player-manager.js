@@ -3,7 +3,7 @@ import { SPRITES } from 'config/sprites.js';
 import { PlayerLifecycleState } from './player-lifecycle.js'; // Import states
 import { getVehicleConfig } from './vehicles/vehicle-types.js'; // Import vehicle config getter
 // Import collision detection and damage calculation
-import { checkPlayerCollisions, checkProjectileCollisions } from './combat/collision-detector.js';
+import { checkPlayerCollisions, checkProjectileCollisions, checkPowerupCollisions } from './combat/collision-detector.js'; // Added checkPowerupCollisions
 import { calculateCollisionDamage } from './combat/damage-calculator.js';
 
 class PlayerManager {
@@ -21,18 +21,21 @@ class PlayerManager {
         this.networkManager = null;
         this.vehicleSelector = null; // Reference to the UI selector
         this.particleSystem = null; // Add reference for effects
+        this.powerupManager = null; // Add reference for powerups
     }
 
-    setManagers(projectileManager, networkManager, vehicleSelector, particleSystem) {
+    setManagers(projectileManager, networkManager, vehicleSelector, particleSystem, powerupManager) { // Added powerupManager
         this.projectileManager = projectileManager;
         this.networkManager = networkManager;
         this.vehicleSelector = vehicleSelector; // Store reference
         this.particleSystem = particleSystem; // Store reference
+        this.powerupManager = powerupManager; // Store reference
 
         // Pass managers to already existing players
         for (const id in this.players) {
             // Ensure all required managers are passed to the Player instance
-            this.players[id].setManagers(projectileManager, networkManager, this, particleSystem); // Pass self (PlayerManager) and particleSystem
+            // Pass self (PlayerManager), particleSystem, and powerupManager
+            this.players[id].setManagers(projectileManager, networkManager, this, particleSystem, powerupManager);
         }
     }
 
@@ -56,7 +59,7 @@ class PlayerManager {
         const activePlayers = {};
         for (const id in this.players) {
             const p = this.players[id];
-            if (p && p.state && !p.isMarkedForRemoval && p.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
+            if (p && !p.isMarkedForRemoval && p.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
                 activePlayers[id] = p;
             }
         }
@@ -87,7 +90,6 @@ class PlayerManager {
              initialLifecycleState = initialState?.lifecycleState ?? PlayerLifecycleState.ACTIVE; // Default remote to ACTIVE if state missing initially
         }
 
-
         // Ensure initialState has defaults if properties are missing
         const safeInitialState = {
             x: initialState?.x ?? this.gameWidth / 2,
@@ -96,9 +98,12 @@ class PlayerManager {
             facingDirection: initialState?.facingDirection ?? -1,
             rotation: initialState?.rotation ?? 0,
             lifecycleState: initialLifecycleState,
-            // Add health/fuel based on initial vehicle type
             health: getVehicleConfig(initialState?.vehicleType ?? 0).maxHealth,
             fuel: getVehicleConfig(initialState?.vehicleType ?? 0).maxFuel,
+            // Initialize ground damage timer
+            lastGroundDamageTime: 0,
+             // Initialize active powerups state
+            activePowerups: {},
         };
 
         // Validate vehicleType before creating PlayerState
@@ -123,8 +128,9 @@ class PlayerManager {
         );
 
         // Pass managers if they've been set already
-        if (this.projectileManager && this.networkManager) {
-            player.setManagers(this.projectileManager, this.networkManager, this, this.particleSystem); // Pass self and particleSystem
+        if (this.projectileManager && this.networkManager && this.particleSystem && this.powerupManager) {
+            // Pass self, particleSystem and powerupManager
+            player.setManagers(this.projectileManager, this.networkManager, this, this.particleSystem, this.powerupManager);
         }
 
         // Set initial lifecycle state explicitly AFTER player is created
@@ -133,9 +139,11 @@ class PlayerManager {
         // Set visual state directly after creation
         player.state.facingDirection = safeInitialState.facingDirection;
         player.state.rotation = safeInitialState.rotation;
-        // Set initial health/fuel
+        // Set initial health/fuel/timers/powerups
         player.state.health = safeInitialState.health;
         player.state.fuel = safeInitialState.fuel;
+        player.state.lastGroundDamageTime = safeInitialState.lastGroundDamageTime;
+        player.state.activePowerups = safeInitialState.activePowerups; // Set initial empty powerups
 
         // For remote players, immediately set their server state and snap visual state
         if (!isLocal) {
@@ -189,6 +197,7 @@ class PlayerManager {
              if (player && player.state && !player.isMarkedForRemoval) {
                  // Pass playerManager to player update for use in physics/damage calls
                  // Ensure 'this' (PlayerManager) is passed here
+                 // Pass current time for powerup effect updates
                  player.update(deltaTime, groundLevelY, particleSystem, currentTime, this);
              }
         }
@@ -196,16 +205,19 @@ class PlayerManager {
 
     handleCollisions(currentTime) {
         // Check if managers needed for collision detection are available
-        if (!this.projectileManager || !this.particleSystem) {
-            console.warn("Collision detection skipped: projectileManager or particleSystem not available.");
+        if (!this.projectileManager || !this.particleSystem || !this.powerupManager) {
+            console.warn("Collision detection skipped: projectileManager, particleSystem, or powerupManager not available.");
             return;
         }
 
         const activePlayers = this.getAllActivePlayers(); // Get only players in ACTIVE state
+        const localPlayer = this.getLocalPlayer();
 
         // Get active projectiles from the projectile manager
-        // Ensure getProjectiles returns an object keyed by ID as expected by collision detector
-        const activeProjectilesObject = this.projectileManager.getProjectiles(); // Assume this returns the required object
+        const activeProjectilesObject = this.projectileManager.getProjectiles();
+
+        // Get active powerups from the powerup manager
+        const activePowerupsArray = this.powerupManager.getActivePowerups();
 
         // Call Player-Player collision detection
         checkPlayerCollisions(
@@ -225,6 +237,15 @@ class PlayerManager {
             currentTime,
             this, // Pass self (PlayerManager instance) for damage application/death handling
             this.particleSystem // Pass particle system for collision effects
+        );
+
+        // Call Player-Powerup collision detection (only for local player)
+        checkPowerupCollisions(
+            localPlayer,
+            activePowerupsArray,
+            this.renderScale,
+            currentTime,
+            this.powerupManager // Pass powerup manager for pickup logic
         );
     }
 

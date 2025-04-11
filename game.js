@@ -12,6 +12,7 @@ import { SPRITES } from 'config/sprites.js';
 import VehicleSelector from 'ui/vehicle-selector.js';
 import { PlayerLifecycleState } from 'entities/player-lifecycle.js';
 import StatusBarRenderer from 'ui/status-bars.js';
+import PowerupManager from 'entities/powerups/powerup-manager.js';
 
 console.log("Game starting...");
 
@@ -45,6 +46,7 @@ let groundLevelY = GAME_HEIGHT;
 
 // --- Game Logic Modules (Initialized later) ---
 let playerManager = null;
+let powerupManager = null; 
 let networkEventHandler = null;
 let debugRenderer = null;
 let backgroundRenderer = null;
@@ -69,53 +71,46 @@ async function initializeGame() {
         playerManager = new PlayerManager(assets, renderer.getContext(), RENDER_SCALE, GAME_WIDTH, GAME_HEIGHT);
         playerManager.setLocalPlayerId(localPlayerId);
 
+        powerupManager = new PowerupManager(networkManager, assets, RENDER_SCALE);
+
         backgroundRenderer = new BackgroundRenderer(renderer.getContext(), GAME_WIDTH, GAME_HEIGHT);
-        groundLevelY = backgroundRenderer.getGroundLevel(); // Get actual ground level
+        groundLevelY = backgroundRenderer.getGroundLevel(); 
 
         particleSystem = new ParticleSystem();
 
-        // Instantiate VehicleSelector AFTER assets are loaded
         vehicleSelector = new VehicleSelector(vehicleSelectorEl, assets, (type) => {
             playerManager.confirmLocalPlayerVehicleSelection(type);
         });
 
-        // Instantiate StatusBarRenderer AFTER PlayerManager
         statusBarRenderer = new StatusBarRenderer(renderer.getContext(), playerManager, RENDER_SCALE);
 
-        // Set managers in PlayerManager AFTER all managers are created
-        // Ensure particleSystem is passed here as well
-        playerManager.setManagers(projectileManager, networkManager, vehicleSelector, particleSystem);
+        playerManager.setManagers(projectileManager, networkManager, vehicleSelector, particleSystem, powerupManager);
 
         const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE, groundLevelY };
         networkEventHandler = new NetworkEventHandler(networkManager, playerManager, projectileManager, gameConfig);
         debugRenderer = new DebugRenderer(debugEl, playerManager, networkManager, inputManager, gameConfig);
         debugRenderer.setLocalPlayerId(localPlayerId);
 
-        inputManager.update(); // Initial update to set previousKeys
+        inputManager.update(); 
 
-        // 4. Create Local Player (will start in SELECTING state by default)
         const initialX = GAME_WIDTH / 2;
-        // Initial Y doesn't matter much as it will be set on spawn after selection
         const initialY = groundLevelY / 2;
         const initialState = {
             x: initialX,
             y: initialY,
-            vehicleType: 0, // Default, selector will override
+            vehicleType: 0, 
             facingDirection: -1,
             rotation: 0,
-            lifecycleState: PlayerLifecycleState.SELECTING // Explicitly start in selection
+            lifecycleState: PlayerLifecycleState.SELECTING 
         };
         const localPlayer = playerManager.createPlayer(localPlayerId, initialState, true);
         if (localPlayer) {
-            // Ensure managers are set if player created successfully
             console.log(`Local player ${localPlayerId} created, initial state: ${localPlayer.state.lifecycleState}`);
         } else {
             console.error("Failed to create local player!");
             throw new Error("Local player creation failed.");
         }
 
-        // Send initial presence ONLY if the player somehow didn't start in SELECTING
-        // (confirmLocalPlayerVehicleSelection handles the first ACTIVE presence update)
         if (localPlayer && localPlayer.state.lifecycleState !== PlayerLifecycleState.SELECTING) {
             networkEventHandler.updateLocalPlayerPresence(performance.now());
             lastPresenceUpdateTime = performance.now();
@@ -124,10 +119,8 @@ async function initializeGame() {
             console.log("Initial presence deferred until vehicle selection.");
         }
 
-        // 6. Setup Network Handlers
         networkEventHandler.setupNetworkHandlers();
 
-        // 7. Start Game Loop
         lastUpdateTime = performance.now();
         requestAnimationFrame(gameLoop);
         console.log("Game initialized successfully.");
@@ -140,70 +133,62 @@ async function initializeGame() {
     }
 }
 
-// --- Main Update Function ---
 function update(deltaTime, currentTime) {
     backgroundRenderer.update(deltaTime);
     particleSystem.update(deltaTime);
     projectileManager.update(deltaTime, groundLevelY);
+    powerupManager.update(deltaTime); 
+
+    powerupManager.attemptSpawnPowerup(currentTime, GAME_WIDTH, GAME_HEIGHT, groundLevelY);
 
     const localPlayer = playerManager.getLocalPlayer();
 
-    // Handle input globally, Player class handles state checking
     const input = inputManager.getInputState();
     if (localPlayer && localPlayer.state && !localPlayer.isMarkedForRemoval) {
         localPlayer.handleInput(input);
 
-        // Handle debug kill key only when active and key JUST pressed
-        // Use the new wasKeyJustPressed method
         if (inputManager.wasKeyJustPressed(DEBUG_KILL_KEY) && localPlayer.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
             console.log("Debug key pressed: Kill Local Player");
-            playerManager.killLocalPlayer(); // Request kill
+            playerManager.killLocalPlayer(); 
         }
     }
 
-    // Update all players (physics, interpolation, fuel regen, health timers, actions)
-    // Pass playerManager to handle dependencies within player update (e.g., ground damage)
     playerManager.updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime);
 
-    // Handle collisions AFTER player positions are updated
-    playerManager.handleCollisions(currentTime);
+    playerManager.handleCollisions(currentTime); 
 
-    // Send local player presence update periodically
     if (currentTime - lastPresenceUpdateTime > PRESENCE_UPDATE_THROTTLE) {
          networkEventHandler.updateLocalPlayerPresence(currentTime);
          lastPresenceUpdateTime = currentTime;
     }
 
-    // Update InputManager's previous key state AFTER all input checks
     inputManager.update();
 }
 
-// --- Main Draw Function ---
 function draw() {
     renderer.clear();
     backgroundRenderer.draw();
     particleSystem.draw(renderer.getContext());
     projectileManager.draw(renderer.getContext());
+    powerupManager.draw(renderer.getContext()); 
     playerManager.drawPlayers(renderer);
-    statusBarRenderer.draw(); // Draw status bars after players
+    statusBarRenderer.draw(); 
     debugRenderer.drawPlayerInfo(renderer);
     debugRenderer.updateDebugInfo();
 }
 
-// --- Game Loop ---
 function gameLoop(currentTime) {
     const rawDeltaTime = (currentTime - lastUpdateTime) / 1000;
     const deltaTime = Math.min(rawDeltaTime, MAX_DELTA_TIME);
     lastUpdateTime = currentTime;
 
-    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem) {
+    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager) {
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
         return;
     }
 
     try {
-        // Input state is read in update()
         update(deltaTime, currentTime);
         draw();
 
@@ -217,5 +202,4 @@ function gameLoop(currentTime) {
     requestAnimationFrame(gameLoop);
 }
 
-// --- Start ---
 initializeGame();
