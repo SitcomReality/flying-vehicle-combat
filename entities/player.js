@@ -6,10 +6,9 @@ import { updatePlayerFromServer, interpolatePlayerState } from './player-network
 import { updatePlayerAnimation } from './player-animation.js';
 import { updatePlayerCharging, handlePlayerFiring } from './player-actions.js';
 import { getVisualCenter, getVisualNosePosition } from './player-visuals.js';
-import { PlayerLifecycleState } from './player-lifecycle.js'; // Import lifecycle states
-import { updateFuel } from './vehicles/fuel-system.js'; // Use functions from fuel-system
-import { updateHealth, applyDamage } from './vehicles/health-system.js'; // Use functions from health-system
-// Import powerup effects updater
+import { PlayerLifecycleState } from './player-lifecycle.js'; 
+import { updateFuel } from './vehicles/fuel-system.js'; 
+import { updateHealth, applyDamage } from './vehicles/health-system.js'; 
 import { updatePowerupEffects } from './powerups/powerup-effects.js';
 
 // Configuration Constants
@@ -28,23 +27,23 @@ class Player {
         // References to managers (will be set externally)
         this.projectileManager = null;
         this.networkManager = null;
-        this.playerManager = null; // Add reference to player manager for death handling
-        this.particleSystem = null; // Add reference for particle effects
-        this.powerupManager = null; // Add reference for powerups
+        this.playerManager = null; 
+        this.particleSystem = null; 
+        this.powerupManager = null; 
     }
 
     // Set references to managers needed for actions
     // Added particleSystem and powerupManager parameters
     setManagers(projectileManager, networkManager, playerManager, particleSystem, powerupManager) {
-        this.projectileManager = projectileManager;
+        this.projectile = projectileManager;
         this.networkManager = networkManager;
-        this.playerManager = playerManager; // Store player manager reference
-        this.particleSystem = particleSystem; // Store particle system reference
-        this.powerupManager = powerupManager; // Store powerup manager reference
+        this.playerManager = playerManager; 
+        this.particleSystem = particleSystem; 
+        this.powerupManager = powerupManager; 
     }
 
     // --- Getters to access state properties easily ---
-    get id() { return this.state.id; }
+    get id()  return this.state.id ;
     get x() { return this.state.x; }
     get y() { return this.state.y; }
     get isLocalPlayer() { return this.state.isLocalPlayer; }
@@ -54,22 +53,22 @@ class Player {
 
     // --- Network Synchronization ---
     updateFromServer(serverStateData, timestamp) {
-        updatePlayerFromServer(this.state, serverStateData, timestamp);
+        updatePlayerFromServer(this.state, serverStateData,timestamp);
 
         // Handle lifecycle state sync for remote players
         if (!this.state.isLocalPlayer && serverStateData.lifecycleState !== undefined && serverStateData.lifecycleState !== this.state.lifecycleState) {
-            console.log(`Remote player ${this.id} lifecycle state changed: ${this.state.lifecycleState} -> ${serverStateData.lifecycleState}`);
+            console.log(`Remote player ${this.id} state changed: ${this.state.lifecycleState} -> ${serverStateData.lifecycleState}`);
             this.state.lifecycleState = serverStateData.lifecycleState;
-             // If remote player becomes inactive, stop interpolating? Maybe not necessary yet.
+             // If remote player becomes inactive, stop interpolating? MaybeData not necessary yet.
              // If they become active, ensure interpolation targets are updated.
         }
 
         // Sync health/fuel/invulnerability/score from server for remote players
-        if (!this.state.isLocalPlayer) {
+        if (!this.isLocalPlayer) {
              if (serverStateData.health !== undefined) this.state.health = serverStateData.health;
              if (serverStateData.fuel !== undefined) this.state.fuel = serverStateData.fuel;
              if (serverStateData.isInvulnerable !== undefined) this.state.isInvulnerable = serverStateData.isInvulnerable;
-             if (serverStateData.score !== undefined) this.state.score = serverStateData.score; // Sync score
+             if (serverStateData.score !== undefined) this.state.score = serverStateData.score; 
         }
     }
 
@@ -92,7 +91,7 @@ class Player {
     update(deltaTime, groundLevelY, particleSystem, currentTime, playerManager) { // Pass playerManager explicitly
         // Skip updates if marked for removal or in a completely non-interactive state
         if (this.state.isMarkedForRemoval || this.state.lifecycleState === PlayerLifecycleState.CONNECTING) {
-             // Still update health invulnerability timer even if connecting (edge case?)
+             // Still update health invulnerability timer even connecting (edge case?)
             updateHealth(this.state, deltaTime, currentTime); // Call updateHealth from health-system
             return;
         }
@@ -113,7 +112,7 @@ class Player {
         // 3. Handle Local Player Actions (Charging & Firing) - Only if ACTIVE
         if (this.state.isLocalPlayer && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
             const boundGetVisualCenter = () => getVisualCenter(this.state, this.renderScale);
-            const boundGetVisualNosePosition = () => getVisualNosePosition(this.state, this.renderScale);
+            const boundGetVisualNosePosition = () => getVisualNosePosition(this.state, this.renderScale));
             updatePlayerCharging(
                 this.state,
                 deltaTime,
@@ -130,7 +129,7 @@ class Player {
         }
 
         // 4. Physics, Fuel and Interpolation
-        if (this.state.isLocalPlayer) {
+        if (this.isLocalPlayer) {
              // Only apply physics if ACTIVE
              if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
                 updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem, currentTime, playerManager); // Pass playerManager
@@ -158,13 +157,13 @@ class Player {
     draw() {
         // Only draw if not marked for removal and not in a completely hidden state
         if (this.state.isMarkedForRemoval ||
-            this.state.lifecycleState === PlayerLifecycleState.CONNECTING ||
+            this.lifecycleState === PlayerLifecycleState.CONNECTING ||
             this.state.lifecycleState === PlayerLifecycleState.SELECTING) { // Also hide during SELECTING
             return;
         }
 
         // Optionally hide player visually during death if needed (e.g., show explosion instead)
-        // if (this.state.lifecycleState === PlayerLifecycleState.DEAD) {
+        // if (this.lifecycleState === PlayerLifecycleState.DEAD) {
         //     return;
         // }
 
@@ -224,11 +223,11 @@ class Player {
              // If local player, immediately sync presence on state change
              if (this.state.isLocalPlayer) {
                 this.networkManager?.updatePresence(this.getPresenceData());
-                console.log(`Local player ${this.id} presence updated due to state change: ${oldState} -> ${newState}`);
+                console.log(`Local player ${this.id} updated due to state change: ${oldState} -> ${newState}`);
              }
              return true; // Transition occurred
          }
-         return false; // No transition needed
+         return; // No transition needed
     }
 
     // Resets the player state for spawning
@@ -242,6 +241,20 @@ class Player {
         // Pass call to the health system, providing the player manager reference
         applyDamage(this.state, amount, currentTime, this.playerManager);
     }
+
+    // Method to add score to the player
+    addScore(amount) {
+        if (amount > 0 && this.lifecycleState === PlayerLifecycleState.ACTIVE) {
+            this.state.score += amount;
+            console.log(`Player ${this.id} scored ${amount} points. Total score: ${this.state.score}`);
+            // Presence will happen automatically due to state change being included
+            // If local player, ensure presence is updated soon
+            if (this.isLocalPlayer) {
+                // No immediate sync needed here, regular presence updates will cover it
+                // this.networkManager?.updatePresence(this.getPresenceData());
+            }
+        }
+    }
 }
 
-export default Player;
+ export default Player;

@@ -6,6 +6,7 @@ import { SPRITES } from '../../config/sprites.js';
 const DEFAULT_HEALTH = 50;
 const DEFAULT_SIZE_SCALE = 0.3; // Visual scale relative to sprite frame size
 const DEFAULT_HITBOX_SCALE = 0.7; // Hitbox scale relative to visual size
+const DEFAULT_SCORE_VALUE = 5; // Default points awarded on destruction
 
 export class SpaceObject {
     constructor(id, type, x, y, initialState = {}) {
@@ -21,6 +22,7 @@ export class SpaceObject {
         this.maxHealth = this.health; // Store initial health as max
         this.creationTime = performance.now();
         this.isMarkedForRemoval = false;
+        this.scoreValue = initialState.scoreValue ?? DEFAULT_SCORE_VALUE; // Points awarded
 
         // Get sprite frame based on type
         this.spriteFrame = this._getSpriteFrame(type);
@@ -113,7 +115,7 @@ export class SpaceObject {
         if (this.isMarkedForRemoval) return false;
 
         this.health -= amount;
-        console.log(`Space object ${this.id} took ${amount} damage. Health: ${this.health}`);
+        // console.log(`Space object ${this.id} took ${amount} damage. Health: ${this.health}`); // Reduced logging noise
         if (this.health <= 0) {
             this.isMarkedForRemoval = true;
             console.log(`Space object ${this.id} destroyed.`);
@@ -143,6 +145,7 @@ export class SpaceObject {
              rotation: this.rotation,
              rotationSpeed: this.rotationSpeed,
              health: this.health,
+             scoreValue: this.scoreValue, // Include score value in sync data
              // Include any other state needed for subtypes
          };
      }
