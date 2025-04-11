@@ -1,4 +1,4 @@
-// Manages active space objects in the game world'
+// Manages active space objects in the game world
 
 import { SpaceObject } from './space-object.js';
 import { Asteroid } from './space-object-types/asteroid.js'; 
@@ -62,7 +62,7 @@ class SpaceObjectManager {
 
     // Syncs local objects with server data
     _syncObjects(objectData) {
-        const currentIds = Object.keys(this.activeObjects));
+        const currentIds = Object.keys(this.activeObjects); 
         const serverIds = Object.keys(objectData);
 
         // Remove local objects that are no longer in roomState
@@ -89,13 +89,13 @@ class SpaceObjectManager {
             if (!this.activeObjects[id]) {
                 // Create new object instance
                 // console.log(`Creating a new space object instance ${id} of ${data.type}`); // Reduced logging
-                this.activeObjects[id] = new ObjectClass(id, data.type data.x data.y data); // Pass all data as initial state
+                this.activeObjects[id] = new ObjectClass(id, data.type, data.x, data.y, data); // Pass all data as initial state
             } else {
                 // Update existing local instance (simple position/health/score update for now)
                 const localObj = this.activeObjects[id];
                  // Avoid excessive updates, maybe interpolate later?
                  // For now, snap position and update state.
-                localObj = data.x;
+                localObj.x = data.x; 
                 localObj.y = data.y;
                 localObj.rotation = data.rotation ?? localObj.rotation;
                 localObj.health = data.health ?? localObj.health;
@@ -103,7 +103,7 @@ class SpaceObjectManager {
                 // Update other state if needed
             }
         }
-    action
+    } 
 
     // Spawning logic (simplified, needs leader election or similar for multiplayer safety)
     // For now, any client might try to spawn. Last write wins via roomState.
@@ -111,9 +111,10 @@ class SpaceObjectManager {
         // Simple check: only let the "first" player spawn (naïve leader election)
         const peers = this.networkManager.getPeers();
         const peerIds = Object.keys(peers).sort();
-        if (!peerIds.length || !this.networkManager.getClientId() !== peerIds[0]) {
+        // Corrected leader election logic
+        if (!peerIds.length || this.networkManager.getClientId() !== peerIds[0]) {
             return; // Only the "leader" spawns
-
+        }
 
         const numActive = Object.keys(this.activeObjects).length;
         if (numActive >= MAX_ACTIVE_OBJECTS) {
@@ -152,21 +153,22 @@ class SpaceObjectManager {
                 spaceObjects: {
                     [newId]: syncData // Send the full initial state
                 }
+            }); 
         }
     }
 
     getObject(id) {
-        this.activeObjects[id];
+        return this.activeObjects[id]; 
     }
 
     destroyObject(id, playerDestroyerId = null) {
-        this.activeObjects[id];
+        const obj = this.getObject(id); 
         if (obj) {
             obj.isMarkedForRemoval = true; // Mark for local cleanup
 
             // --- Call Drop System ---
             handleObjectDestructionDrop(obj, playerDestroyerId, this.collectibleManager);
-            // --- End Drop System. Call ---
+            // --- End Drop System Call ---
 
             delete this.activeObjects[id]; // Remove immediately from local active list
 
@@ -180,19 +182,20 @@ class SpaceObjectManager {
         }
     }
 
-    applyDamageToObject(id amount, playerDestroyerId = null) {
+    applyDamageToObject(id, amount, playerDestroyerId = null) {
         const obj = this.getObject(id);
         if (obj && obj.takeDamage(amount)) { // takeDamage returns true if destroyed
-            // this.destroyObject(id, playerDestroyerId);
+            this.destroyObject(id, playerDestroyerId); // Call destroyObject here
             return true; // Indicate destruction
-        } else if damaged but not destroyed, update roomState with new health
-        else if (obj) {
+        } else if (obj) { 
+             // Damaged but not destroyed, update roomState with new health
             this.networkManager.updateRoomState({
                 spaceObjects: {
                     [id]: obj.getSyncData() // Send updated state
+                }
             });
         }
-            return false; // Indicate not destroyed (or object not found
+        return false; // Indicate not destroyed (or object not found)
     }
 
     getActiveObjects() {
@@ -200,7 +203,7 @@ class SpaceObjectManager {
         return Object.values(this.activeObjects).filter(o => !o.isMarkedForRemoval);
     }
 
-    getActiveObjectsMap()) {
+    getActiveObjectsMap() { 
         // Return objects as a map { id: object }
         const map = {};
         for (const id in this.activeObjects) {
@@ -238,7 +241,7 @@ class SpaceObjectManager {
     }
 
     draw(ctx) {
-        for (const id this.activeObjects) {
+        for (const id in this.activeObjects) { 
             this.activeObjects[id].draw(ctx, this.assets, 1.0); // Pass scale 1.0 for now
         }
     }
