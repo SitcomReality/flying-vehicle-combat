@@ -1,6 +1,6 @@
-// New file: Handles player actions like charging and firing projectiles
+// Handles player actions like charging and firing projectiles
 
-import { PLAYER_PHYSICS } from './player-state.js';
+import { GLOBAL_PHYSICS } from './player-state.js'; // Use GLOBAL_PHYSICS for projectile constants
 
 // Configuration
 const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
@@ -19,25 +19,22 @@ export function updatePlayerCharging(playerState, deltaTime, particleSystem, get
 
     if (playerState.isCharging) {
         playerState.chargeLevel = Math.min(
-            playerState.chargeLevel + PLAYER_PHYSICS.CHARGE_RATE * deltaTime,
-            PLAYER_PHYSICS.MAX_CHARGE_LEVEL
+            playerState.chargeLevel + GLOBAL_PHYSICS.CHARGE_RATE * deltaTime, // Use global constant
+            GLOBAL_PHYSICS.MAX_CHARGE_LEVEL // Use global constant
         );
 
         // Emit charging particles if system available
         if (particleSystem && getVisualCenterFunc && getVisualNosePositionFunc) {
-            const nosePos = getVisualNosePositionFunc(playerState); // Pass state directly
-            const centerPos = getVisualCenterFunc(playerState); // Pass state directly
+            const nosePos = getVisualNosePositionFunc(playerState);
+            const centerPos = getVisualCenterFunc(playerState);
             particleSystem.emitChargeParticles(
-                centerPos.x, centerPos.y, // Spawn around center
+                centerPos.x, centerPos.y,
                 CHARGE_PARTICLE_EMIT_RATE,
-                nosePos.x, nosePos.y // Target is the nose
+                nosePos.x, nosePos.y
             );
         }
 
     } else if (!playerState.wantsToFire) { // Only reset/decay if not about to fire
-        // Decay charge level if not charging and didn't just fire (optional)
-        // playerState.chargeLevel = Math.max(0, playerState.chargeLevel - PLAYER_PHYSICS.CHARGE_RATE * deltaTime * 2);
-        // Or just reset if not charging
          playerState.chargeLevel = 0;
     }
 }
@@ -53,17 +50,16 @@ export function updatePlayerCharging(playerState, deltaTime, particleSystem, get
 export function fireProjectile(playerState, projectileManager, networkManager, getVisualNosePositionFunc) {
     const state = playerState;
     if (!projectileManager || !networkManager || state.chargeLevel <= 0 || !getVisualNosePositionFunc) {
-        // console.log("Cannot fire: Missing dependencies or charge.");
         return;
     }
 
     // Calculate projectile initial state
-    const nosePos = getVisualNosePositionFunc(state); // Pass state directly
+    const nosePos = getVisualNosePositionFunc(state);
     const startX = nosePos.x;
     const startY = nosePos.y;
 
-    const chargeRatio = state.chargeLevel / PLAYER_PHYSICS.MAX_CHARGE_LEVEL;
-    const speed = PLAYER_PHYSICS.PROJECTILE_BASE_SPEED + (PLAYER_PHYSICS.PROJECTILE_SPEED_SCALE * state.chargeLevel);
+    const chargeRatio = state.chargeLevel / GLOBAL_PHYSICS.MAX_CHARGE_LEVEL; // Use global constant
+    const speed = GLOBAL_PHYSICS.PROJECTILE_BASE_SPEED + (GLOBAL_PHYSICS.PROJECTILE_SPEED_SCALE * state.chargeLevel); // Use global constants
 
     // Calculate firing angle based on sprite rotation and visual direction
     let angle;
@@ -78,7 +74,7 @@ export function fireProjectile(playerState, projectileManager, networkManager, g
     let vy = Math.sin(angle) * speed;
 
     // Add player's current velocity to the projectile (inherited velocity)
-    vx += state.vx * 0.5; // Inherit half of player's velocity
+    vx += state.vx * 0.5;
     vy += state.vy * 0.5;
 
     // Create projectile locally AND get data to broadcast
@@ -86,7 +82,7 @@ export function fireProjectile(playerState, projectileManager, networkManager, g
         state.id,
         startX, startY,
         vx, vy,
-        '#FFD700' // Gold color for projectile
+        '#FFD700' // Gold color for projectile - TODO: Make weapon-dependent later
     );
 
     // Broadcast the fire event to other clients
@@ -95,8 +91,6 @@ export function fireProjectile(playerState, projectileManager, networkManager, g
         projectile: projectileData,
         echo: false // Don't send back to self
     });
-
-     // console.log(`Player ${state.id} fired projectile ${projectileData.id} with charge ${state.chargeLevel.toFixed(0)}`);
 
     // Reset charge immediately after firing calculation uses it
     state.chargeLevel = 0;
@@ -115,6 +109,6 @@ export function handlePlayerFiring(playerState, projectileManager, networkManage
      if (playerState.wantsToFire) {
          fireProjectile(playerState, projectileManager, networkManager, getVisualNosePositionFunc);
          playerState.wantsToFire = false; // Consume the fire request
-         // Charge level is reset within fireProjectile *after* it's used for calculation
+         // Charge level is reset within fireProjectile
      }
 }

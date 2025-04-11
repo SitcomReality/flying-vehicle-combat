@@ -1,14 +1,14 @@
 // New file: Defines the Projectile class
 
-import { PLAYER_PHYSICS } from './player-state.js';
+import { GLOBAL_PHYSICS } from './player-state.js'; // Use global constants for projectile physics
 
 const PROJECTILE_RADIUS = 4;
 const PROJECTILE_LIFESPAN = 3; // seconds
 
 class Projectile {
     constructor(id, ownerId, x, y, vx, vy, color = 'yellow') {
-        this.id = id; // Unique ID for this projectile
-        this.ownerId = ownerId; // ID of the player who fired it
+        this.id = id; 
+        this.ownerId = ownerId; 
         this.x = x;
         this.y = y;
         this.vx = vx;
@@ -18,6 +18,8 @@ class Projectile {
         this.creationTime = performance.now();
         this.lifespan = PROJECTILE_LIFESPAN * 1000; // milliseconds
         this.isMarkedForRemoval = false;
+        // TODO: Add damage property based on weapon/charge later
+        this.damage = 10; // Example base damage
     }
 
     update(deltaTime, groundLevelY) {
@@ -30,7 +32,7 @@ class Projectile {
         }
 
         // Apply gravity (scaled)
-        this.vy += PLAYER_PHYSICS.GRAVITY * PLAYER_PHYSICS.PROJECTILE_GRAVITY_FACTOR * deltaTime;
+        this.vy += GLOBAL_PHYSICS.GRAVITY * GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR * deltaTime;
 
         // Update position
         this.x += this.vx * deltaTime;
