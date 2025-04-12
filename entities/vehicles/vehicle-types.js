@@ -50,7 +50,7 @@ export const VEHICLE_TYPES = {
         name: "Heavy Hauler",
         // Core Stats
         maxHealth: 150, // More health
-        maxFuel: 80,    // Less fuel
+        maxFuel: 120,    // MOST fuel (swapped from 80)
         fuelRegenRate: 20,
         fuelConsumeRate: 35, // Consumes more fuel
         // Movement - slower, less agile
@@ -75,7 +75,7 @@ export const VEHICLE_TYPES = {
         name: "Interceptor",
         // Core Stats
         maxHealth: 75,  // Less health
-        maxFuel: 120,   // More fuel
+        maxFuel: 80,   // LEAST fuel (swapped from 120)
         fuelRegenRate: 35, // Faster regen
         fuelConsumeRate: 25, // Consumes less fuel
         // Movement - faster, more agile
