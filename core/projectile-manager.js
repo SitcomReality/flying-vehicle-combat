@@ -32,8 +32,9 @@ class ProjectileManager {
             if (projectile) {
                 projectile.isLocal = isLocal; // Set the flag here
                 this.projectiles[id] = projectile;
-                // Now log with the correct locality
+                // --- FIX: Correct logging based on isLocal flag ---
                 console.log(`[ProjectileMgr ${localClientId}] Successfully CREATED ${isLocal ? 'LOCAL' : 'REMOTE'} projectile ${id}. Pos: (${x.toFixed(1)},${y.toFixed(1)}), Vel: (${vx.toFixed(1)},${vy.toFixed(1)}), Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}`);
+                // --- End FIX ---
             } else {
                  console.error(`[ProjectileMgr ${localClientId}] FAILED to create projectile instance for ID ${id} - Constructor returned null/undefined.`);
             }

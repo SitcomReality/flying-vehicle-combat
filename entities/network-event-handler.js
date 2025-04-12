@@ -141,19 +141,27 @@ class NetworkEventHandler {
     }
 
     _handleMessage(event) {
-        const data = event; // data is the whole event object now
-        const myClientId = this.networkManager?.getClientId(); // Use optional chaining
+        // --- FIX: Extract the actual payload from event.data ---
+        const data = event.data;
+        // --- End FIX ---
+
+        // Check if data exists and has a type before proceeding
+        if (!data || !data.type) {
+            // console.warn(`[NetworkEventHandler] Received event with missing data or type:`, event);
+            return;
+        }
+
+        const myClientId = this.networkManager?.getClientId();
 
         // Reduce logging frequency for non-essential messages
         if (data.type !== 'connected' && data.type !== 'disconnected' && data.type !== 'fireProjectile') {
             // console.log(`[NetworkEventHandler ${myClientId}] Received message:`, data);
         }
 
+        // --- The switch statement now correctly checks data.type ---
         switch (data.type) {
-            case 'connected':
+            case 'connected': // These still won't be hit here because NetworkManager filters them, but harmless
             case 'disconnected':
-                // These are handled automatically by presence updates now
-                // console.log(`[NetworkEventHandler ${myClientId}] Network Event: ${data.type} - Client: ${data.clientId}, ${data.username}`);
                 break;
             case 'fireProjectile':
                 // --- START DETAILED LOGGING ---
@@ -213,8 +221,9 @@ class NetworkEventHandler {
 
                 break;
             default:
+                 // Check data.type here instead of event.type
                 if (data.type !== 'connected' && data.type !== 'disconnected') {
-                    // console.log(`[NetworkEventHandler ${myClientId}] Received unhandled message:`, data);
+                    console.log(`[NetworkEventHandler ${myClientId}] Received unhandled message type: ${data.type}`, data);
                 }
                 break;
         }
