@@ -7,7 +7,7 @@ export const PowerupType = {
     FUEL_PACK: 'FUEL_PACK',
     SPEED_BOOST: 'SPEED_BOOST',
     DAMAGE_BOOST: 'DAMAGE_BOOST',
-    RAPID_FIRE: 'RAPID_FIRE', // Example for later weapon systems
+    RAPID_FIRE: 'RAPID_FIRE', // Added Rapid Fire
     INVULNERABILITY: 'INVULNERABILITY',
 };
 
@@ -17,7 +17,7 @@ const POWERUP_SPRITE_MAP = {
     [PowerupType.FUEL_PACK]: 1, // lightning bolt (repurposed for fuel)
     [PowerupType.SPEED_BOOST]: 2, // up arrow
     [PowerupType.DAMAGE_BOOST]: 0, // rocket (repurposed for damage)
-    [PowerupType.RAPID_FIRE]: 5, // dots (for future use)
+    [PowerupType.RAPID_FIRE]: 5, // dots
     [PowerupType.INVULNERABILITY]: 7, // star
 };
 
@@ -46,12 +46,18 @@ export const POWERUP_CONFIG = {
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.DAMAGE_BOOST],
         name: 'Damage Boost',
     },
+    // Added RAPID_FIRE config
+    [PowerupType.RAPID_FIRE]: {
+        duration: 7000, // 7 seconds
+        multiplier: 1.8, // 80% faster fire rate
+        spriteIndex: POWERUP_SPRITE_MAP[PowerupType.RAPID_FIRE],
+        name: 'Rapid Fire',
+    },
     [PowerupType.INVULNERABILITY]: {
         duration: 5000, // 5 seconds
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.INVULNERABILITY],
         name: 'Invincibility Shield',
     },
-    // Add RAPID_FIRE config later when weapon system is more defined
 };
 
 export function getPowerupConfig(type) {

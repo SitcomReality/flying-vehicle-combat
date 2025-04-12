@@ -5,9 +5,9 @@ import { updatePlayerFromServer, interpolatePlayerState } from './player-network
 import { updatePlayerAnimation } from './player-animation.js';
 import WeaponSystem from './weapons/weapon-system.js';
 import { getVisualCenter, getVisualNosePosition } from './player-visuals.js';
-import { PlayerLifecycleState } from './player-lifecycle.js'; 
-import { updateFuel } from './vehicles/fuel-system.js'; 
-import { updateHealth, applyDamage } from './vehicles/health-system.js'; 
+import { PlayerLifecycleState } from './player-lifecycle.js';
+import { updateFuel } from './vehicles/fuel-system.js';
+import { updateHealth, applyDamage } from './vehicles/health-system.js';
 import { updatePowerupEffects } from './powerups/powerup-effects.js';
 
 // Configuration Constants
@@ -26,9 +26,10 @@ class Player {
         // References to managers (will be set externally)
         this.projectileManager = null;
         this.networkManager = null;
-        this.playerManager = null; 
-        this.particleSystem = null; 
-        this.powerupManager = null; 
+        this.playerManager = null;
+        this.particleSystem = null;
+        this.powerupManager = null;
+        this.inputManager = null; // Added reference for wasKeyJustPressed
 
         // Weapon System (instantiated once managers are set)
         this.weaponSystem = null;
@@ -36,12 +37,13 @@ class Player {
 
     // Set references to managers needed for actions
     // Added particleSystem and powerupManager parameters
-    setManagers(projectileManager, networkManager, playerManager, particleSystem, powerupManager) {
-        this.projectileManager = projectileManager; 
+    setManagers(projectileManager, networkManager, playerManager, particleSystem, powerupManager, inputManager) { // Added inputManager
+        this.projectileManager = projectileManager;
         this.networkManager = networkManager;
-        this.playerManager = playerManager; 
-        this.particleSystem = particleSystem; 
-        this.powerupManager = powerupManager; 
+        this.playerManager = playerManager;
+        this.particleSystem = particleSystem;
+        this.powerupManager = powerupManager;
+        this.inputManager = inputManager; // Store reference
 
         // Instantiate WeaponSystem now that managers are available
         if (this.state.isLocalPlayer && !this.weaponSystem) {
@@ -57,7 +59,7 @@ class Player {
     }
 
     // --- Getters to access state properties easily ---
-    get id() { return this.state.id; } 
+    get id() { return this.state.id; }
     get x() { return this.state.x; }
     get y() { return this.state.y; }
     get isLocalPlayer() { return this.state.isLocalPlayer; }
@@ -82,13 +84,13 @@ class Player {
              if (serverStateData.health !== undefined) this.state.health = serverStateData.health;
              if (serverStateData.fuel !== undefined) this.state.fuel = serverStateData.fuel;
              if (serverStateData.isInvulnerable !== undefined) this.state.isInvulnerable = serverStateData.isInvulnerable;
-             if (serverStateData.score !== undefined) this.state.score = serverStateData.score; 
+             if (serverStateData.score !== undefined) this.state.score = serverStateData.score;
         }
     }
 
-    // --- Input Handling (Moved from player-input.js) ---
+    // --- Input Handling (Refined) ---
     handleInput(inputState) {
-        if (!this.isLocalPlayer) return; // Only handle input for the local player
+        if (!this.isLocalPlayer || !this.inputManager) return; // Check inputManager is set
 
         // Ignore input if not in ACTIVE state
         if (this.state.lifecycleState !== PlayerLifecycleState.ACTIVE) {
@@ -97,13 +99,14 @@ class Player {
             this.state.isMovingLeft = false;
             this.state.isMovingRight = false;
             if (this.weaponSystem) {
-                // Ensure weapon system knows charging stopped if not active
-                 this.weaponSystem.stopCharging();
+                 this.weaponSystem.stopCharging(); // Ensure charging stops
                  this.weaponSystem.isCharging = false;
                  this.weaponSystem.wantsToFire = false;
+                 this.weaponSystem.isTapFire = false;
             }
-            this.state.isCharging = false; // Also update state directly
-            this.state.wantsToFire = false;
+             // Ensure player state reflects this
+             this.state.isCharging = false;
+             this.state.wantsToFire = false;
             return;
         }
 
@@ -112,13 +115,29 @@ class Player {
         this.state.isMovingLeft = inputState.left;
         this.state.isMovingRight = inputState.right;
 
-        // Update Weapon System based on action key
+        // Update Weapon System based on action key (' ')
         if (this.weaponSystem) {
-            if (inputState.action) { // Action key pressed
-                 this.weaponSystem.startCharging();
-            } else { // Action key released or not pressed
-                 this.weaponSystem.stopCharging(); // This flags 'wantsToFire' internally if needed
+            const actionKeyPressed = this.inputManager.wasKeyJustPressed(' ');
+            const actionKeyHeld = this.inputManager.isKeyPressed(' '); // Check current held state
+
+            if (actionKeyPressed) {
+                this.weaponSystem.flagTapFire(); // Signal intent to tap fire
+            } else if (actionKeyHeld && !this.weaponSystem.isTapFire) {
+                // If holding and not already flagged for tap fire, start/continue charging
+                this.weaponSystem.startCharging();
+            } else if (!actionKeyHeld && this.weaponSystem.isCharging) {
+                 // If released and was charging, stop charging (will trigger charged shot if charged enough)
+                 this.weaponSystem.stopCharging();
+            } else if (!actionKeyHeld && this.weaponSystem.isTapFire) {
+                 // If released and was flagged for tap fire (but maybe cooldown prevented it), clear flags
+                 this.weaponSystem.isTapFire = false;
+                 this.weaponSystem.wantsToFire = false;
+                 this.state.wantsToFire = false;
             }
+             // Ensure player state reflects weapon state for isCharging/wantsToFire
+             this.state.isCharging = this.weaponSystem.isCharging;
+             this.state.wantsToFire = this.weaponSystem.wantsToFire;
+
         } else {
              console.warn("WeaponSystem not available for input handling.");
         }
@@ -161,8 +180,8 @@ class Player {
             const boundGetVisualCenter = () => getVisualCenter(this.state, this.renderScale);
             // Update weapon charge level and particles
             this.weaponSystem.update(deltaTime, particleSystem, boundGetVisualCenter);
-            // Attempt to fire if flagged
-            this.weaponSystem.attemptFire();
+            // Attempt to fire if flagged (passes current time for cooldown check)
+            this.weaponSystem.attemptFire(currentTime);
         }
 
         // 4. Physics, Fuel and Interpolation
