@@ -16,24 +16,23 @@ class PlayerManager {
         // References to other managers needed by players (set externally)
         this.projectileManager = null;
         this.networkManager = null;
-        this.particleSystem = null; // Add reference for effects
-        this.powerupManager = null; // Add reference for powerups
-        this.playerLifecycleManager = null; // NEW: Reference to lifecycle manager
-        this.inputManager = null; // Add reference storage
+        this.particleSystem = null;
+        this.powerupManager = null;
+        this.playerLifecycleManager = null;
+        this.inputManager = null; // Add reference storage for Player
     }
 
-    setManagers(projectileManager, networkManager, playerLifecycleManager, particleSystem, powerupManager, inputManager) { 
+    // Pass inputManager here
+    setManagers(projectileManager, networkManager, playerLifecycleManager, particleSystem, powerupManager, inputManager) {
         this.projectileManager = projectileManager;
         this.networkManager = networkManager;
-        this.playerLifecycleManager = playerLifecycleManager; // Store reference
-        this.particleSystem = particleSystem; // Store reference
-        this.powerupManager = powerupManager; // Store reference
+        this.playerLifecycleManager = playerLifecycleManager;
+        this.particleSystem = particleSystem;
+        this.powerupManager = powerupManager;
         this.inputManager = inputManager; // Store reference
 
-        // Pass managers to already existing players
+        // Pass managers (including inputManager) to already existing players
         for (const id in this.players) {
-            // Ensure all required managers are passed to the Player instance
-            // Pass self, particleSystem and powerupManager
             this.players[id].setManagers(projectileManager, networkManager, this, particleSystem, powerupManager, inputManager);
         }
     }
@@ -99,6 +98,8 @@ class PlayerManager {
             lifecycleState: initialLifecycleState,
             health: getVehicleConfig(initialState?.vehicleType ?? 0).maxHealth,
             fuel: getVehicleConfig(initialState?.vehicleType ?? 0).maxFuel,
+            score: initialState?.score ?? 0, // Include initial score
+            isInvulnerable: initialState?.isInvulnerable ?? false,
             // Initialize ground damage timer
             lastGroundDamageTime: 0,
              // Initialize active powerups state
@@ -126,26 +127,26 @@ class PlayerManager {
             this.gameHeight
         );
 
-        // Pass managers if they've been set already
+        // Pass managers if they've been set already (including inputManager)
         if (this.projectileManager && this.networkManager && this.particleSystem && this.powerupManager && this.inputManager) {
-            // Pass self, particleSystem and powerupManager
             player.setManagers(this.projectileManager, this.networkManager, this, this.particleSystem, this.powerupManager, this.inputManager);
         }
 
-        // Set initial lifecycle state explicitly AFTER player is created
+        // Set initial state AFTER player and managers are linked
         player.state.lifecycleState = safeInitialState.lifecycleState;
-
-        // Set visual state directly after creation
         player.state.facingDirection = safeInitialState.facingDirection;
         player.state.rotation = safeInitialState.rotation;
-        // Set initial health/fuel/timers/powerups
         player.state.health = safeInitialState.health;
         player.state.fuel = safeInitialState.fuel;
         player.state.lastGroundDamageTime = safeInitialState.lastGroundDamageTime;
-        player.state.activePowerups = safeInitialState.activePowerups; // Set initial empty powerups
+        player.state.activePowerups = safeInitialState.activePowerups;
+        player.state.score = safeInitialState.score;
+        player.state.isInvulnerable = safeInitialState.isInvulnerable;
+
 
         // For remote players, immediately set their server state and snap visual state
         if (!isLocal) {
+            // Pass the full initial state object to ensure all properties are synced
             player.updateFromServer(safeInitialState, performance.now()); // Set server target
             player.state.x = player.state.serverX; // Snap visual position
             player.state.y = player.state.serverY;
@@ -153,6 +154,11 @@ class PlayerManager {
             player.state.facingDirection = player.state.serverFacingDirection; // Snap visual direction
             player.state.visualFacingDirection = player.state.serverFacingDirection; // Snap visual facing
             player.state.lifecycleState = player.state.serverLifecycleState ?? PlayerLifecycleState.ACTIVE; // Sync lifecycle or assume active
+            player.state.health = player.state.serverHealth; // Snap health
+            player.state.fuel = player.state.serverFuel; // Snap fuel
+            player.state.score = player.state.serverScore; // Snap score
+            player.state.isInvulnerable = player.state.serverIsInvulnerable; // Snap invuln
+
         } else {
              // Set server state for local player as well to prevent initial interpolation jump
              player.state.serverX = player.state.x;
@@ -161,16 +167,16 @@ class PlayerManager {
              player.state.serverFacingDirection = player.state.facingDirection;
              player.state.serverHealth = player.state.health;
              player.state.serverFuel = player.state.fuel;
+             player.state.serverScore = player.state.score;
+             player.state.serverIsInvulnerable = player.state.isInvulnerable;
+             player.state.serverLifecycleState = player.state.lifecycleState; // Ensure server state reflects local initial
         }
 
         this.players[clientId] = player;
 
-        // If the local player was just created and is in SELECTING state, show the selector
+        // Show vehicle selector if local player starts in SELECTING state
         if (isLocal && player.state.lifecycleState === PlayerLifecycleState.SELECTING) {
             console.log(`Local player ${clientId} entering SELECTING state. Showing selector.`);
-            // Vehicle selector is now managed by PlayerLifecycleManager, access it there if needed,
-            // but the state transition should handle showing it via `triggerLocalPlayerRespawn`.
-            // However, initial creation directly into SELECTING needs to show it.
              this.playerLifecycleManager?.vehicleSelector?.show();
         } else if (isLocal) {
              console.log(`Local player ${clientId} created in state ${player.state.lifecycleState}.`);
