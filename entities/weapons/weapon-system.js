@@ -64,6 +64,9 @@ class WeaponSystem {
             this.state.isCharging = false;
             this.state.wantsToFire = this.wantsToFire;
             // Note: isTapFire flag isn't strictly needed in state, but keeping internal flag consistent.
+
+            // DEBUG: Log when charging stops and the resulting intent
+            console.log(`[WeaponSystem ${this.state.id}] stopCharging. Final Charge: ${this.chargeLevel.toFixed(1)}. WantsToFire: ${this.wantsToFire}. IsTapFire: ${this.isTapFire}`);
         }
     }
 
@@ -121,9 +124,11 @@ class WeaponSystem {
     attemptFire(currentTime) { // Pass current time
         if (!this.wantsToFire || this.state.lifecycleState !== PlayerLifecycleState.ACTIVE) {
             // Clear flags if conditions not met (e.g., player died while wanting to fire)
-            this.wantsToFire = false;
-            this.state.wantsToFire = false;
-            this.isTapFire = false; // Reset this internal flag too
+            if (this.wantsToFire) { // Only clear if it was set
+                this.wantsToFire = false;
+                this.state.wantsToFire = false;
+                this.isTapFire = false; // Reset this internal flag too
+            }
             return;
         }
 
@@ -158,7 +163,14 @@ class WeaponSystem {
         // Check the charge level at the moment of firing
         const currentCharge = this.chargeLevel;
         const maxCharge = this.state.maxChargeLevel;
-        chargeRatio = Math.max(0, Math.min(1, currentCharge / maxCharge)); // Clamp ratio 0-1
+        // Ensure maxCharge is not zero to avoid division by zero
+        if (maxCharge > 0) {
+             chargeRatio = Math.max(0, Math.min(1, currentCharge / maxCharge)); // Clamp ratio 0-1
+        } else {
+             chargeRatio = 0; // Default to 0 if maxCharge is invalid
+             console.warn(`[WeaponSystem ${this.state.id}] Max charge level is 0 or invalid. Cannot calculate charge ratio.`);
+        }
+
 
         // Determine shot type for potential scaling (use internal isTapFire flag set during stopCharging)
         if (this.isTapFire) {
@@ -177,6 +189,9 @@ class WeaponSystem {
         // Inverse relationship: Full charge = 0 gravity factor, No charge = full gravity factor
         const gravityFactor = GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR * (1 - chargeRatio);
         // --- End Gravity Factor Calculation ---
+
+        // DEBUG: Log calculated values before firing
+        console.log(`[WeaponSystem ${this.state.id}] Attempting Fire. Charge: ${currentCharge.toFixed(1)}/${maxCharge}, Ratio: ${chargeRatio.toFixed(3)}, Speed: ${speed.toFixed(1)}, Damage: ${projectileDamage.toFixed(1)}, GravityFactor: ${gravityFactor.toFixed(3)}`);
 
 
         // Calculate firing angle based on sprite rotation and visual direction
