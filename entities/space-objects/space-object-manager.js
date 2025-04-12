@@ -4,7 +4,9 @@ import { SpaceObject } from './space-object.js';
 import { Asteroid } from './space-object-types/asteroid.js';
 import { Lander } from './space-object-types/lander.js';
 import { Rover } from './space-object-types/rover.js';
-import { handleObjectDestructionDrop, handleObjectDestructionPowerupDrop } from '../collectibles/drop-system.js';
+// --- Removed Collectible Drop Import ---
+// --- Updated Powerup Drop Import ---
+import { handleObjectDestructionPowerupDrop } from '../collectibles/drop-system.js';
 import { createObjectExplosionEffect } from './space-object-explosion-handler.js';
 // Import the new sync module
 import { initializeSpaceObjectsFromRoomState, handleSpaceObjectRoomStateUpdate } from './space-object-sync.js';
@@ -23,15 +25,15 @@ const OBJECT_TYPES_TO_SPAWN = ['asteroid', 'lander', 'rover'];
 const SPAWN_CHANCE_PER_INTERVAL = 0.7; // Chance to spawn *if* conditions met
 
 class SpaceObjectManager {
-    // Added collectibleManager, playerManager, powerupManager, and particleSystem dependencies
-    constructor(networkManager, assets, gameWidth, gameHeight, groundLevelY, collectibleManager, playerManager, powerupManager, particleSystem) {
+    // --- Removed collectibleManager dependency ---
+    constructor(networkManager, assets, gameWidth, gameHeight, groundLevelY, playerManager, powerupManager, particleSystem) {
         this.networkManager = networkManager;
         this.assets = assets;
         this.gameWidth = gameWidth;
         this.gameHeight = gameHeight;
         this.groundLevelY = groundLevelY;
         this.gameBounds = { width: gameWidth, height: gameHeight };
-        this.collectibleManager = collectibleManager;
+        // --- Removed this.collectibleManager ---
         this.playerManager = playerManager;
         this.powerupManager = powerupManager;
         this.particleSystem = particleSystem; // Store particle system reference
@@ -39,9 +41,7 @@ class SpaceObjectManager {
         this.activeObjects = {};
         this.lastSpawnAttemptTime = 0;
 
-        if (!this.collectibleManager) {
-            console.error("SpaceObjectManager requires a CollectibleManager instance for drops!");
-        }
+        // --- Removed collectibleManager check ---
         if (!this.playerManager) {
             console.error("SpaceObjectManager requires a PlayerManager instance for scoring!");
         }
@@ -62,10 +62,7 @@ class SpaceObjectManager {
         initializeSpaceObjectsFromRoomState(this.activeObjects, this.networkManager, this.groundLevelY);
     }
 
-    // --- Sync logic moved to space-object-sync.js ---
-    // _initializeFromRoomState() - Removed
-    // _handleRoomStateUpdate() - Now calls sync module
-    // _syncObjects() - Removed
+    // ... (sync logic remains removed, handled by import) ...
 
     _handlePresenceUpdate(presence) {
         // The presence update implicitly updates networkManager.peers
@@ -161,9 +158,17 @@ class SpaceObjectManager {
                 }
             }
 
-            // Drop handling
-            handleObjectDestructionDrop(obj, playerDestroyerId, this.collectibleManager);
-            handleObjectDestructionPowerupDrop(obj, playerDestroyerId, this.powerupManager);
+            // --- Drop Handling ---
+            // --- REMOVED Collectible Drop Call ---
+            // --- UPDATED Powerup Drop Call (pass game dimensions) ---
+            handleObjectDestructionPowerupDrop(
+                obj,
+                playerDestroyerId,
+                this.powerupManager,
+                this.gameWidth,
+                this.gameHeight,
+                this.groundLevelY
+            );
 
 
             // Network removal request (ideally only by spawner, but always sending is simpler for now)

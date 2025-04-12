@@ -22,48 +22,49 @@ const POWERUP_SPRITE_MAP = {
 };
 
 export const POWERUP_CONFIG = {
+    // --- Adjust Drop Weights for new requirement ---
     [PowerupType.HEALTH_PACK]: {
         duration: 0, // Instant effect
         value: 50,   // Amount of health restored
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.HEALTH_PACK],
         name: 'Health Pack',
-        dropWeight: 5, // Common drop
+        dropWeight: 1, // Rarest drop
     },
     [PowerupType.FUEL_PACK]: {
         duration: 0, // Instant effect
         value: 75,   // Amount of fuel restored
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.FUEL_PACK],
         name: 'Fuel Pack',
-        dropWeight: 4, // Slightly less common
+        dropWeight: 15, // Most common drop
     },
     [PowerupType.SPEED_BOOST]: {
         duration: 8000, // 8 seconds
         multiplier: 1.4, // 40% speed increase
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.SPEED_BOOST],
         name: 'Speed Boost',
-        dropWeight: 3,
+        dropWeight: 5, // Medium drop rate
     },
     [PowerupType.DAMAGE_BOOST]: {
         duration: 10000, // 10 seconds
         multiplier: 1.5, // 50% damage increase
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.DAMAGE_BOOST],
         name: 'Damage Boost',
-        dropWeight: 2,
+        dropWeight: 4, // Medium drop rate
     },
-    // Added RAPID_FIRE config
     [PowerupType.RAPID_FIRE]: {
         duration: 7000, // 7 seconds
         multiplier: 1.8, // 80% faster fire rate
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.RAPID_FIRE],
         name: 'Rapid Fire',
-        dropWeight: 2,
+        dropWeight: 4, // Medium drop rate
     },
     [PowerupType.INVULNERABILITY]: {
         duration: 5000, // 5 seconds
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.INVULNERABILITY],
         name: 'Invincibility Shield',
-        dropWeight: 1, // Rare drop
+        dropWeight: 2, // Rare drop, but more common than health
     },
+    // --- End Drop Weight Adjustment ---
 };
 
 export function getPowerupConfig(type) {
@@ -85,6 +86,7 @@ export function getRandomPowerupType() {
     const weights = {};
     let totalWeight = 0;
     for (const type in POWERUP_CONFIG) {
+        // Use the adjusted dropWeight values
         if (POWERUP_CONFIG[type].dropWeight !== undefined) {
             weights[type] = POWERUP_CONFIG[type].dropWeight;
             totalWeight += weights[type];
@@ -100,13 +102,16 @@ export function getRandomPowerupType() {
         }
         random -= weights[type];
     }
-    return null; // Should not happen if totalWeight > 0
+    // Fallback (should be rare with adjusted weights)
+    return PowerupType.FUEL_PACK;
 }
 
 export const POWERUP_SPAWN_CONFIG = {
     INTERVAL: 20000, // Try to spawn a new powerup every 20 seconds (reduced from 60s)
     MAX_ACTIVE: 5,    // Reduced max active powerups (from 10)
     RADIUS: 20,       // Visual/collision radius of a powerup
-    OBJECT_DROP_CHANCE: 0.15, // Reduced chance from object destruction (was 0.25)
+    OBJECT_DROP_CHANCE: 1.0, // *** Guaranteed drop (was 0.15) - This constant is no longer used by drop system, but set to 1 for clarity ***
     SPAWN_CHANCE_PER_INTERVAL: 0.5, // Chance to spawn if conditions met
+    // --- New constant for drop radius ---
+    DROP_SPAWN_RADIUS: 80, // pixels
 };
