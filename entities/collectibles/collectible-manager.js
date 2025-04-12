@@ -12,8 +12,7 @@ class CollectibleManager {
         this.activeCollectibles = {}; // Stores local Collectible instances { id: Collectible }
 
         this.networkManager.onRoomStateUpdate(this._handleRoomStateUpdate.bind(this));
-        // Delay initialization slightly
-        setTimeout(() => this._initializeFromRoomState(), 150);
+        this._initializeFromRoomState(); // Try to initialize immediately
     }
 
     _initializeFromRoomState() {
