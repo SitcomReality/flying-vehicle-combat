@@ -16,7 +16,9 @@ class ProjectileManager {
             return; // Prevent duplicates, crucial with event-based system
         }
         // --- Added logging on creation ---
-        // console.log(`[ProjectileMgr] Creating projectile ${id} (Owner: ${ownerId}) Pos: (${x.toFixed(1)},${y.toFixed(1)}), Vel: (${vx.toFixed(1)},${vy.toFixed(1)}), Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}`);
+        // Add check for local vs remote creation based on ownerId vs NetworkManager.clientId
+        const isLocal = ownerId === window.WS?.clientId; // Assuming window.WS holds NetworkManager or similar
+        // console.log(`[ProjectileMgr] Creating ${isLocal ? 'LOCAL' : 'REMOTE'} projectile ${id} (Owner: ${ownerId}) Pos: (${x.toFixed(1)},${y.toFixed(1)}), Vel: (${vx.toFixed(1)},${vy.toFixed(1)}), Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}`);
         // --- End logging ---
         const projectile = new Projectile(id, ownerId, x, y, vx, vy, color, damage, gravityFactor); // Pass gravityFactor
         this.projectiles[id] = projectile;
@@ -55,7 +57,7 @@ class ProjectileManager {
         // Return only active projectiles as an object keyed by ID for collision checker
         const activeProjectiles = {};
         for (const id in this.projectiles) {
-            if (!this.projectiles[id].isMarkedForRemoval) {
+            if (this.projectiles[id] && !this.projectiles[id].isMarkedForRemoval) { // Add null check
                 activeProjectiles[id] = this.projectiles[id];
             }
         }
