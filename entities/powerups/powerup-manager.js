@@ -217,11 +217,13 @@ class PowerupManager {
     }
 
     update(deltaTime, gameWidth, gameHeight, groundLevelY) {
+        const currentTime = performance.now(); // Get current time for spawning logic
         // Update local animations (like bobbing)
         for (const id in this.activePowerups) {
             this.activePowerups[id].update(deltaTime);
         }
-        this.attemptRandomSpawn(Date.now(), gameWidth, gameHeight, groundLevelY);
+        // Moved the random spawn attempt call here, passing necessary parameters
+        this.attemptRandomSpawn(currentTime, gameWidth, gameHeight, groundLevelY);
     }
 
     draw(ctx) {

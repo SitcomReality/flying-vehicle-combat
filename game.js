@@ -66,7 +66,7 @@ let debugRenderer = null;
 let backgroundRenderer = null;
 let particleSystem = null;
 let vehicleSelector = null;
-let statusBarRenderer = null; 
+let statusBarRenderer = null;
 let collisionManager = null;
 let playerLifecycleManager = null;
 let scoreboard = null;
@@ -109,9 +109,9 @@ async function initializeGame() {
             GAME_WIDTH,
             GAME_HEIGHT,
             groundLevelY,
-            collectibleManager, 
-            playerManager, 
-            powerupManager 
+            collectibleManager,
+            playerManager,
+            powerupManager
         );
 
         vehicleSelector = new VehicleSelector(vehicleSelectorEl, assets, (type) => {
@@ -124,7 +124,7 @@ async function initializeGame() {
 
         // Pass PlayerManager to modules that need it (Scoreboard, DebugRenderer, etc.)
         collisionManager = new CollisionManager(
-            playerManager, 
+            playerManager,
             projectileManager,
             powerupManager,
             spaceObjectManager,
@@ -133,12 +133,12 @@ async function initializeGame() {
             RENDER_SCALE
         );
 
-        scoreboard = new Scoreboard(scoreboardEl, playerManager, networkManager); 
+        scoreboard = new Scoreboard(scoreboardEl, playerManager, networkManager);
         leaderboard = new Leaderboard(leaderboardEl, scorePersistence, networkManager);
 
         // Pass PlayerManager to PlayerLifecycleManager
         playerLifecycleManager = new PlayerLifecycleManager(
-            playerManager, 
+            playerManager,
             networkManager,
             vehicleSelector,
             scorePersistence,
@@ -155,7 +155,7 @@ async function initializeGame() {
             networkManager,
             particleSystem,
             powerupManager,
-            inputManager 
+            inputManager
         );
 
         const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE, groundLevelY };
@@ -172,7 +172,7 @@ async function initializeGame() {
             vehicleType: 0,
             facingDirection: -1,
             rotation: 0,
-            lifecycleState: PlayerLifecycleState.SELECTING 
+            lifecycleState: PlayerLifecycleState.SELECTING
         };
         const localPlayer = playerManager.createPlayer(localPlayerId, initialState, true);
 
@@ -184,7 +184,7 @@ async function initializeGame() {
         }
 
         // Check state via manager
-        if (playerManager.getLocalPlayer()?.state.lifecycleState === PlayerLifecycleState.SELECTING) { 
+        if (playerManager.getLocalPlayer()?.state.lifecycleState === PlayerLifecycleState.SELECTING) {
             vehicleSelector.show();
         } else {
              console.log("Initial presence deferred until vehicle selection (or if player started ACTIVE).");
@@ -211,12 +211,10 @@ function update(deltaTime, currentTime) {
     backgroundRenderer.update(deltaTime);
     particleSystem.update(deltaTime);
     projectileManager.update(deltaTime, groundLevelY);
-    powerupManager.update(deltaTime);
+    powerupManager.update(deltaTime, GAME_WIDTH, GAME_HEIGHT, groundLevelY); 
     spaceObjectManager.update(deltaTime);
     collectibleManager.update(deltaTime);
     scoreboard.update(currentTime);
-
-    powerupManager.attemptSpawnPowerup(currentTime, GAME_WIDTH, GAME_HEIGHT, groundLevelY);
 
     const localPlayer = playerManager.getLocalPlayer();
     const input = inputManager.getInputState();
