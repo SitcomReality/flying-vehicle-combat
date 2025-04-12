@@ -2,7 +2,6 @@ import { GLOBAL_PHYSICS } from '../player-state.js';
 import { getPowerupMultiplier } from '../powerups/powerup-effects.js';
 import { PowerupType } from '../powerups/powerup-types.js';
 import { PlayerLifecycleState } from '../player-lifecycle.js';
-import { getVisualNosePosition } from '../player-visuals.js';
 
 // Configuration
 const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
@@ -13,14 +12,14 @@ const TAP_FIRE_CHARGE_THRESHOLD = 5; // Minimal charge level considered a tap fi
  * Reads weapon stats from the provided PlayerState.
  */
 class WeaponSystem {
-    constructor(playerState, projectileManager, networkManager, renderScale) {
-        if (!playerState || !projectileManager || !networkManager || renderScale === undefined) {
-            throw new Error("WeaponSystem requires playerState, projectileManager, networkManager, and renderScale");
+    constructor(playerState, projectileManager, networkManager, getVisualNosePositionFunc) {
+        if (!playerState || !projectileManager || !networkManager || !getVisualNosePositionFunc) {
+            throw new Error("WeaponSystem requires playerState, projectileManager, networkManager, and getVisualNosePositionFunc");
         }
         this.state = playerState; // Reference to the player's state object
         this.projectileManager = projectileManager;
         this.networkManager = networkManager;
-        this.renderScale = renderScale; // Store render scale needed for visuals
+        this.getVisualNosePositionFunc = getVisualNosePositionFunc; // Store the passed-in function
 
         // Internal state managed here, but often reflects PlayerState properties
         this.isCharging = false;
@@ -53,7 +52,7 @@ class WeaponSystem {
                 this.isCharging = true;
                 this.isTapFire = false; // Charging cancels tap fire intent
                 this.wantsToFire = false; // Charging cancels fire intent
-                this.chargeLevel = 0; // Reset charge when starting
+                this.chargeLevel = 0; // Reset
                 // Sync to state
                 this.state.isCharging = true;
                 this.state.wantsToFire = false;
@@ -101,8 +100,8 @@ class WeaponSystem {
 
             // Emit charging particles if system available
             if (particleSystem && getVisualCenterFunc) {
-                 // Use the imported function here
-                const nosePos = getVisualNosePosition(this.state, this.renderScale);
+                // Use the imported function here
+                const nosePos = this.getVisualNosePositionFunc(this.state);
                 const centerPos = getVisualCenterFunc(); // Assumes visual center is needed
                 particleSystem.emitChargeParticles(
                     centerPos.x, centerPos.y,
@@ -112,10 +111,10 @@ class WeaponSystem {
             }
 
         } else if (!this.wantsToFire) { // Reset/decay only if not actively trying to fire
-             if (this.chargeLevel > 0) {
+            if (this.chargeLevel > 0) {
                 // Optional: Decay charge slowly if not firing? For now, just reset.
                 this.chargeLevel = 0;
-             }
+            }
         }
 
 
@@ -144,9 +143,9 @@ class WeaponSystem {
         if (currentTime - this.lastFireTime < fireCooldown) {
             // Still on cooldown, clear tap fire flag if it was set
             if (this.isTapFire) {
-                 this.isTapFire = false;
-                 this.wantsToFire = false; // Cancel the tap fire request
-                 this.state.wantsToFire = false;
+                this.isTapFire = false;
+                this.wantsToFire = false; // Cancel the tap fire request
+                this.state.wantsToFire = false;
             }
             // Don't clear wantsToFire if it's a charged shot release, just wait
             return; // Exit if on cooldown
@@ -159,7 +158,7 @@ class WeaponSystem {
 
         // Calculate projectile initial state
         // Use the imported function here
-        const nosePos = getVisualNosePosition(this.state, this.renderScale);
+        const nosePos = this.getVisualNosePositionFunc(this.state);
         const startX = nosePos.x;
         const startY = nosePos.y;
 
@@ -192,7 +191,7 @@ class WeaponSystem {
         if (this.state.visualFacingDirection === 1) { // Facing Right (sprite is flipped)
             angle = this.state.rotation;
         } else { // Facing Left (sprite is not flipped)
-             angle = Math.PI + this.state.rotation;
+            angle = Math.PI + this.state.rotation;
         }
 
         // Calculate base velocity vector based on angle and speed
