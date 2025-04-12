@@ -1,93 +1,98 @@
 # Untitled Game Implementation Plan
 
+## Potential Game Names
+
+*   Crayon Combat Cruisers
+*   Scribble Space Race
+*   Pastel Planet Punks
+*   Ionosphere Impact
+*   Vector Velocity Vanguard
+*   Doodle Drive Derby
+
+## Overview
+
 This document outlines the step-by-step process for implementing new features in our game. Our approach focuses on modularity, breaking each system into discrete components to maintain clean architecture and facilitate future extensions.
 
 ## Implementation Strategy
 
 We'll implement features incrementally, adding tests as we go. Each system will be composed of small, focused modules with clear responsibilities. This approach will allow us to:
 
-1. Add features progressively without breaking existing functionality
-2. Maintain clean separation of concerns
-3. Easily extend the system with new vehicles, powerups, weapons, etc.
-4. Simplify debugging and maintenance
+1.  Add features progressively without breaking existing functionality.
+2.  Maintain clean separation of concerns.
+3.  Easily extend the system with new vehicles, powerups, weapons, etc.
+4.  Simplify debugging and maintenance.
 
-
-## Weapons and Powerups
-
-### Weapons System
-
-1. Create `entities/weapons/weapon-system.js`
-   - Base class for weapons
-   - Handle charging, firing, cooldown
-
-2. Create `entities/weapons/weapon-types/`
-   - Individual weapon implementation files
-   - Default weapon in `standard-blaster.js`
-
-3. Create `entities/weapons/projectile-types/`
-   - Different projectile behaviors
-   - Implement physics for each type
-
-4. Update `core/projectile-manager.js`
-   - Support different projectile types
-
-
-## User Interface and Persistence
+## Current Focus: User Interface and Persistence
 
 ### Scoring System
 
-1. Create `core/score-system.js`
-   - Track player scores
-   - Handle score events
-
-2. Create `ui/scoreboard.js`
-   - Display current player scores (display to the left side of the canvas on wide screens, or beneath it on smaller devices)
-   - Responsive layout for different screen sizes
-
-3. Create `ui/leaderboard.js`
-   - Display all-time high scores (display at right side of canvas on wide screens, or beneath it on smaller devices)
-   - Update when new records are set
+1.  **Create `core/score-system.js`**
+    *   Track player scores locally.
+    *   Handle score events (e.g., from destroying objects).
+2.  **Create `ui/scoreboard.js`**
+    *   Display current player scores (names and scores).
+    *   Position to the left side of the canvas on wide screens, or beneath it on smaller devices (using CSS media queries).
+    *   Update dynamically as scores change (sync with `PlayerManager` or `ScoreSystem`).
+3.  **Create `ui/leaderboard.js`**
+    *   Display all-time high scores persisted via `WebsimSocket`.
+    *   Position to the right side of the canvas on wide screens, or beneath it on smaller devices.
+    *   Fetch data using `WebsimSocket` records.
+    *   Update when new high score records are set.
 
 ### Persistence
 
-1. Create `networking/score-persistence.js`
-   - Save scores to server
-   - Retrieve high scores
+1.  **Create `networking/score-persistence.js`**
+    *   Function to save a new score record using `WebsimSocket` (e.g., `saveScore(username, score)`).
+    *   Function to retrieve the top N high scores using `WebsimSocket` (e.g., `getHighScores(limit)`).
+2.  **Update `network-manager.js` (or integrate directly)**
+    *   Consider if `NetworkManager` needs specific wrappers for score persistence, or if UI/ScoreSystem can call `score-persistence.js` directly. For simplicity, direct calls might be easier initially.
+3.  **Integrate Persistence**
+    *   Call `saveScore` when a local player's game ends (e.g., after death, before respawn selection, or maybe a dedicated 'game over' state).
+    *   Call `getHighScores` when the leaderboard UI needs to be populated or updated.
 
-2. Update `network-manager.js`
-   - Add methods for score data
-   - Implement persistence API calls
+## Future Features
 
-3. Create `ui/high-score-display.js`
-   - Format and show high scores
-   - Handle transitions and updates
+### Weapons System
 
-## Integration and Polish
+1.  **Create `entities/weapons/weapon-system.js`**
+    *   Base class or module for weapon logic.
+    *   Handle charging, firing logic (integrating with `PlayerActions`).
+    *   Manage cooldowns, ammo (if applicable).
+2.  **Create `entities/weapons/weapon-types/`**
+    *   Implement specific weapon types (e.g., `standard-blaster.js`, `charge-beam.js`).
+    *   Define unique stats and behaviors per weapon.
+3.  **Create `entities/weapons/projectile-types/`**
+    *   Define different projectile behaviors (e.g., `standard-bullet.js`, `homing-missile.js`, `laser-beam.js`).
+    *   Implement physics and collision interactions for each type.
+4.  **Update `core/projectile-manager.js`**
+    *   Enhance to support different projectile types and their specific update/draw logic.
 
-### Game Flow Integration
+### Game Flow and State Management
 
-1. Update `game.js`
-   - Integrate all new systems
-   - Handle game state transitions (actually this should be in a new file, game.js is already getting too large)
-
-2. Create `core/game-state-manager.js`
-   - Handle overall game state
-   - Coordinate system interactions
+1.  **Create `core/game-state-manager.js`**
+    *   Manage overall game states (e.g., `MainMenu`, `Playing`, `Paused`, `GameOver`).
+    *   Coordinate system interactions based on the current state.
+    *   Handle transitions between states.
+2.  **Refactor `game.js`**
+    *   Move state-specific logic from `game.js` into `game-state-manager.js`.
+    *   Keep `game.js` focused on initialization and the main game loop delegation.
 
 ### Visual Effects and Audio
 
-1. Enhance `rendering/particle-system.js`
-   - Add effects for powerups
-   - Add effects for vehicle destruction
-   - Add effects for collectibles
-
-2. Create `audio/sound-manager.js`
-   - Play appropriate sounds for events
-   - Background music handling
+1.  **Enhance `rendering/particle-system.js`**
+    *   Add distinct particle effects for powerup pickups and activations.
+    *   Implement explosion effects for vehicle destruction.
+    *   Create visual effects for collecting different types of collectibles.
+2.  **Create `audio/sound-manager.js`**
+    *   Implement a system to load and play sound effects.
+    *   Trigger sounds for key events: firing, hits, explosions, powerups, collectibles, thrust, UI interactions.
+    *   Add background music handling (optional looping track).
 
 ### Testing and Balancing
 
-1. Create test scenarios for each system
-2. Balance vehicle stats
-3. Balance powerup effectiveness and duration
-4. Fine-tune spawn rates and difficulties
+1.  Create test scenarios or debug modes to test specific systems in isolation.
+2.  Balance vehicle stats (health, fuel, speed, damage).
+3.  Adjust powerup effectiveness, duration, and spawn rates.
+4.  Fine-tune collectible values and drop rates.
+5.  Balance space object health, speed, and spawn frequency.
+
