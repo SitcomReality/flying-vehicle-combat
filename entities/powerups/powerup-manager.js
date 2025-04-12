@@ -37,8 +37,6 @@ class PowerupManager {
         if (roomState.hasOwnProperty('activePowerups')) {
             const powerupData = roomState.activePowerups || {};
             this._syncPowerups(powerupData);
-        } else {
-             this._syncPowerups({}); // Sync with empty data
         }
     }
 
@@ -47,10 +45,11 @@ class PowerupManager {
         const myClientId = this.networkManager.getClientId(); // Cache client ID
         const serverIds = Object.keys(powerupData);
 
-        // Remove local powerups that are no longer in roomState
+        // FIXED: Only remove powerups that are explicitly null, not those missing from update
         for (const id of currentIds) {
-            if (!powerupData[id]) {
+            if (powerupData[id] === null) {
                 if (this.activePowerups[id]) { // Ensure it exists before deleting
+                    console.log(`[PowerupMgr ${myClientId}] Removing powerup ${id} due to explicit null`);
                     delete this.activePowerups[id];
                 }
             }
@@ -59,6 +58,9 @@ class PowerupManager {
         // Add/Update powerups based on roomState
         for (const id of serverIds) {
             const data = powerupData[id];
+            // Skip null entries
+            if (data === null) continue;
+            
             if (!data || !data.type) {
                 console.warn(`Invalid data for powerup ${id} in roomState. Skipping.`);
                 if(this.activePowerups[id]) delete this.activePowerups[id];
@@ -66,6 +68,7 @@ class PowerupManager {
             }
 
             if (!this.activePowerups[id]) {
+                console.log(`[PowerupMgr ${myClientId}] Creating new powerup ${id} of type ${data.type} at (${data.x}, ${data.y})`);
                 this.activePowerups[id] = new Powerup(
                     id,
                     data.type,
@@ -89,6 +92,11 @@ class PowerupManager {
                     );
                 }
             }
+        }
+        
+        // ADDED: Log active count after sync for debugging
+        if (Math.random() < 0.01) { // Occasional log
+            console.log(`[PowerupMgr ${myClientId}] Active powerups after sync: ${Object.keys(this.activePowerups).length}`);
         }
     }
 

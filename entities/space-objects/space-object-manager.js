@@ -69,10 +69,7 @@ class SpaceObjectManager {
     _handleRoomStateUpdate(roomState) {
         if (roomState.hasOwnProperty('spaceObjects')) {
             const objectData = roomState.spaceObjects || {};
-            const newKeys = Object.keys(objectData);
             this._syncObjects(objectData);
-        } else {
-            this._syncObjects({}); // Sync with empty data to clear local state
         }
     }
 
@@ -82,9 +79,11 @@ class SpaceObjectManager {
         const serverIds = Object.keys(objectData);
         let changed = false;
 
+        // FIXED: Only remove objects that are explicitly set to null, not ones missing from the update
         for (const id of currentIds) {
-            if (!objectData[id]) {
+            if (objectData[id] === null) {  // Only remove if explicitly null
                 if (this.activeObjects[id]) {
+                    console.log(`[SpaceObjMgr ${myClientId}] Removing object ${id} due to explicit null`);
                     delete this.activeObjects[id];
                     changed = true;
                 }
@@ -93,6 +92,8 @@ class SpaceObjectManager {
 
         for (const id of serverIds) {
             const data = objectData[id];
+            if (data === null) continue; // Skip null entries
+            
             if (!data || !data.type || typeof data.x !== 'number' || typeof data.y !== 'number') {
                 console.warn(`[SpaceObjMgr ${myClientId}] Invalid data for space object ${id}. Skipping. Data:`, data);
                 if (this.activeObjects[id]) delete this.activeObjects[id];
@@ -112,15 +113,16 @@ class SpaceObjectManager {
                     continue;
                 }
                 try {
+                    console.log(`[SpaceObjMgr ${myClientId}] Creating new object ${id} of type ${data.type} at (${data.x.toFixed(0)}, ${data.y.toFixed(0)})`);
                     const newObj = new ObjectClass(id, data.type, data.x, data.y, data, this.groundLevelY);
                     if (!newObj || !newObj.id) {
-                        console.error(`[SpaceObjMgr ${myClientId}] Sync: FAILED to create local object ${id} - Constructor returned invalid object.`);
+                        console.error(`[SpaceObjMgr ${myClientId}] FAILED to create object ${id} - Constructor returned invalid object.`);
                         continue;
                     }
                     this.activeObjects[id] = newObj;
                     changed = true;
                 } catch (error) {
-                    console.error(`[SpaceObjMgr ${myClientId}] Sync: Error creating local object ${id} of type ${data.type}:`, error);
+                    console.error(`[SpaceObjMgr ${myClientId}] Error creating object ${id} of type ${data.type}:`, error);
                     continue;
                 }
             } else {
@@ -204,6 +206,10 @@ class SpaceObjectManager {
             this.networkManager.updateRoomState({
                 spaceObjects: updatePayload
             });
+            
+            // ADDED: Add the object to local state immediately rather than waiting for the update
+            // This ensures the object exists locally before the next frame's update
+            this.activeObjects[newId] = tempInstanceForSync;
         }
     }
 
@@ -271,12 +277,19 @@ class SpaceObjectManager {
     }
 
     update(deltaTime) {
+        // FIXED: Only send network updates for objects that actually changed position or state
         const updates = {};
         let needsNetworkUpdate = false;
 
         const peers = this.networkManager.getPeers();
         const peerIds = Object.keys(peers).sort();
         const isSpawner = peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0];
+
+        // Count active objects before processing for debug purposes
+        const activeCount = Object.values(this.activeObjects).filter(o => !o.isMarkedForRemoval).length;
+        if (Math.random() < 0.01) { // Occasional log
+            console.log(`[SpaceObjMgr] Active objects before update: ${activeCount}`);
+        }
 
         for (const id in this.activeObjects) {
             const obj = this.activeObjects[id];
@@ -287,32 +300,62 @@ class SpaceObjectManager {
 
             if (obj.isMarkedForRemoval) {
                 delete this.activeObjects[id];
+                
+                // Only the spawner should notify about object removal
+                if (isSpawner) {
+                    updates[id] = null;
+                    needsNetworkUpdate = true;
+                }
                 continue;
             }
 
+            // Only the spawner updates the physics and sends network updates
             if (isSpawner) {
+                const oldX = obj.x;
+                const oldY = obj.y;
+                const oldVx = obj.vx;
+                const oldVy = obj.vy;
+                const oldRotation = obj.rotation;
+                const oldHealth = obj.health;
+
                 obj.update(deltaTime, this.gameBounds, this.groundLevelY);
 
+                // Only send updates for objects that actually changed
                 if (obj.isMarkedForRemoval) {
                     updates[id] = null;
                     needsNetworkUpdate = true;
-                } else {
+                } else if (
+                    obj.x !== oldX || 
+                    obj.y !== oldY || 
+                    obj.vx !== oldVx || 
+                    obj.vy !== oldVy || 
+                    obj.rotation !== oldRotation || 
+                    obj.health !== oldHealth
+                ) {
                     updates[id] = obj.getSyncData();
                     needsNetworkUpdate = true;
                 }
             }
 
+            // Handle final removal after update (if it became marked during update)
             if (obj.isMarkedForRemoval) {
                 delete this.activeObjects[id];
             }
         }
 
-        if (needsNetworkUpdate && isSpawner) {
-            const updatePayload = { ...updates };
-            this.networkManager.updateRoomState({ spaceObjects: updatePayload });
+        // Send network updates only if something changed
+        if (needsNetworkUpdate && isSpawner && Object.keys(updates).length > 0) {
+            this.networkManager.updateRoomState({ spaceObjects: updates });
         }
 
+        // Attempt spawning new objects
         this.attemptSpawnObject(performance.now());
+        
+        // Count active objects after processing for debug purposes
+        const newActiveCount = Object.values(this.activeObjects).filter(o => !o.isMarkedForRemoval).length;
+        if (Math.random() < 0.01) { // Occasional log 
+            console.log(`[SpaceObjMgr] Active objects after update: ${newActiveCount}`);
+        }
     }
 
     draw(ctx) {

@@ -40,11 +40,11 @@ class CollectibleManager {
          const serverIds = Object.keys(collectibleData);
          let changed = false;
 
-         // Remove local collectibles no longer in roomState
+         // FIXED: Only remove collectibles that are explicitly null, not those missing from update
          for (const id of currentIds) {
-             if (!collectibleData[id]) {
+             if (collectibleData[id] === null) {
                  if (this.activeCollectibles[id]) {
-                    // console.log(`[CollMgr ${myClientId}] Removing collectible ${id} locally.`);
+                    console.log(`[CollMgr ${myClientId}] Removing collectible ${id} due to explicit null`);
                     delete this.activeCollectibles[id];
                     changed = true;
                  }
@@ -54,6 +54,9 @@ class CollectibleManager {
          // Add/Update collectibles based on roomState
          for (const id of serverIds) {
              const data = collectibleData[id];
+             // Skip null entries
+             if (data === null) continue;
+             
              // Basic validation
              if (!data || !data.type || typeof data.x !== 'number' || typeof data.y !== 'number') {
                  console.warn(`[CollMgr ${myClientId}] Invalid data for collectible ${id}. Skipping. Data:`, data);
@@ -66,7 +69,7 @@ class CollectibleManager {
                  // Create new local instance
                  const config = getCollectibleConfig(data.type);
                  if (config) {
-                     console.log(`[CollMgr ${myClientId}] Sync: Attempting to create local collectible ${id} type ${data.type}`);
+                     console.log(`[CollMgr ${myClientId}] Sync: Creating new collectible ${id} type ${data.type} at (${data.x}, ${data.y})`);
                      try {
                         const newCollectible = new Collectible(
                             id, data.type, data.x, data.y, config.value
@@ -80,7 +83,6 @@ class CollectibleManager {
                              this.activeCollectibles[id].creationTime = data.creationTime;
                          }
                          changed = true;
-                         console.log(`[CollMgr ${myClientId}] Sync: Successfully created ${id} type ${data.type}.`);
                      } catch (error) {
                          console.error(`[CollMgr ${myClientId}] Sync: Error creating local collectible ${id} of type ${data.type}:`, error);
                          continue;
@@ -100,11 +102,12 @@ class CollectibleManager {
                  }
              }
          }
-        // if (changed) {
-        //    console.log(`[CollMgr ${myClientId}] Sync complete. Active collectibles: ${Object.keys(this.activeCollectibles).length}`);
-        // }
-     }
 
+        // ADDED: Log active count after sync for debugging
+        if (changed || Math.random() < 0.01) { // Log on change or occasionally
+            console.log(`[CollMgr ${myClientId}] Active collectibles after sync: ${Object.keys(this.activeCollectibles).length}`);
+        }
+     }
 
     // --- Spawning (Called by Drop System or manually for testing) ---
     spawnCollectible(x, y, type = null, velocity = { vx: 0, vy: 0 }) {
@@ -195,7 +198,6 @@ class CollectibleManager {
             this.networkManager.updateRoomState({ activeCollectibles: updatesForNetwork });
         }
     }
-
 
     draw(ctx) {
         for (const id in this.activeCollectibles) {
