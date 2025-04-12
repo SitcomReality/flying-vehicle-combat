@@ -63,6 +63,11 @@ export class PlayerState {
         this.verticalDragFactor = BASE_PLAYER_PHYSICS.VERTICAL_DRAG_FACTOR;
         this.airFrictionFactor = BASE_PLAYER_PHYSICS.AIR_FRICTION_FACTOR;
         this.groundFrictionFactor = BASE_PLAYER_PHYSICS.GROUND_FRICTION_FACTOR;
+        // --- ADDED TILT PROPERTIES ---
+        this.maxTiltAngle = BASE_PLAYER_PHYSICS.MAX_TILT_ANGLE;
+        this.tiltSpeed = BASE_PLAYER_PHYSICS.TILT_SPEED;
+        // --- END ADDED ---
+
 
         // --- Vehicle-specific WEAPON properties ---
         this.projectileDamage = 10;
@@ -102,7 +107,7 @@ export class PlayerState {
         this.drawOffsetY = 0;
         this.currentVehicle = null;
 
-        this.updateVehicleProperties(); 
+        this.updateVehicleProperties();
 
         const initialDirection = -1;
         this.facingDirection = initialDirection;
@@ -137,18 +142,26 @@ export class PlayerState {
 
         const vehicleStats = getVehicleConfig(this.vehicleType);
 
+        // Core Stats
         this.maxHealth = vehicleStats.maxHealth;
         this.maxFuel = vehicleStats.maxFuel;
         this.fuelRegenRate = vehicleStats.fuelRegenRate;
         this.fuelConsumeRate = vehicleStats.fuelConsumeRate;
+
+        // Movement Stats
         this.thrustForce = vehicleStats.thrustForce;
         this.horizontalAcceleration = vehicleStats.horizontalAcceleration;
         this.maxHorizontalSpeed = vehicleStats.maxHorizontalSpeed;
-        this.gravity = vehicleStats.GRAVITY;
-        this.verticalDragFactor = vehicleStats.VERTICAL_DRAG_FACTOR;
-        this.airFrictionFactor = vehicleStats.AIR_FRICTION_FACTOR;
-        this.groundFrictionFactor = vehicleStats.GROUND_FRICTION_FACTOR;
 
+        // Physics Stats (Ensure all relevant stats are loaded)
+        this.gravity = vehicleStats.GRAVITY ?? BASE_PLAYER_PHYSICS.GRAVITY;
+        this.verticalDragFactor = vehicleStats.VERTICAL_DRAG_FACTOR ?? BASE_PLAYER_PHYSICS.VERTICAL_DRAG_FACTOR;
+        this.airFrictionFactor = vehicleStats.AIR_FRICTION_FACTOR ?? BASE_PLAYER_PHYSICS.AIR_FRICTION_FACTOR;
+        this.groundFrictionFactor = vehicleStats.GROUND_FRICTION_FACTOR ?? BASE_PLAYER_PHYSICS.GROUND_FRICTION_FACTOR;
+        this.maxTiltAngle = vehicleStats.MAX_TILT_ANGLE ?? BASE_PLAYER_PHYSICS.MAX_TILT_ANGLE; // Load MAX_TILT_ANGLE
+        this.tiltSpeed = vehicleStats.TILT_SPEED ?? BASE_PLAYER_PHYSICS.TILT_SPEED; // Load TILT_SPEED
+
+        // Weapon Stats
         this.projectileDamage = vehicleStats.projectileDamage;
         this.projectileSpeed = vehicleStats.projectileSpeed;
         this.projectileColor = vehicleStats.projectileColor;
@@ -156,6 +169,7 @@ export class PlayerState {
         this.chargeRate = vehicleStats.chargeRate;
         this.maxChargeLevel = vehicleStats.maxChargeLevel;
 
+        // Clamp health/fuel after potentially changing max values
         if (this.health > this.maxHealth || this.health <= 0 || isNaN(this.health)) {
              this.health = this.maxHealth;
         }
@@ -172,13 +186,14 @@ export class PlayerState {
             if (oldType !== vehicleTypeIndex) {
                  this.vehicleType = vehicleTypeIndex;
                  this.updateVehicleProperties();
-                 this.health = this.maxHealth;
-                 this.fuel = this.maxFuel;
+                 this.health = this.maxHealth; // Reset health on vehicle change
+                 this.fuel = this.maxFuel; // Reset fuel on vehicle change
                  console.log(`Player ${this.id} vehicle state changed from type ${oldType} to ${this.vehicleType}. Health/Fuel reset.`);
+                 // Update server-side representations immediately
                  this.serverHealth = this.health;
                  this.serverFuel = this.fuel;
-                 this.chargeLevel = 0;
-                 this.activePowerups = {};
+                 this.chargeLevel = 0; // Reset weapon charge
+                 this.activePowerups = {}; // Clear active powerups
             }
         } else {
             console.warn(`Invalid vehicleTypeIndex: ${vehicleTypeIndex} for player ${this.id}`);
@@ -193,11 +208,12 @@ export class PlayerState {
             facingDirection: this.facingDirection,
             rotation: this.rotation,
             isOnGround: this.isOnGround,
-            health: this.health,
-            fuel: this.fuel,
+            health: Math.round(this.health), // Send rounded health
+            fuel: Math.round(this.fuel), // Send rounded fuel
             isInvulnerable: this.isInvulnerable,
             lifecycleState: this.lifecycleState,
             score: this.score,
+            // Removed redundant vx, vy - these are derived or handled by interpolation
         };
     }
 
@@ -221,15 +237,21 @@ export class PlayerState {
         this.chargeLevel = 0;
         this.wantsToFire = false;
 
+        // Reset health/fuel to current vehicle's max
+        this.updateVehicleProperties(); // Ensure max values are correct first
         this.health = this.maxHealth;
         this.fuel = this.maxFuel;
 
+        // Reset timers/flags
         this.lastDamageTime = 0;
         this.isInvulnerable = false;
         this.lastGroundDamageTime = 0;
+        this.activePowerups = {}; // Clear powerups on spawn
 
-        this.score = 0;
+        // Reset score? (Decide based on game rules - currently NOT resetting score on respawn)
+        // this.score = 0;
 
+        // Reset server state representations
         this.serverX = x;
         this.serverY = y;
         this.serverRotation = 0;
@@ -238,11 +260,12 @@ export class PlayerState {
         this.serverHealth = this.health;
         this.serverFuel = this.fuel;
         this.serverIsInvulnerable = this.isInvulnerable;
-        this.serverLifecycleState = PlayerLifecycleState.ACTIVE;
-        this.serverScore = this.score;
+        this.serverLifecycleState = PlayerLifecycleState.ACTIVE; // Set to active on spawn
+        this.serverScore = this.score; // Reflect current score
         this.lastServerUpdateTime = 0;
 
+        // Ensure flags are correct
         this.isMarkedForRemoval = false;
-        this.lifecycleState = PlayerLifecycleState.ACTIVE;
+        this.lifecycleState = PlayerLifecycleState.ACTIVE; // Set to active on spawn
     }
 }

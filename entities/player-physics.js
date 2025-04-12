@@ -25,66 +25,79 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
         return;
     }
 
-    const wasOnGround = playerState.isOnGround; 
+    const wasOnGround = playerState.isOnGround;
 
+    // Apply powerup multipliers
     const speedMultiplier = getPowerupMultiplier(playerState, PowerupType.SPEED_BOOST);
 
-    const currentThrustForce = playerState.thrustForce * speedMultiplier; 
-    const currentHorizontalAcceleration = playerState.horizontalAcceleration * speedMultiplier; 
-    const currentMaxHorizontalSpeed = playerState.maxHorizontalSpeed * speedMultiplier; 
+    // Use vehicle-specific values from playerState
+    const currentThrustForce = playerState.thrustForce * speedMultiplier;
+    const currentHorizontalAcceleration = playerState.horizontalAcceleration * speedMultiplier;
+    const currentMaxHorizontalSpeed = playerState.maxHorizontalSpeed * speedMultiplier;
 
-    if (!playerState.isOnGround || playerState.isThrusting) {
-        playerState.ay = playerState.gravity; 
-        if (playerState.isThrusting) {
-            if (consumeFuel(playerState, playerState.fuelConsumeRate * deltaTime)) {
-                playerState.ay -= currentThrustForce; 
-            } else {
-                playerState.isThrusting = false; 
-            }
+    // --- Vertical Physics ---
+    // Always apply gravity first
+    playerState.ay = playerState.gravity;
+
+    // Apply thrust if active and has fuel
+    if (playerState.isThrusting) {
+        if (consumeFuel(playerState, playerState.fuelConsumeRate * deltaTime)) {
+            playerState.ay -= currentThrustForce; // Subtract thrust force from gravity
+        } else {
+            playerState.isThrusting = false; // Stop thrusting if out of fuel
         }
-        if (!playerState.isOnGround) {
-            const dragForce = -playerState.vy * playerState.verticalDragFactor;
-            playerState.ay += dragForce;
-        }
-        playerState.vy += playerState.ay * deltaTime;
-        playerState.vy = Math.max(-GLOBAL_PHYSICS.MAX_VERTICAL_SPEED, Math.min(GLOBAL_PHYSICS.MAX_VERTICAL_SPEED, playerState.vy));
-    } else { 
-        playerState.ay = 0; 
-        playerState.vy = 0; 
     }
 
-    playerState.ax = 0;
+    // Apply vertical drag if airborne
+    if (!playerState.isOnGround) {
+        const dragForce = -playerState.vy * playerState.verticalDragFactor;
+        playerState.ay += dragForce;
+    }
+
+    // Update vertical velocity
+    playerState.vy += playerState.ay * deltaTime;
+    // Clamp vertical velocity using GLOBAL_PHYSICS constant (can be overridden per vehicle if needed later)
+    playerState.vy = Math.max(-GLOBAL_PHYSICS.MAX_VERTICAL_SPEED, Math.min(GLOBAL_PHYSICS.MAX_VERTICAL_SPEED, playerState.vy));
+
+    // If on ground and not thrusting, zero out vertical velocity and acceleration
+    if (playerState.isOnGround && !playerState.isThrusting) {
+        playerState.vy = 0;
+        playerState.ay = 0;
+    }
+
+    // --- Horizontal Physics ---
+    playerState.ax = 0; // Reset horizontal acceleration
     if (playerState.isMovingLeft) {
-        playerState.ax -= currentHorizontalAcceleration; 
+        playerState.ax -= currentHorizontalAcceleration;
     }
     if (playerState.isMovingRight) {
-        playerState.ax += currentHorizontalAcceleration; 
+        playerState.ax += currentHorizontalAcceleration;
     }
 
-    let frictionFactor = 0;
-    if (playerState.isOnGround) {
-        frictionFactor = playerState.groundFrictionFactor; 
-    } else {
-        frictionFactor = playerState.airFrictionFactor; 
-    }
+    // Apply friction (air or ground)
+    let frictionFactor = playerState.isOnGround ? playerState.groundFrictionFactor : playerState.airFrictionFactor;
     const frictionForce = -playerState.vx * frictionFactor;
     playerState.ax += frictionForce;
 
+    // Update horizontal velocity
     playerState.vx += playerState.ax * deltaTime;
+    // Clamp horizontal velocity
+    playerState.vx = Math.max(-currentMaxHorizontalSpeed, Math.min(currentMaxHorizontalSpeed, playerState.vx));
 
-    playerState.vx = Math.max(-currentMaxHorizontalSpeed, Math.min(currentMaxHorizontalSpeed, playerState.vx)); 
-
+    // Stop drift at low speeds if no input
     if (!playerState.isMovingLeft && !playerState.isMovingRight && Math.abs(playerState.vx) < 1 && Math.abs(playerState.ax) < 1) {
         playerState.vx = 0;
         playerState.ax = 0;
     }
 
+    // --- Update Position ---
     playerState.x += playerState.vx * deltaTime;
     playerState.y += playerState.vy * deltaTime;
 
+    // --- Ground Collision & Boundary Checks ---
     if (!playerState.currentVehicle) {
         console.error("Player state missing currentVehicle during physics update!");
-        return; 
+        return;
     }
     const playerWidth = playerState.width * renderScale;
     const playerHeight = playerState.height * renderScale;
@@ -93,38 +106,38 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
     let justLanded = false;
     if (playerBottomY >= groundLevelY) {
         const penetration = playerBottomY - groundLevelY;
-        if (penetration >= -0.1) { 
-            playerState.y -= penetration; 
-            if (!wasOnGround && playerState.vy >= 0) {
+        if (penetration >= -0.1) { // Small tolerance for floating point issues
+            playerState.y -= penetration; // Correct position
+            if (!wasOnGround && playerState.vy >= 0) { // Detect landing moment
                 justLanded = true;
             }
-            if (playerState.vy > 0) {
+            if (playerState.vy > 0) { // Stop downward movement on ground contact
                 playerState.vy = 0;
             }
             playerState.isOnGround = true;
-            if (!playerState.isThrusting) {
-                playerState.ay = 0;
-            }
 
+            // Apply ground damage periodically
             if (playerManager && currentTime - playerState.lastGroundDamageTime > GROUND_DAMAGE_INTERVAL) {
+                 // Pass playerManager for death handling context
                 applyDamage(playerState, GROUND_DAMAGE_AMOUNT, currentTime, playerManager);
-                playerState.lastGroundDamageTime = currentTime; 
+                playerState.lastGroundDamageTime = currentTime;
             }
 
         } else {
-            playerState.isOnGround = false;
+            playerState.isOnGround = false; // Below ground but not penetrating enough? Keep airborne.
         }
     } else {
-        playerState.isOnGround = false;
+        playerState.isOnGround = false; // Above ground
     }
 
+    // Reset vertical acceleration on landing frame
     if (justLanded) {
         playerState.ay = 0;
     }
 
+    // Screen boundary checks
     const minX = 0;
-    const maxX = gameBounds.width - playerWidth; 
-
+    const maxX = gameBounds.width - playerWidth;
     if (playerState.x < minX) {
         playerState.x = minX;
         if (playerState.vx < 0) playerState.vx = 0;
@@ -133,33 +146,47 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
         if (playerState.vx > 0) playerState.vx = 0;
     }
 
-    const minY = 0;
-    if (playerState.y < minY) { 
+    const minY = 0; // Top boundary
+    if (playerState.y < minY) {
         playerState.y = minY;
         if (playerState.vy < 0) playerState.vy = 0;
-        playerState.isOnGround = false;
+        playerState.isOnGround = false; // Ensure not grounded if hitting ceiling
     }
 
+    // --- Particle Effects ---
     if (playerState.isOnGround && particleSystem) {
-        const contactX = (playerState.x + playerWidth / 2)
-            + (playerState.visualFacingDirection === 1 ? -playerWidth * 0.3 : playerWidth * 0.3);
-        const contactY = groundLevelY - 2; 
-        const baseSparkVX = -80 + playerState.vx * 0.5;
-        const baseSmokeVX = -30 + playerState.vx * 0.3;
-        particleSystem.emitSparks(contactX, contactY, GLOBAL_PHYSICS.SPARK_EMIT_RATE, baseSparkVX);
-        particleSystem.emitSmoke(contactX, contactY, GLOBAL_PHYSICS.SMOKE_EMIT_RATE, baseSmokeVX);
+        // Calculate contact point based on center + offset based on direction
+        const visualCenterX = playerState.x + (playerWidth / 2) - (playerState.drawOffsetX * renderScale); // Approx visual center X
+        const contactX = visualCenterX + (playerState.visualFacingDirection === 1 ? -playerWidth * 0.3 : playerWidth * 0.3);
+        const contactY = groundLevelY - 2; // Slightly above ground line
+        const baseSparkVX = -80 + playerState.vx * 0.5; // Sparks move against player motion
+        const baseSmokeVX = -30 + playerState.vx * 0.3; // Smoke moves slower against player motion
+
+        // Emit particles using GLOBAL_PHYSICS rates (can be overridden per vehicle later)
+        if (Math.random() < GLOBAL_PHYSICS.SPARK_EMIT_RATE * deltaTime) { // Probability based on rate and deltaTime
+             particleSystem.emitSparks(contactX, contactY, 1, baseSparkVX);
+        }
+         if (Math.random() < GLOBAL_PHYSICS.SMOKE_EMIT_RATE * deltaTime) {
+             particleSystem.emitSmoke(contactX, contactY, 1, baseSmokeVX);
+         }
     }
 
+    // --- Rotation / Tilt ---
     let targetRotation = 0;
     if (!playerState.isOnGround) {
-        const normalizedVy = Math.max(-1, Math.min(1, playerState.vy / GLOBAL_PHYSICS.MAX_VERTICAL_SPEED));
-        targetRotation = -normalizedVy * GLOBAL_PHYSICS.MAX_TILT_ANGLE; 
+        // Calculate normalized vertical velocity (-1 to 1)
+        const normalizedVy = Math.max(-1, Math.min(1, playerState.vy / GLOBAL_PHYSICS.MAX_VERTICAL_SPEED)); // Use global max speed for normalization consistency
+        // Calculate target tilt based on vertical velocity and vehicle's maxTiltAngle
+        targetRotation = -normalizedVy * playerState.maxTiltAngle; // Use vehicle's maxTiltAngle
+        // Invert tilt if facing right (sprite is flipped)
         if (playerState.visualFacingDirection === 1) {
             targetRotation *= -1;
         }
     }
-    const rotationStep = (targetRotation - playerState.rotation) * GLOBAL_PHYSICS.TILT_SPEED * deltaTime; 
+    // Smoothly interpolate towards the target rotation using vehicle's tiltSpeed
+    const rotationStep = (targetRotation - playerState.rotation) * playerState.tiltSpeed * deltaTime; // Use vehicle's tiltSpeed
     playerState.rotation += rotationStep;
+    // Snap rotation to 0 if on ground and rotation is very small
     if (playerState.isOnGround && Math.abs(playerState.rotation) < 0.01) {
         playerState.rotation = 0;
     }

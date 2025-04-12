@@ -7,8 +7,8 @@ export const BASE_PLAYER_PHYSICS = {
     GRAVITY: 900, // pixels/sec^2
     MAX_VERTICAL_SPEED: 450, // pixels/sec
     VERTICAL_DRAG_FACTOR: 0.5, // Higher = more drag when airborne
-    MAX_TILT_ANGLE: Math.PI / 2.5, // ~72 degrees
-    TILT_SPEED: 6, // How quickly the sprite tilts
+    MAX_TILT_ANGLE: Math.PI / 2.5, // ~72 degrees - Maximum angle the vehicle tilts
+    TILT_SPEED: 6, // How quickly the sprite tilts towards the target angle
     AIR_FRICTION_FACTOR: 0.3, // Factor for horizontal drag when airborne (lower = less drag)
     GROUND_FRICTION_FACTOR: 1.5, // Factor for horizontal friction when grounded (higher = more friction)
     SPARK_EMIT_RATE: 5,
@@ -31,7 +31,7 @@ export const VEHICLE_TYPES = {
         fuelRegenRate: 25, // units per second
         fuelConsumeRate: 30, // units per second of thrust
         // Movement - balanced
-        thrustForce: 700, // pixels/sec^2
+        thrustForce: 1500, // INCREASED (Needs > GRAVITY)
         horizontalAcceleration: 800, // pixels/sec^2
         maxHorizontalSpeed: 250, // pixels/sec
         // Weapon Stats - balanced
@@ -54,7 +54,7 @@ export const VEHICLE_TYPES = {
         fuelRegenRate: 20,
         fuelConsumeRate: 35, // Consumes more fuel
         // Movement - slower, less agile
-        thrustForce: 650,
+        thrustForce: 1400, // INCREASED (Needs > GRAVITY)
         horizontalAcceleration: 600,
         maxHorizontalSpeed: 200,
         // Weapon Stats - higher damage, slower charge/speed
@@ -67,6 +67,7 @@ export const VEHICLE_TYPES = {
         // Inherit or override base physics
         ...BASE_PLAYER_PHYSICS,
         GROUND_FRICTION_FACTOR: 1.8, // Higher ground friction
+        TILT_SPEED: 5, // Tilts slightly slower
     },
     2: { // Speedy / Light (Green/Yellow Ship)
         name: "Interceptor",
@@ -76,7 +77,7 @@ export const VEHICLE_TYPES = {
         fuelRegenRate: 35, // Faster regen
         fuelConsumeRate: 25, // Consumes less fuel
         // Movement - faster, more agile
-        thrustForce: 750,
+        thrustForce: 1600, // INCREASED (Needs > GRAVITY)
         horizontalAcceleration: 1000,
         maxHorizontalSpeed: 300,
         // Weapon Stats - lower damage, faster charge/speed
