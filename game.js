@@ -111,7 +111,8 @@ async function initializeGame() {
             groundLevelY,
             collectibleManager,
             playerManager,
-            powerupManager
+            powerupManager,
+            particleSystem
         );
 
         vehicleSelector = new VehicleSelector(vehicleSelectorEl, assets, (type) => {
