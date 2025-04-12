@@ -104,9 +104,9 @@ export function getRandomPowerupType() {
 }
 
 export const POWERUP_SPAWN_CONFIG = {
-    INTERVAL: 60000, // Try to spawn a new powerup every 60 seconds (infrequent random spawn)
-    MAX_ACTIVE: 10,    // Maximum number of powerups active at once (from any source)
+    INTERVAL: 20000, // Try to spawn a new powerup every 20 seconds (reduced from 60s)
+    MAX_ACTIVE: 5,    // Reduced max active powerups (from 10)
     RADIUS: 20,       // Visual/collision radius of a powerup
-    // Added drop chance from space objects
-    OBJECT_DROP_CHANCE: 0.25, // 25% chance for a destroyed object to drop *any* powerup
+    OBJECT_DROP_CHANCE: 0.15, // Reduced chance from object destruction (was 0.25)
+    SPAWN_CHANCE_PER_INTERVAL: 0.5, // Chance to spawn if conditions met
 };
