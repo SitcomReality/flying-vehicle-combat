@@ -1,7 +1,7 @@
 class InputManager {
     constructor() {
         this.keys = {}; // Store state of relevant keys
-        this.trackedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', ' ', 'k']; // Added 'k' for debug kill
+        this.trackedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', ' ', 'k', 'c', 'v'];
         this._previousKeys = {}; // Store key state from the previous frame
 
         this._handleKeyDown = this._handleKeyDown.bind(this);

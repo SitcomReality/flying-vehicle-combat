@@ -2,23 +2,21 @@
 
 import { SpaceObject } from './space-object.js';
 import { Asteroid } from './space-object-types/asteroid.js';
-// Import Lander and Rover later when created
-// import { Lander } from './space-object-types/lander.js';
-// import { Rover } from './space-object-types/rover.js';
-// Import the drop system handler
+import { Lander } from './space-object-types/lander.js';
+import { Rover } from './space-object-types/rover.js';
 import { handleObjectDestructionDrop } from '../collectibles/drop-system.js';
 
 // Map types to classes for easy instantiation
 const SPACE_OBJECT_CLASSES = {
     'asteroid': Asteroid,
-    // 'lander': Lander,
-    // 'rover': Rover,
+    'lander': Lander,
+    'rover': Rover,
 };
 
 // Spawn configuration (basic example)
-const SPAWN_INTERVAL = 5000; // Try to spawn every 5 seconds
-const MAX_ACTIVE_OBJECTS = 8;
-const OBJECT_TYPES_TO_SPAWN = ['asteroid']; // Only spawn asteroids for now
+const SPAWN_INTERVAL = 4000;
+const MAX_ACTIVE_OBJECTS = 10;
+const OBJECT_TYPES_TO_SPAWN = ['asteroid', 'lander', 'rover'];
 
 class SpaceObjectManager {
     // Added collectibleManager and playerManager dependencies
@@ -29,22 +27,22 @@ class SpaceObjectManager {
         this.gameHeight = gameHeight;
         this.groundLevelY = groundLevelY;
         this.gameBounds = { width: gameWidth, height: gameHeight };
-        this.collectibleManager = collectibleManager; // Store reference
-        this.playerManager = playerManager; // Store reference for scoring
+        this.collectibleManager = collectibleManager;
+        this.playerManager = playerManager;
 
-        this.activeObjects = {}; // Stores local SpaceObject instances { id: SpaceObject }
+        this.activeObjects = {};
         this.lastSpawnAttemptTime = 0;
 
         if (!this.collectibleManager) {
             console.error("SpaceObjectManager requires a CollectibleManager instance for drops!");
         }
-         if (!this.playerManager) {
-             console.error("SpaceObjectManager requires a PlayerManager instance for scoring!");
-         }
+        if (!this.playerManager) {
+            console.error("SpaceObjectManager requires a PlayerManager instance for scoring!");
+        }
 
         // Listen for room state changes to sync objects
         this.networkManager.onRoomStateUpdate(this._handleRoomStateUpdate.bind(this));
-        this._initializeFromRoomState(); // Initial sync
+        this._initializeFromRoomState();
     }
 
     _initializeFromRoomState() {
@@ -67,7 +65,6 @@ class SpaceObjectManager {
         // Remove local objects that are no longer in roomState
         for (const id of currentIds) {
             if (!objectData[id]) {
-                // console.log(`Removing space object ${id} locally.`); // Reduced logging
                 delete this.activeObjects[id];
             }
         }
@@ -76,105 +73,101 @@ class SpaceObjectManager {
         for (const id of serverIds) {
             const data = objectData[id];
             if (!data || !data.type) {
-                 console.warn(`Invalid data for space object ${id} in roomState. Skipping.`);
-                 continue;
+                console.warn(`Invalid data for space object ${id} in roomState. Skipping.`);
+                continue;
             }
             const ObjectClass = SPACE_OBJECT_CLASSES[data.type];
-             if (!ObjectClass) {
-                  console.warn(`Unknown space object type "${data.type}" for ID ${id}. Skipping.`);
-                  continue;
-             }
+            if (!ObjectClass) {
+                console.warn(`Unknown space object type "${data.type}" for ID ${id}. Skipping.`);
+                continue;
+            }
 
             if (!this.activeObjects[id]) {
-                // Create new object instance
-                // console.log(`Creating a new space object instance ${id} of ${data.type}`); // Reduced logging
-                this.activeObjects[id] = new ObjectClass(id, data.type, data.x, data.y, data); // Pass all data as initial state
+                this.activeObjects[id] = new ObjectClass(id, data.type, data.x, data.y, data, this.groundLevelY);
             } else {
-                // Update existing local instance (simple position/health/score update for now)
                 const localObj = this.activeObjects[id];
-                 // Avoid excessive updates, maybe interpolate later?
-                 // For now, snap position and update state.
                 localObj.x = data.x;
                 localObj.y = data.y;
                 localObj.rotation = data.rotation ?? localObj.rotation;
                 localObj.health = data.health ?? localObj.health;
-                localObj.scoreValue = data.scoreValue ?? localObj.scoreValue; // Sync score value
-                // Update other state if needed
+                localObj.scoreValue = data.scoreValue ?? localObj.scoreValue;
+
+                if (localObj instanceof Lander && data.baseY !== undefined) {
+                    localObj.baseY = data.baseY;
+                }
             }
         }
     }
 
-    // Spawning logic (simplified, needs leader election or similar for multiplayer safety)
-    // For now, any client might try to spawn. Last write wins via roomState.
     attemptSpawnObject(currentTime) {
-        // Simple check: only let the "first" player spawn (naïve leader election)
         const peers = this.networkManager.getPeers();
         const peerIds = Object.keys(peers).sort();
-        // Corrected leader election logic
         if (!peerIds.length || this.networkManager.getClientId() !== peerIds[0]) {
-            return; // Only the "leader" spawns
+            return;
         }
 
         const numActive = Object.keys(this.activeObjects).length;
         if (numActive >= MAX_ACTIVE_OBJECTS) {
-            return; // Max limit reached
+            return;
         }
 
         if (currentTime - this.lastSpawnAttemptTime > SPAWN_INTERVAL) {
             this.lastSpawnAttemptTime = currentTime;
 
-            // Choose a random type from the allowed list
-             if (OBJECT_TYPES_TO_SPAWN.length === 0) return;
+            if (OBJECT_TYPES_TO_SPAWN.length === 0) return;
             const type = OBJECT_TYPES_TO_SPAWN[Math.floor(Math.random() * OBJECT_TYPES_TO_SPAWN.length)];
 
-            // Choose spawn position (off-screen right, random Y)
-            const spawnX = this.gameWidth + 100; // Start off-screen
-            const spawnY = Math.random() * (this.groundLevelY - 50) + 25; // Avoid edges ground
+            let spawnX = this.gameWidth + 100;
+            let spawnY;
+            if (type === 'rover') {
+                const ObjectClass = SPACE_OBJECT_CLASSES[type];
+                if (!ObjectClass) return;
+                const tempInstance = new ObjectClass('temp', type, 0, 0, {}, this.groundLevelY);
+                spawnY = this.groundLevelY - (tempInstance.drawHeight / 2);
+            } else {
+                spawnY = Math.random() * (this.groundLevelY - 100) + 50;
+            }
 
-            // Create initial state for the new object (can be customized by type later)
-            const initialState = {
-                 // Example: customize initial velocity or rotation based on type
-                 // vx: type === 'asteroid' ? -75 : -50,
-            };
+            const initialState = {};
 
             const newId = `sobj-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
-            // console.log(`Attempting to spawn space object ${newId} (${type}) at ${spawnX.toFixed(0)},${spawnY.toFixed(0)}`); // Reduced logging
 
-             // Get the initial sync data for the object type
             const ObjectClass = SPACE_OBJECT_CLASSES[type];
-             if (!ObjectClass) return; // Should not happen if type is from OBJECT_TYPES_TO_SPAWN
-             // Create a temporary instance just get its initial sync data
-             const tempInstance = new ObjectClass(newId, type, spawnX, spawnY, initialState);
-             const syncData = tempInstance.getSyncData();
+            if (!ObjectClass) return;
+            const tempInstance = new ObjectClass(newId, type, spawnX, spawnY, initialState, this.groundLevelY);
+            const syncData = tempInstance.getSyncData();
 
-            // Update room state to add the new object
             this.networkManager.updateRoomState({
                 spaceObjects: {
-                    [newId]: syncData // Send the full initial state
+                    [newId]: syncData
                 }
-            }); 
+            });
         }
     }
 
     getObject(id) {
-        return this.activeObjects[id]; 
+        return this.activeObjects[id];
     }
 
     destroyObject(id, playerDestroyerId = null) {
-        const obj = this.getObject(id); 
+        const obj = this.getObject(id);
         if (obj) {
-            obj.isMarkedForRemoval = true; // Mark for local cleanup
+            if (playerDestroyerId && obj.scoreValue > 0) {
+                const player = this.playerManager.getPlayer(playerDestroyerId);
+                if (player) {
+                    player.addScore(obj.scoreValue);
+                }
+            }
 
-            // --- Call Drop System ---
+            obj.isMarkedForRemoval = true;
+
             handleObjectDestructionDrop(obj, playerDestroyerId, this.collectibleManager);
-            // --- End Drop System Call ---
 
-            delete this.activeObjects[id]; // Remove immediately from local active list
+            delete this.activeObjects[id];
 
-            // Trigger removal from roomState
             this.networkManager.updateRoomState({
                 spaceObjects: {
-                    [id]: null // Set to null to remove
+                    [id]: null
                 }
             });
             console.log(`Space object ${id} destroyed removed from roomState.`);
@@ -183,27 +176,24 @@ class SpaceObjectManager {
 
     applyDamageToObject(id, amount, playerDestroyerId = null) {
         const obj = this.getObject(id);
-        if (obj && obj.takeDamage(amount)) { // takeDamage returns true if destroyed
-            this.destroyObject(id, playerDestroyerId); // Call destroyObject here
-            return true; // Indicate destruction
-        } else if (obj) { 
-             // Damaged but not destroyed, update roomState with new health
+        if (obj && obj.takeDamage(amount)) {
+            this.destroyObject(id, playerDestroyerId);
+            return true;
+        } else if (obj) {
             this.networkManager.updateRoomState({
                 spaceObjects: {
-                    [id]: obj.getSyncData() // Send updated state
+                    [id]: obj.getSyncData()
                 }
             });
         }
-        return false; // Indicate not destroyed (or object not found)
+        return false;
     }
 
     getActiveObjects() {
-        // Return suitable for collision detection/drawing
         return Object.values(this.activeObjects).filter(o => !o.isMarkedForRemoval);
     }
 
-    getActiveObjectsMap() { 
-        // Return objects as a map { id: object }
+    getActiveObjectsMap() {
         const map = {};
         for (const id in this.activeObjects) {
             if (!this.activeObjects[id].isMarkedForRemoval) {
@@ -214,13 +204,10 @@ class SpaceObjectManager {
     }
 
     update(deltaTime) {
-        // Update local object logic (movement, animation, etc.)
         for (const id in this.activeObjects) {
             const obj = this.activeObjects[id];
             obj.update(deltaTime, this.gameBounds, this.groundLevelY);
             if (obj.isMarkedForRemoval) {
-                // Object removed itself (e.g., went off-screen)
-                // We need to notify the network unless it was already removed via sync
                 const roomState = this.networkManager.getRoomState();
                 if (roomState?.spaceObjects?.[id]) {
                     console.log(`Object ${id} marked itself for removal. Notifying network.`);
@@ -229,19 +216,17 @@ class SpaceObjectManager {
                             [id]: null
                         }
                     });
-                    // No drop if object removes itself (e.g, off-screen)
                 }
                 delete this.activeObjects[id];
             }
         }
 
-        // Attempt to spawn new objects (basic implementation)
         this.attemptSpawnObject(performance.now());
     }
 
     draw(ctx) {
-        for (const id in this.activeObjects) { 
-            this.activeObjects[id].draw(ctx, this.assets, 1.0); // Pass scale 1.0 for now
+        for (const id in this.activeObjects) {
+            this.activeObjects[id].draw(ctx, this.assets, 1.0);
         }
     }
 }
