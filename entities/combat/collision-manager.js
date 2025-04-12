@@ -1,16 +1,22 @@
-// New file: Manages collision detection and response logic
+// Manages collision detection and response logic by calling specific collider functions
 
-import { checkPlayerCollisions, checkProjectileCollisions, checkPowerupCollisions, checkPlayerCollectibleCollisions, checkPlayerSpaceObjectCollisions, checkProjectileSpaceObjectCollisions } from './collision-detector.js'; 
+import { checkPlayerPlayerCollisions } from '../collisions/player-player-collider.js';
+import { checkPlayerProjectileCollisions } from '../collisions/player-projectile-collider.js';
+import { checkPlayerPowerupCollisions } from '../collisions/player-powerup-collider.js';
+import { checkPlayerCollectibleCollisions } from '../collisions/player-collectible-collider.js';
+import { checkPlayerSpaceObjectCollisions } from '../collisions/player-space-object-collider.js';
+import { checkProjectileSpaceObjectCollisions } from '../collisions/projectile-space-object-collider.js';
+
 import { calculateCollisionDamage } from './damage-calculator.js';
-import { PlayerLifecycleState } from '../player-lifecycle.js'; 
+import { PlayerLifecycleState } from '../player-lifecycle.js';
 
 class CollisionManager {
     constructor(playerManager, projectileManager, powerupManager, spaceObjectManager, collectibleManager, particleSystem, renderScale) {
         this.playerManager = playerManager;
         this.projectileManager = projectileManager;
         this.powerupManager = powerupManager;
-        this.spaceObjectManager = spaceObjectManager; 
-        this.collectibleManager = collectibleManager; 
+        this.spaceObjectManager = spaceObjectManager;
+        this.collectibleManager = collectibleManager;
         this.particleSystem = particleSystem;
         this.renderScale = renderScale;
 
@@ -20,7 +26,7 @@ class CollisionManager {
     }
 
     /**
-     * Checks for all relevant collisions in the game.
+     * Checks for all relevant collisions in the game using the new collider functions.
      * @param {number} currentTime - The current game time (performance.now()).
      */
     checkAllCollisions(currentTime) {
@@ -29,38 +35,41 @@ class CollisionManager {
             return;
         }
 
-        const activePlayers = this.playerManager.getAllActivePlayers(); 
+        // Get only ACTIVE players for collision checks
+        const activePlayers = this.playerManager.getAllActivePlayers();
         const localPlayer = this.playerManager.getLocalPlayer();
-        const activeProjectilesMap = this.projectileManager.getProjectiles(); 
-        const activePowerupsArray = this.powerupManager.getActivePowerups();
-        const activeSpaceObjectsMap = this.spaceObjectManager.getActiveObjectsMap(); 
-        const activeCollectiblesArray = this.collectibleManager.getActiveCollectibles(); 
+        const activeProjectilesMap = this.projectileManager.getProjectiles(); // Get as map {id: projectile}
+        const activePowerupsArray = this.powerupManager.getActivePowerups(); // Get as array
+        const activeSpaceObjectsMap = this.spaceObjectManager.getActiveObjectsMap(); // Get as map {id: object}
+        const activeCollectiblesArray = this.collectibleManager.getActiveCollectibles(); // Get as array
 
-        checkPlayerCollisions(
-            activePlayers,
+        // ** Call NEW collision functions **
+        checkPlayerPlayerCollisions(
+            activePlayers, // Pass only active players
             this.renderScale,
-            calculateCollisionDamage, 
+            calculateCollisionDamage,
             currentTime,
-            this.playerManager 
+            this.playerManager
         );
 
-        checkProjectileCollisions(
-            activePlayers,
+        checkPlayerProjectileCollisions(
+            activePlayers, // Pass only active players
             activeProjectilesMap,
             this.renderScale,
             calculateCollisionDamage,
             currentTime,
             this.playerManager,
-            this.particleSystem 
+            this.particleSystem
         );
 
+        // Pickup checks only need the local player if they are active
         if (localPlayer && localPlayer.lifecycleState === PlayerLifecycleState.ACTIVE) {
-            checkPowerupCollisions(
+            checkPlayerPowerupCollisions(
                 localPlayer,
                 activePowerupsArray,
                 this.renderScale,
                 currentTime,
-                this.powerupManager 
+                this.powerupManager
             );
 
             checkPlayerCollectibleCollisions(
@@ -68,18 +77,18 @@ class CollisionManager {
                 activeCollectiblesArray,
                 this.renderScale,
                 currentTime,
-                this.collectibleManager 
+                this.collectibleManager
             );
         }
 
         checkPlayerSpaceObjectCollisions(
-            activePlayers,
+            activePlayers, // Pass only active players
             activeSpaceObjectsMap,
             this.renderScale,
             calculateCollisionDamage,
             currentTime,
             this.playerManager,
-            this.spaceObjectManager 
+            this.spaceObjectManager
         );
 
         checkProjectileSpaceObjectCollisions(
@@ -88,8 +97,8 @@ class CollisionManager {
             this.renderScale,
             calculateCollisionDamage,
             currentTime,
-            this.spaceObjectManager, 
-            this.particleSystem 
+            this.spaceObjectManager,
+            this.particleSystem
         );
     }
 }

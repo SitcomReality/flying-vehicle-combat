@@ -1,11 +1,11 @@
 // Manages active space objects in the game world
 
 import { SpaceObject } from './space-object.js';
-import { Asteroid } from './space-object-types/asteroid.js'; 
+import { Asteroid } from './space-object-types/asteroid.js';
 // Import Lander and Rover later when created
 // import { Lander } from './space-object-types/lander.js';
 // import { Rover } from './space-object-types/rover.js';
-// Import the new drop system handler
+// Import the drop system handler
 import { handleObjectDestructionDrop } from '../collectibles/drop-system.js';
 
 // Map types to classes for easy instantiation
@@ -19,7 +19,6 @@ const SPACE_OBJECT_CLASSES = {
 const SPAWN_INTERVAL = 5000; // Try to spawn every 5 seconds
 const MAX_ACTIVE_OBJECTS = 8;
 const OBJECT_TYPES_TO_SPAWN = ['asteroid']; // Only spawn asteroids for now
-// Removed collectible drop chance - now handled in drop-system.js
 
 class SpaceObjectManager {
     // Added collectibleManager and playerManager dependencies
@@ -62,7 +61,7 @@ class SpaceObjectManager {
 
     // Syncs local objects with server data
     _syncObjects(objectData) {
-        const currentIds = Object.keys(this.activeObjects); 
+        const currentIds = Object.keys(this.activeObjects);
         const serverIds = Object.keys(objectData);
 
         // Remove local objects that are no longer in roomState
@@ -95,7 +94,7 @@ class SpaceObjectManager {
                 const localObj = this.activeObjects[id];
                  // Avoid excessive updates, maybe interpolate later?
                  // For now, snap position and update state.
-                localObj.x = data.x; 
+                localObj.x = data.x;
                 localObj.y = data.y;
                 localObj.rotation = data.rotation ?? localObj.rotation;
                 localObj.health = data.health ?? localObj.health;
@@ -103,7 +102,7 @@ class SpaceObjectManager {
                 // Update other state if needed
             }
         }
-    } 
+    }
 
     // Spawning logic (simplified, needs leader election or similar for multiplayer safety)
     // For now, any client might try to spawn. Last write wins via roomState.
