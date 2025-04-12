@@ -105,7 +105,8 @@ async function initializeGame() {
             GAME_HEIGHT,
             groundLevelY,
             collectibleManager, // Needs collectible manager for drops
-            playerManager // Needs player manager for scoring
+            playerManager, // Needs player manager for scoring
+            powerupManager // Needs powerup manager for drops
         );
 
         vehicleSelector = new VehicleSelector(vehicleSelectorEl, assets, (type) => {

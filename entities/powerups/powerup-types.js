@@ -27,24 +27,28 @@ export const POWERUP_CONFIG = {
         value: 50,   // Amount of health restored
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.HEALTH_PACK],
         name: 'Health Pack',
+        dropWeight: 5, // Common drop
     },
     [PowerupType.FUEL_PACK]: {
         duration: 0, // Instant effect
         value: 75,   // Amount of fuel restored
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.FUEL_PACK],
         name: 'Fuel Pack',
+        dropWeight: 4, // Slightly less common
     },
     [PowerupType.SPEED_BOOST]: {
         duration: 8000, // 8 seconds
         multiplier: 1.4, // 40% speed increase
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.SPEED_BOOST],
         name: 'Speed Boost',
+        dropWeight: 3,
     },
     [PowerupType.DAMAGE_BOOST]: {
         duration: 10000, // 10 seconds
         multiplier: 1.5, // 50% damage increase
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.DAMAGE_BOOST],
         name: 'Damage Boost',
+        dropWeight: 2,
     },
     // Added RAPID_FIRE config
     [PowerupType.RAPID_FIRE]: {
@@ -52,11 +56,13 @@ export const POWERUP_CONFIG = {
         multiplier: 1.8, // 80% faster fire rate
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.RAPID_FIRE],
         name: 'Rapid Fire',
+        dropWeight: 2,
     },
     [PowerupType.INVULNERABILITY]: {
         duration: 5000, // 5 seconds
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.INVULNERABILITY],
         name: 'Invincibility Shield',
+        dropWeight: 1, // Rare drop
     },
 };
 
@@ -74,8 +80,33 @@ export function getPowerupSpriteFrame(type) {
      return null; // Return null if no valid sprite found
 }
 
+// Function to get a random powerup type based on weights
+export function getRandomPowerupType() {
+    const weights = {};
+    let totalWeight = 0;
+    for (const type in POWERUP_CONFIG) {
+        if (POWERUP_CONFIG[type].dropWeight !== undefined) {
+            weights[type] = POWERUP_CONFIG[type].dropWeight;
+            totalWeight += weights[type];
+        }
+    }
+
+    if (totalWeight === 0) return null; // No powerups have weights
+
+    let random = Math.random() * totalWeight;
+    for (const type in weights) {
+        if (random < weights[type]) {
+            return type;
+        }
+        random -= weights[type];
+    }
+    return null; // Should not happen if totalWeight > 0
+}
+
 export const POWERUP_SPAWN_CONFIG = {
-    INTERVAL: 10000, // Try to spawn a new powerup every 10 seconds
-    MAX_ACTIVE: 5,    // Maximum number of powerups active at once
+    INTERVAL: 60000, // Try to spawn a new powerup every 60 seconds (infrequent random spawn)
+    MAX_ACTIVE: 10,    // Maximum number of powerups active at once (from any source)
     RADIUS: 20,       // Visual/collision radius of a powerup
+    // Added drop chance from space objects
+    OBJECT_DROP_CHANCE: 0.25, // 25% chance for a destroyed object to drop *any* powerup
 };

@@ -1,7 +1,7 @@
 // New file: Manages active powerups in the game world
 
 import Powerup from './powerup.js';
-import { PowerupType, POWERUP_SPAWN_CONFIG } from './powerup-types.js';
+import { PowerupType, POWERUP_SPAWN_CONFIG, getRandomPowerupType } from './powerup-types.js';
 
 class PowerupManager {
     // Added particleSystem as a dependency
@@ -78,11 +78,15 @@ class PowerupManager {
         if (currentTime - this.lastSpawnAttemptTime > POWERUP_SPAWN_CONFIG.INTERVAL) {
             this.lastSpawnAttemptTime = currentTime;
 
-            // Choose a random powerup type
-            const availableTypes = Object.values(PowerupType);
+            // Use the weighted random function
+            const type = getRandomPowerupType();
             // Exclude types not fully implemented yet if needed
-            const spawnableTypes = availableTypes.filter(type => type !== PowerupType.RAPID_FIRE);
-            const type = spawnableTypes[Math.floor(Math.random() * spawnableTypes.length)];
+
+            // Only proceed if a type was successfully chosen
+            if (!type) {
+                console.log("Attempted random spawn, but no powerup type selected (check weights).");
+                return;
+            }
 
             // Choose random spawn position (avoid edges and ground)
             const padding = 50;
@@ -104,6 +108,40 @@ class PowerupManager {
                 }
             });
         }
+    }
+
+    // --- New Spawning Method (Called by Drop System) ---
+    spawnPowerup(x, y, type = null) {
+        // Limit total active powerups regardless of source
+        const numActive = Object.keys(this.activePowerups).length;
+        if (numActive >= POWERUP_SPAWN_CONFIG.MAX_ACTIVE) {
+            console.log("Maximum powerup limit reached, cannot spawn from drop.");
+            return null;
+        }
+
+        if (!type) {
+            type = getRandomPowerupType(); // Get a random type based on weights
+        }
+        if (!type) {
+             console.warn("Could not determine powerup type to spawn from drop.");
+             return null; // Invalid type or weights issue
+        }
+
+        const newId = `powerup-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
+
+        console.log(`Spawning powerup ${newId} (${type}) from drop at ${x.toFixed(0)},${y.toFixed(0)}`);
+
+        // Update room state to add the new powerup
+        this.networkManager.updateRoomState({
+            activePowerups: {
+                [newId]: {
+                    type: type,
+                    x: x,
+                    y: y
+                }
+            }
+        });
+        return newId; // Return ID in case needed
     }
 
     // Called when a local player picks up a powerup

@@ -4,7 +4,7 @@ import { SpaceObject } from './space-object.js';
 import { Asteroid } from './space-object-types/asteroid.js';
 import { Lander } from './space-object-types/lander.js';
 import { Rover } from './space-object-types/rover.js';
-import { handleObjectDestructionDrop } from '../collectibles/drop-system.js';
+import { handleObjectDestructionDrop, handleObjectDestructionPowerupDrop } from '../collectibles/drop-system.js';
 
 // Map types to classes for easy instantiation
 const SPACE_OBJECT_CLASSES = {
@@ -20,7 +20,7 @@ const OBJECT_TYPES_TO_SPAWN = ['asteroid', 'lander', 'rover'];
 
 class SpaceObjectManager {
     // Added collectibleManager and playerManager dependencies
-    constructor(networkManager, assets, gameWidth, gameHeight, groundLevelY, collectibleManager, playerManager) {
+    constructor(networkManager, assets, gameWidth, gameHeight, groundLevelY, collectibleManager, playerManager, powerupManager) {
         this.networkManager = networkManager;
         this.assets = assets;
         this.gameWidth = gameWidth;
@@ -29,6 +29,7 @@ class SpaceObjectManager {
         this.gameBounds = { width: gameWidth, height: gameHeight };
         this.collectibleManager = collectibleManager;
         this.playerManager = playerManager;
+        this.powerupManager = powerupManager;
 
         this.activeObjects = {};
         this.lastSpawnAttemptTime = 0;
@@ -38,6 +39,9 @@ class SpaceObjectManager {
         }
         if (!this.playerManager) {
             console.error("SpaceObjectManager requires a PlayerManager instance for scoring!");
+        }
+        if (!this.powerupManager) {
+            console.error("SpaceObjectManager requires a PowerupManager instance for drops!");
         }
 
         // Listen for room state changes to sync objects
@@ -153,7 +157,7 @@ class SpaceObjectManager {
         const obj = this.getObject(id);
         if (obj) {
             if (playerDestroyerId && obj.scoreValue > 0) {
-                const player = this.playerManager.getPlayer(playerDestroyerId);
+                const player = this.playerManager?.getPlayer(playerDestroyerId);
                 if (player) {
                     player.addScore(obj.scoreValue);
                 }
@@ -162,6 +166,7 @@ class SpaceObjectManager {
             obj.isMarkedForRemoval = true;
 
             handleObjectDestructionDrop(obj, playerDestroyerId, this.collectibleManager);
+            handleObjectDestructionPowerupDrop(obj, playerDestroyerId, this.powerupManager);
 
             delete this.activeObjects[id];
 
