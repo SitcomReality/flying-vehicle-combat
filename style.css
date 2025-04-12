@@ -30,6 +30,8 @@ canvas {
     font-family: monospace;
     white-space: pre;
     z-index: 10; /* Ensure debug is above canvas */
+    opacity: 0.1;
+    pointer-events: none;
 }
 
 /* General UI Panel Styling */
