@@ -61,38 +61,43 @@ class Leaderboard {
                 const vehicleType = entry.vehicleType; // Get vehicle type from record
                 const vehicleSheet = this.assets?.vehicles;
 
-                if (vehicleType !== undefined && vehicleType !== null && vehicleSheet && SPRITES.vehicles.frames[vehicleType]) {
+                // Debug log to check entry data
+                // console.log(`Leaderboard entry:`, entry, `Vehicle Type: ${vehicleType}`);
+
+                // Check if vehicleType is a valid number and exists in SPRITES
+                 if (typeof vehicleType === 'number' && vehicleType >= 0 && vehicleSheet && SPRITES.vehicles.frames[vehicleType]) {
                     const frame = SPRITES.vehicles.frames[vehicleType];
                     const sheetWidth = vehicleSheet.naturalWidth; // Get original sheet width
                     const sheetHeight = vehicleSheet.naturalHeight; // Get original sheet height
 
-                    // Calculate background position as percentages for better scaling? No, stick to pixels for now.
-                    // const bgPosX = (frame.x / sheetWidth) * 100;
-                    // const bgPosY = (frame.y / sheetHeight) * 100;
+                    // Define the display size from CSS (hardcoded for now, could be dynamic)
+                    const displaySize = 24; // px
 
-                    // Calculate background-size based on sheet dimensions and frame dimensions
-                    // We want to show just one frame (frame.width x frame.height) from the sheet (sheetWidth x sheetHeight)
-                    // scaled down to fit the div size defined in CSS.
-                    const bgSizeX = (sheetWidth / frame.width) * 100; // Percentage width of the sheet to show one frame's width
-                    const bgSizeY = (sheetHeight / frame.height) * 100; // Percentage height of the sheet to show one frame's height
+                    // Calculate the scaling factor needed to make the frame fit the display size
+                    // We assume the frame is square for simplicity in this context, or take the width
+                    const scaleFactor = displaySize / frame.width;
 
-                    // Adjust background position based on the scaled background size
-                    const bgPosX = (frame.x / (sheetWidth - frame.width)) * 100;
-                    const bgPosY = (frame.y / (sheetHeight - frame.height)) * 100;
+                    // Calculate the scaled size of the entire spritesheet
+                    const scaledSheetWidth = sheetWidth * scaleFactor;
+                    const scaledSheetHeight = sheetHeight * scaleFactor;
 
+                    // Calculate the pixel offset needed to position the top-left of the frame
+                    const backgroundPosX = -(frame.x * scaleFactor);
+                    const backgroundPosY = -(frame.y * scaleFactor);
 
                     vehicleSpriteHtml = `
                         <div class="leader-vehicle-sprite"
                              style="background-image: url(${SPRITES.vehicles.sheet});
-                                    background-position: ${bgPosX}% ${bgPosY}%;
-                                    background-size: ${bgSizeX}% ${bgSizeY}%;
-                                    ">
+                                    background-size: ${scaledSheetWidth}px ${scaledSheetHeight}px;
+                                    background-position: ${backgroundPosX}px ${backgroundPosY}px;">
                         </div>
                     `;
                 } else {
                     // Placeholder or empty if no type/asset
                     vehicleSpriteHtml = '<div class="leader-vehicle-sprite placeholder">?</div>';
                     if (vehicleType === undefined || vehicleType === null) console.warn(`High score entry missing vehicleType:`, entry);
+                     else if (typeof vehicleType !== 'number' || vehicleType < 0) console.warn(`Invalid vehicleType (${vehicleType}) in high score entry:`, entry);
+                     else if (!SPRITES.vehicles.frames[vehicleType]) console.warn(`No frame data for vehicleType ${vehicleType} in SPRITES config.`);
                 }
                 // --- End Vehicle Sprite Rendering ---
 
