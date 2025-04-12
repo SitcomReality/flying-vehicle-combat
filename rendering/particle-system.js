@@ -13,13 +13,17 @@ const CHARGE_PARTICLE_SPEED = 150; // Speed towards the target point
 const CHARGE_PARTICLE_SPAWN_RADIUS = 50; // How far from the center particles spawn
 const CHARGE_PARTICLE_LIFESPAN = 0.3; // Short lifespan
 
-// --- New Particle Constants ---
-const EXPLOSION_PARTICLE_COUNT = 50;
-const EXPLOSION_LIFESPAN_MIN = 0.5;
-const EXPLOSION_LIFESPAN_MAX = 1.5;
-const EXPLOSION_SPEED_MIN = 50;
-const EXPLOSION_SPEED_MAX = 300;
-const EXPLOSION_COLORS = ['rgba(255, 100, 50, 0.9)', 'rgba(255, 200, 50, 0.9)', 'rgba(200, 200, 200, 0.8)'];
+// --- Explosion Particle Constants ---
+const OBJ_EXPLOSION_PARTICLE_COUNT = 30;
+const PLAYER_EXPLOSION_PARTICLE_COUNT = 70; // More particles for player
+const EXPLOSION_LIFESPAN_MIN = 0.4;
+const EXPLOSION_LIFESPAN_MAX = 1.2;
+const EXPLOSION_SPEED_MIN = 40;
+const EXPLOSION_SPEED_MAX = 250;
+const PLAYER_EXPLOSION_SPEED_MAX = 350; // Faster particles for player
+const EXPLOSION_COLORS_OBJ = ['rgba(255, 160, 80, 0.9)', 'rgba(200, 200, 200, 0.8)', 'rgba(100, 100, 100, 0.7)']; // Orange/grey
+const EXPLOSION_COLORS_PLAYER = ['rgba(255, 100, 50, 0.9)', 'rgba(255, 200, 50, 0.9)', 'rgba(255, 255, 255, 0.8)', 'rgba(200, 50, 50, 0.8)']; // More vibrant orange/red/white
+const EXPLOSION_GRAVITY = 150; // Gravity effect on explosion particles
 
 const PICKUP_PARTICLE_COUNT = 15;
 const PICKUP_LIFESPAN = 0.4;
@@ -94,20 +98,36 @@ class Particle {
         if (parts && parts.length === 4) {
             return { r: parseFloat(parts[0]), g: parseFloat(parts[1]), b: parseFloat(parts[2]), a: parseFloat(parts[3]) };
         }
-        // Fallback for simple colors or errors
+        // Fallback for simple colors or errors (e.g., 'red')
+        ctx.fillStyle = colorString || 'white';
+        const colorData = ctx.fillStyle; // This forces browser to parse it
+        if (colorData.startsWith('#')) { // Simple hex fallback
+             const hex = colorData.substring(1);
+             const bigint = parseInt(hex, 16);
+             return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255, a: 1 };
+        }
+        // If still not parsable, default to white
         return { r: 255, g: 255, b: 255, a: 1 };
     }
 }
 
 export class ParticleSystem {
-    constructor(maxParticles = 500) {
+    constructor(maxParticles = 1000) { // Increased max particles for explosions
         this.particles = [];
         this.maxParticles = maxParticles;
+        // Pre-parse colors if needed for performance, though likely negligible here
     }
 
     _addParticle(particle) {
         if (this.particles.length >= this.maxParticles) {
-            this.particles.shift(); // Remove the oldest particle
+            // Find the oldest particle to remove (could optimize this)
+             let oldestIndex = 0;
+             for(let i=1; i < this.particles.length; ++i) {
+                 if (this.particles[i].life < this.particles[oldestIndex].life) {
+                     oldestIndex = i;
+                 }
+             }
+             this.particles.splice(oldestIndex, 1);
         }
         this.particles.push(particle);
     }
@@ -115,6 +135,8 @@ export class ParticleSystem {
     // Generic emitter used by specific types below
     _emitInternal(x, y, count, vxBase, vyBase, vxVariance, vyVariance, lifespan, colorStart, colorEnd, sizeStart, sizeEnd) {
          for (let i = 0; i < count; i++) {
+             // Prevent adding more if max is reached during emission loop
+             if (this.particles.length >= this.maxParticles) break;
 
              const vx = vxBase + (Math.random() - 0.5) * 2 * vxVariance;
              const vy = vyBase + (Math.random() - 0.5) * 2 * vyVariance;
@@ -155,6 +177,7 @@ export class ParticleSystem {
     // New emitter for charging effect
     emitChargeParticles(spawnCenterX, spawnCenterY, count, targetX, targetY) {
          for (let i = 0; i < count; i++) {
+            if (this.particles.length >= this.maxParticles) break;
 
              // Spawn at a random angle and distance around the spawn center
              const angle = Math.random() * Math.PI * 2;
@@ -183,20 +206,32 @@ export class ParticleSystem {
          }
     }
 
-    // --- New Emitters ---
+    // --- Updated Explosion Emitter ---
 
-    emitExplosion(x, y, count = EXPLOSION_PARTICLE_COUNT) {
+    /**
+     * Emits an explosion effect.
+     * @param {number} x - Center X coordinate.
+     * @param {number} y - Center Y coordinate.
+     * @param {number} count - Number of particles.
+     * @param {number} speedMin - Minimum particle speed.
+     * @param {number} speedMax - Maximum particle speed.
+     * @param {Array<string>} colors - Array of possible color strings (rgba).
+     */
+    emitExplosion(x, y, count = OBJ_EXPLOSION_PARTICLE_COUNT, speedMin = EXPLOSION_SPEED_MIN, speedMax = EXPLOSION_SPEED_MAX, colors = EXPLOSION_COLORS_OBJ) {
+        // console.log(`Emitting explosion at ${x.toFixed(0)}, ${y.toFixed(0)} with ${count} particles.`); // Debug log
         for (let i = 0; i < count; i++) {
+             if (this.particles.length >= this.maxParticles) break;
+
             const angle = Math.random() * Math.PI * 2;
-            const speed = Math.random() * (EXPLOSION_SPEED_MAX - EXPLOSION_SPEED_MIN) + EXPLOSION_SPEED_MIN;
+            const speed = Math.random() * (speedMax - speedMin) + speedMin;
             const vx = Math.cos(angle) * speed;
             const vy = Math.sin(angle) * speed;
             const lifespan = Math.random() * (EXPLOSION_LIFESPAN_MAX - EXPLOSION_LIFESPAN_MIN) + EXPLOSION_LIFESPAN_MIN;
-            const color = EXPLOSION_COLORS[Math.floor(Math.random() * EXPLOSION_COLORS.length)];
+            const color = colors[Math.floor(Math.random() * colors.length)];
             const size = Math.random() * 3 + 1; // Size 1 to 4
 
             const particle = new Particle(x, y, vx, vy, lifespan, color, null, size, size * 0.5);
-            particle.gravity = 150; // Add some gravity to explosion particles
+            particle.gravity = EXPLOSION_GRAVITY; // Add some gravity to explosion particles
             this._addParticle(particle);
         }
     }
@@ -226,9 +261,6 @@ export class ParticleSystem {
     emitPowerupPickup(x, y) {
         this._emitPickupEffect(x, y, POWERUP_PICKUP_COLOR);
     }
-
-    // --- End New Emitters ---
-
 
     update(deltaTime) {
         for (let i = this.particles.length - 1; i >= 0; i--) {
