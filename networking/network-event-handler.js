@@ -100,19 +100,16 @@ class NetworkEventHandler {
                  // Also, check if they are ACTUALLY gone from the room.peers list (final sanity check)
                 if (playerToRemove && !playerToRemove.isMarkedForRemoval && !currentPeers[existingPlayerId]) {
                     const lastKnownPeerInfo = this.networkManager.getPeer(existingPlayerId); // Might be undefined if already gone
-                    console.log("Player disconnected (removed from presence/peers):", existingPlayerId, lastKnownPeerInfo?.username ?? '(info gone)');
                     this.playerManager.removePlayer(existingPlayerId);
                 } else if (playerToRemove && !playerToRemove.isMarkedForRemoval && currentPeers[existingPlayerId]) {
-                     console.warn(`Presence missing for ${existingPlayerId} but peer info still exists. Player not removed yet.`);
+                     // This case means presence is missing but peer info still exists - likely temporary desync or joining state
                 }
             }
         }
     }
 
     _handleRoomStateUpdate(roomState) {
-        // Delegate handling to specialized managers if needed (e.g., SpaceObjectManager, PowerupManager)
-        // SpaceObjectManager and PowerupManager handle their own room state updates via subscriptions.
-        // This central handler might be less necessary now.
+        // Handle room state updates (e.g., world items) if needed
     }
 
     _handlePresenceUpdateRequest(updateRequest, fromClientId) {
@@ -126,45 +123,70 @@ class NetworkEventHandler {
             localPlayer.setVehicle(nextVehicle);
             console.log(`Changed vehicle to ${nextVehicle} via request from ${fromClientId}`);
         }
-        // Handle other request types if needed
     }
 
     _handleMessage(event) {
-        const data = event; // data is the whole event object now
-        if (data.type !== 'connected' && data.type !== 'disconnected') {
-            console.log(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received message:`, data);
+        const data = event;
+        const myClientId = this.networkManager?.getClientId();
+
+        if (!data || !data.type) {
+             console.warn(`[NetEvt ${myClientId}] Received event with missing data or type:`, event);
+             return;
+        }
+
+        if (data.type !== 'connected' && data.type !== 'disconnected' && data.type !== 'fireProjectile') {
+            // console.log(`[NetworkEventHandler ${myClientId}] Received message:`, data);
         }
 
         switch (data.type) {
-            case 'connected':
+            case 'connected': 
             case 'disconnected':
-                // These are handled automatically by presence updates now
                 break;
             case 'fireProjectile':
-                console.log(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received 'fireProjectile' event from ${data.clientId || 'Unknown'}. Data:`, data.projectile);
-                if (data.projectile && this.projectileManager) {
-                    const p = data.projectile;
-                    // Extract all necessary data from the event payload
-                    const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
-                    const damage = p.damage ?? 10; // Provide default damage
-                    const color = p.color ?? 'yellow'; // Provide default color
-
-                    // Check if this projectile already exists locally (should not happen with echo: false)
-                    if (this.projectileManager.getProjectiles()[p.id]) {
-                        console.warn(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received 'fireProjectile' event for existing projectile ${p.id}. Ignoring.`);
-                        break;
-                    }
-
-                    this.projectileManager.createProjectile(
-                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, color, damage, gravityFactor // Pass all data
-                    );
-                } else {
-                    console.warn(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received invalid fireProjectile event data or projectileManager not ready. Projectile data:`, data.projectile);
+                console.log(`[NetEvt ${myClientId}] === Received 'fireProjectile' event from ${data.clientId || 'Unknown'} ===`);
+                if (!this.projectileManager) {
+                     console.error(`[NetEvt ${myClientId}] ABORT: ProjectileManager not available!`);
+                     break; // Exit case
                 }
+
+                if (!data.projectile) {
+                    console.warn(`[NetEvt ${myClientId}] ABORT: 'projectile' data is missing.`);
+                    break; // Exit case
+                }
+
+                const p = data.projectile;
+
+                if (typeof p.x !== 'number' || typeof p.y !== 'number' ||
+                     typeof p.vx !== 'number' || typeof p.vy !== 'number' ||
+                     typeof p.id !== 'string' || typeof p.ownerId !== 'string') {
+                      console.warn(`[NetEvt ${myClientId}] ABORT: Invalid data types in projectile data.`, p);
+                      break; // Exit case
+                 }
+
+                if (this.projectileManager.projectiles[p.id]) {
+                    console.warn(`[NetEvt ${myClientId}] ABORT: Duplicate projectile ID ${p.id} detected. Skipping creation.`);
+                    break; // Exit case - prevent duplicate creation
+                }
+
+                const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
+                const damage = p.damage ?? 10; // Default damage if missing
+                const color = p.color ?? 'yellow'; // Default color if missing
+                console.log(`[NetEvt ${myClientId}] Extracted projectile details - Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}, Color: ${color}`);
+
+                console.log(`[NetEvt ${myClientId}] >>> Calling projectileManager.createProjectile for ID ${p.id}...`);
+                try {
+                    this.projectileManager.createProjectile(
+                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, color, damage, gravityFactor // Pass validated/defaulted data
+                    );
+                    console.log(`[NetEvt ${myClientId}] <<< projectileManager.createProjectile call completed for ID ${p.id}.`);
+                } catch (error) {
+                     console.error(`[NetEvt ${myClientId}] XXX Error during projectileManager.createProjectile call for ID ${p.id}:`, error);
+                }
+
                 break;
             default:
                 if (data.type !== 'connected' && data.type !== 'disconnected') {
-                    console.log("Received unhandled message:", data);
+                    console.log(`[NetworkEventHandler ${myClientId}] Received unhandled message type: ${data.type}`, data);
                 }
                 break;
         }
