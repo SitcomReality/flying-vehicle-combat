@@ -4,9 +4,8 @@ import { SpaceObject } from './space-object.js';
 import { Asteroid } from './space-object-types/asteroid.js';
 import { Lander } from './space-object-types/lander.js';
 import { Rover } from './space-object-types/rover.js';
-// --- Removed Collectible Drop Import ---
 // --- Updated Powerup Drop Import ---
-import { handleObjectDestructionPowerupDrop } from '../collectibles/drop-system.js';
+import { handleObjectDestructionPowerupDrop } from '../drop-system.js'; // Corrected path
 import { createObjectExplosionEffect } from './space-object-explosion-handler.js';
 // Import the new sync module
 import { initializeSpaceObjectsFromRoomState, handleSpaceObjectRoomStateUpdate } from './space-object-sync.js';
@@ -134,23 +133,29 @@ class SpaceObjectManager {
         return this.activeObjects[id];
     }
 
-    destroyObject(id, playerDestroyerId = null) {
+    /**
+     * Destroys a space object, handles drops, particles, and removal.
+     * @param {string} id - The ID of the object to destroy.
+     * @param {string | null} playerDestroyerId - ID of the player who dealt the final blow, if any.
+     * @param {string} reason - Why the object is being destroyed ('damage', 'offscreen', 'cleanup', etc.).
+     */
+    destroyObject(id, playerDestroyerId = null, reason = 'unknown') {
         const obj = this.getObject(id);
         if (obj && !obj._destructionInProgress) {
             obj._destructionInProgress = true; // Mark destruction start
 
-            console.log(`[SpaceObjMgr] Destroying object ${id}. Player: ${playerDestroyerId || 'None'}`);
+            console.log(`[SpaceObjMgr] Destroying object ${id}. Player: ${playerDestroyerId || 'None'}. Reason: ${reason}`);
 
-            // --- EXPLOSION HANDLING ---
-            if (this.particleSystem) {
+            // --- EXPLOSION HANDLING (Only if destroyed by damage) ---
+            if (reason === 'damage' && this.particleSystem) {
                 createObjectExplosionEffect(obj, this.particleSystem);
-            } else {
+            } else if (reason === 'damage') {
                 console.warn("[SpaceObjMgr] ParticleSystem is missing, cannot create explosion effect for object", id);
             }
             // --- END EXPLOSION HANDLING ---
 
-            // Score awarding only happens if destroyed by a player
-            if (playerDestroyerId && obj.scoreValue > 0) {
+            // Score awarding only happens if destroyed by a player via damage
+            if (reason === 'damage' && playerDestroyerId && obj.scoreValue > 0) {
                 const player = this.playerManager?.getPlayer(playerDestroyerId);
                 if (player && player.lifecycleState === 'ACTIVE') {
                     player.addScore(obj.scoreValue);
@@ -158,18 +163,17 @@ class SpaceObjectManager {
                 }
             }
 
-            // --- Drop Handling ---
-            // --- REMOVED Collectible Drop Call ---
-            // --- UPDATED Powerup Drop Call (pass game dimensions) ---
-            handleObjectDestructionPowerupDrop(
-                obj,
-                playerDestroyerId,
-                this.powerupManager,
-                this.gameWidth,
-                this.gameHeight,
-                this.groundLevelY
-            );
-
+            // --- Drop Handling (Only if destroyed by damage) ---
+            if (reason === 'damage') {
+                handleObjectDestructionPowerupDrop(
+                    obj,
+                    playerDestroyerId,
+                    this.powerupManager,
+                    this.gameWidth,
+                    this.gameHeight,
+                    this.groundLevelY
+                );
+            }
 
             // Network removal request (ideally only by spawner, but always sending is simpler for now)
             const removalPayload = {};
@@ -198,7 +202,8 @@ class SpaceObjectManager {
         const wasDestroyed = obj.takeDamage(amount);
 
         if (wasDestroyed) {
-            this.destroyObject(id, playerDestroyerId);
+            // --- Pass 'damage' reason ---
+            this.destroyObject(id, playerDestroyerId, 'damage');
             return true;
         } else {
              // Object took damage but wasn't destroyed. Sync its new state if we are the spawner.
@@ -251,7 +256,8 @@ class SpaceObjectManager {
             // Handle objects marked for removal (e.g., off-screen, lifespan)
             if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
                 // console.log(`[SpaceObjMgr Update] Object ${id} found marked for removal. Triggering destroy...`);
-                this.destroyObject(id, null); // Trigger full destruction logic
+                // --- Pass 'offscreen' reason ---
+                this.destroyObject(id, null, 'offscreen'); // Trigger full destruction logic
                 continue; // Move to the next object
             }
 
@@ -270,7 +276,8 @@ class SpaceObjectManager {
                 // Check again if update marked it for removal
                 if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
                     // console.log(`[SpaceObjMgr Update] Object ${id} marked for removal during spawner update. Triggering destroy...`);
-                    this.destroyObject(id, null);
+                    // --- Pass 'offscreen' reason ---
+                    this.destroyObject(id, null, 'offscreen');
                 }
                 // Check for significant state changes *if* it wasn't destroyed
                 else if (this.activeObjects[id]) { // Check object still exists locally
