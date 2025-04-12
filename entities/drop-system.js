@@ -1,10 +1,20 @@
 // New file: Handles collectible drops when objects are destroyed
 
-import { getRandomCollectibleType } from './collectible-types.js';
-// Updated imports: Added POWERUP_SPAWN_CONFIG
-import { POWERUP_SPAWN_CONFIG, getRandomPowerupType } from '../powerups/powerup-types.js';
+import { getRandomCollectibleType } from './collectibles/collectible-types.js';
+import { POWERUP_SPAWN_CONFIG, getRandomPowerupType } from './powerups/powerup-types.js';
 
-// --- REMOVED: handleObjectDestructionDrop function ---
+/**
+ * Handles the potential drop of a collectible when a space object is destroyed.
+ * (Note: This functionality was previously in this file but seems to have been moved
+ *  to entities/collectibles/drop-system.js in a previous refactor. The powerup drop logic remains.)
+ * @param {SpaceObject} destroyedObject - The space object that was destroyed.
+ * @param {string | null} playerDestroyerId - The ID of the player who destroyed the object, if any.
+ * @param {CollectibleManager} collectibleManager - The manager to spawn collectibles.
+ */
+// export function handleObjectDestructionCollectibleDrop(destroyedObject, playerDestroyerId, collectibleManager) {
+//     // ... implementation for collectible drops if needed here ...
+//     // Currently, this logic seems to reside in entities/collectibles/drop-system.js
+// }
 
 /**
  * Handles the potential drop of a powerup when a space object is destroyed.
