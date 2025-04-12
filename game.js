@@ -196,13 +196,12 @@ async function initializeGame() {
         networkEventHandler.setupNetworkHandlers();
 
         // --- Expose Debug Functions ---
-        window.websim.debug = window.websim.debug || {}; // Ensure debug namespace exists
-        window.websim.debug.resetMyScores = () => {
+        window.gameDebug = window.gameDebug || {}; // Ensure debug namespace exists
+        window.gameDebug.resetMyScores = () => {
             console.log("Calling resetMyScores...");
             scorePersistence.resetMyScores();
         };
-        console.log("Debug function window.websim.debug.resetMyScores() is available.");
-
+        console.log("Debug function window.gameDebug.resetMyScores() is available.");
 
         // --- Start Game Loop ---
         lastUpdateTime = performance.now();
