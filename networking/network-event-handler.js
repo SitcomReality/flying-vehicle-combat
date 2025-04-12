@@ -139,30 +139,39 @@ class NetworkEventHandler {
         // }
     }
 
-
     _handleMessage(event) {
         const data = event; // data is the whole event object now
+        
         switch (data.type) {
             case 'connected':
             case 'disconnected':
                 // These are handled automatically by presence updates now
-                // console.log(`Network Event: ${data.type} - Client: ${data.clientId}, ${data.username}`);
                 break;
             case 'fireProjectile':
+                // FIX: Improved projectile handling with better error logging
                 if (data.projectile && this.projectileManager) {
                     const p = data.projectile;
+                    
+                    // Log when a projectile event is received for debugging
+                    console.log(`Received projectile from ${p.ownerId}, ID: ${p.id}`);
+                    
                     // Retrieve gravityFactor from the event data, provide default if missing
                     const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
+                    
+                    // FIX: Use create method to ensure all clients receive this projectile
                     this.projectileManager.createProjectile(
-                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, p.color, p.damage, gravityFactor // Pass gravityFactor
+                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, p.color, p.damage, gravityFactor
                     );
                 } else {
-                    console.warn("Received invalid fireProjectile event data or projectileManager not ready.");
+                    console.warn("Received invalid fireProjectile event or projectileManager not ready:", 
+                        data.projectile ? "projectile data present" : "missing projectile data", 
+                        this.projectileManager ? "manager ready" : "manager not ready");
                 }
                 break;
             default:
+                // Skip logging for common events
                 if (data.type !== 'connected' && data.type !== 'disconnected') {
-                    // console.log("Received unhandled message:", data);
+                    console.log(`Received message of type: ${data.type}`);
                 }
                 break;
         }

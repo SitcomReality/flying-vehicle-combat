@@ -1,9 +1,6 @@
 // New file: Represents an active powerup instance in the game world
 
 import { getPowerupSpriteFrame } from './powerup-types.js';
-// --- Import interpolation constants ---
-const INTERPOLATION_FACTOR = 0.15; // How quickly remote objects visually catch up
-const INTERPOLATION_SNAP_THRESHOLD_SQ = 100 * 100; // Lower threshold for powerups as they don't move fast
 
 class Powerup {
     constructor(id, type, x, y, radius) {
@@ -25,32 +22,32 @@ class Powerup {
         this.lastServerUpdateTime = 0;
     }
 
-    // Interpolates visual state towards server state (for non-spawners)
-    interpolateState() {
+    // Improved interpolation logic
+    interpolateState(factor = 0.15) {
         if (this.isMarkedForRemoval) return;
 
         const dx = this.serverX - this.x;
         const dy = this.serverY - this.y;
         const distSq = dx * dx + dy * dy;
 
-        if (distSq > INTERPOLATION_SNAP_THRESHOLD_SQ) {
-            // Snap if too far (e.g., after spawn or major lag)
+        // If very far from server position, snap immediately
+        if (distSq > 100 * 100) {
             this.x = this.serverX;
             this.y = this.serverY;
-        } else if (distSq > 0.01) { // Only interpolate if there's a difference
-            // Interpolate position
-            this.x += dx * INTERPOLATION_FACTOR;
-            this.y += dy * INTERPOLATION_FACTOR;
+            console.log(`[Powerup ${this.id}] Snapping to server position due to large distance`);
+        } 
+        // Otherwise smoothly interpolate
+        else if (distSq > 0.1) { // Only interpolate if there's a meaningful difference
+            this.x += dx * factor;
+            this.y += dy * factor;
         }
-        // Note: Bobbing effect is purely visual and calculated locally in update/draw
     }
-
 
     update(deltaTime) {
         // Simple bobbing effect using internal offset and speed
         this.bobOffset += this.bobSpeed * deltaTime;
         // Keep offset within reasonable bounds to prevent large numbers
-        if (this.bobOffset > Math.PI * 2) { // Only need to wrap around 2PI
+        if (this.bobOffset > Math.PI * 2) {
              this.bobOffset -= Math.PI * 2;
         }
         // Note: Actual position (this.x, this.y) is now set by interpolateState for non-spawners

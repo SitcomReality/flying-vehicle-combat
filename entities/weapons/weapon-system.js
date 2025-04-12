@@ -248,8 +248,9 @@ class WeaponSystem {
         // Broadcast the fire event to other clients
         this.networkManager.sendEvent({
             type: 'fireProjectile',
-            projectile: projectileData, // Includes final damage AND gravityFactor
-            echo: false // Don't send back to self
+            projectile: projectileData, // Contains all needed data
+            clientId: this.state.id, // Explicitly include sender ID
+            echo: false // Don't send back to self, this is important!
         });
 
         // Reset state AFTER firing

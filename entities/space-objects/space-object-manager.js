@@ -19,7 +19,8 @@ const SPACE_OBJECT_CLASSES = {
 // Spawn configuration (basic example)
 const SPAWN_INTERVAL = 3000; // Check to spawn every 3 seconds
 const MAX_ACTIVE_OBJECTS = 15; // Increased max objects
-const OBJECT_TYPES_TO_SPAWN = ['asteroid', 'lander', 'rover'];
+// FIX: Use a fixed seed for spawner when checking type to spawn
+const FIXED_TYPE_WEIGHTS = { 'asteroid': 0.6, 'lander': 0.25, 'rover': 0.15 };
 const SPAWN_CHANCE_PER_INTERVAL = 0.7; // Chance to spawn *if* conditions met
 
 // --- Interpolation Factor ---
@@ -71,9 +72,7 @@ class SpaceObjectManager {
         const oldSpawnerStatus = this.isSpawner;
         this.isSpawner = peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0];
         if (this.isSpawner !== oldSpawnerStatus) {
-            // --- Enhanced Logging ---
             console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] Spawner status changed. I am ${this.isSpawner ? 'NOW' : 'NO LONGER'} the spawner. Peer IDs: [${peerIds.join(', ')}]`);
-            // --- End Logging ---
         }
     }
 
@@ -82,79 +81,122 @@ class SpaceObjectManager {
     }
 
     attemptSpawnObject(currentTime) {
-        // --- Added logging for spawn attempt ---
+        // Only perform spawn interval check if we're the spawner
+        if (!this.isSpawner) return;
+        
         const now = performance.now();
-        if (now - this.lastSpawnAttemptTime > SPAWN_INTERVAL) {
-            if (!this.isSpawner) {
-                // Log only occasionally to prevent spam
-                if (Math.random() < 0.05) {
-                     console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] Not the spawner. Skipping spawn check.`);
-                }
-                this.lastSpawnAttemptTime = now; // Still update time to avoid immediate re-check if spawner changes
-                return;
-            }
-            // If isSpawner, continue with logic...
-             console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] SPAWNER checking spawn conditions.`); // Log spawner check
-        // --- End Logging ---
+        if (now - this.lastSpawnAttemptTime <= SPAWN_INTERVAL) return;
+        
+        // Update attempt time
+        this.lastSpawnAttemptTime = now;
+        
+        // Log spawner check (less frequently)
+        if (Math.random() < 0.1) {
+            console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] SPAWNER checking spawn conditions.`);
+        }
 
-            const numActive = Object.values(this.activeObjects).filter(o => o && !o.isMarkedForRemoval).length;
-            if (numActive >= MAX_ACTIVE_OBJECTS) {
-                 console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] SPAWNER: Max objects reached (${numActive}). Skipping spawn.`); // Log max reached
-                this.lastSpawnAttemptTime = now; // Update time even if max reached
-                return;
-            }
+        // Check max object limit
+        const numActive = Object.values(this.activeObjects).filter(o => o && !o.isMarkedForRemoval).length;
+        if (numActive >= MAX_ACTIVE_OBJECTS) {
+            console.log(`[SpaceObjMgr] SPAWNER: Max objects reached (${numActive}). Skipping spawn.`);
+            return;
+        }
 
-             // If we passed the interval check and are the spawner...
-            this.lastSpawnAttemptTime = now;
-            if (Math.random() > SPAWN_CHANCE_PER_INTERVAL) {
-                 console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] SPAWNER: Spawn chance failed.`); // Log chance fail
-                return;
-            }
+        // Spawn chance check
+        if (Math.random() > SPAWN_CHANCE_PER_INTERVAL) {
+            return;
+        }
 
-            const type = OBJECT_TYPES_TO_SPAWN[Math.floor(Math.random() * OBJECT_TYPES_TO_SPAWN.length)];
-            let spawnX = this.gameWidth + 100;
-            let spawnY;
-            const ObjectClass = SPACE_OBJECT_CLASSES[type];
-            if (!ObjectClass) {
-                console.error(`Invalid object class for type: ${type}`);
-                return;
-            }
-
-            // Use groundLevelY for Rover positioning
-            const tempInstance = new ObjectClass('temp-calc', type, 0, 0, {}, this.groundLevelY);
-            if (type === 'rover') {
-                // Rover constructor now handles placement on ground level
-                spawnY = this.groundLevelY; // Pass ground level, constructor will adjust
-            } else {
-                const airbornePadding = 50;
-                spawnY = Math.random() * (this.groundLevelY - airbornePadding * 2) + airbornePadding;
-            }
-
-            const initialState = {};
-            const newId = `sobj-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
-            // Pass groundLevelY to constructor here too
-            const tempInstanceForSync = new ObjectClass(newId, type, spawnX, spawnY, initialState, this.groundLevelY);
-            if (!tempInstanceForSync || !tempInstanceForSync.id) {
-                console.error(`Failed to create temporary instance for sync for type ${type}`);
-                return;
-            }
-            // Initialize server state immediately for local object
-            tempInstanceForSync.serverX = tempInstanceForSync.x;
-            tempInstanceForSync.serverY = tempInstanceForSync.y;
-            tempInstanceForSync.serverRotation = tempInstanceForSync.rotation;
-            tempInstanceForSync.serverHealth = tempInstanceForSync.health;
-            tempInstanceForSync.lastServerUpdateTime = performance.now();
-
-            // --- Log the specific spawn ---
-            console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] SPAWNER is spawning ${type} (${newId})`);
-            // --- End Log ---
-
-            const syncData = tempInstanceForSync.getSyncData();
+        // FIX: Use weighted selection for more consistent object types
+        let type = this._getWeightedRandomType();
+        let spawnX = this.gameWidth + 100;
+        let spawnY;
+        
+        // Create a consistent ID for this spawn
+        const newId = `sobj-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+        
+        // FIX: More consistent initial state generation
+        const initialState = {
+            // Set more consistent initial velocities
+            vx: this._getInitialVelocityForType(type),
+            // Any other type-specific state
+        };
+        
+        // Determine spawn Y position based on type
+        if (type === 'rover') {
+            // Rovers always spawn on the ground
+            spawnY = this.groundLevelY;
+        } else if (type === 'lander') {
+            // Landers spawn in the lower half of the screen
+            spawnY = this.groundLevelY / 2 + (Math.random() * this.groundLevelY / 2);
+        } else {
+            // Asteroids spawn anywhere
+            const airbornePadding = 50;
+            spawnY = Math.random() * (this.groundLevelY - airbornePadding * 2) + airbornePadding;
+        }
+        
+        // Create the object using proper constructor params
+        const ObjectClass = SPACE_OBJECT_CLASSES[type];
+        if (!ObjectClass) {
+            console.error(`Invalid object class for type: ${type}`);
+            return;
+        }
+        
+        try {
+            // Create object instance
+            const newObject = new ObjectClass(newId, type, spawnX, spawnY, initialState, this.groundLevelY);
+            
+            // Synchronize server state
+            newObject.serverX = spawnX;
+            newObject.serverY = spawnY;
+            newObject.serverRotation = newObject.rotation;
+            newObject.serverHealth = newObject.health;
+            newObject.lastServerUpdateTime = now;
+            
+            // Log the spawn
+            console.log(`[SpaceObjMgr] SPAWNER spawning ${type} (${newId}) at (${spawnX.toFixed(0)}, ${spawnY.toFixed(0)})`);
+            
+            // Get data for network sync
+            const syncData = newObject.getSyncData();
+            
+            // Update room state so all clients see this object
             const updatePayload = {};
             updatePayload[newId] = syncData;
-
             this.networkManager.updateRoomState({ spaceObjects: updatePayload });
-            this.activeObjects[newId] = tempInstanceForSync;
+            
+            // Add to local collection
+            this.activeObjects[newId] = newObject;
+        } catch (error) {
+            console.error(`Failed to spawn object of type ${type}:`, error);
+        }
+    }
+    
+    // FIX: Helper methods for more deterministic spawning
+    _getWeightedRandomType() {
+        const rand = Math.random();
+        let cumulativeWeight = 0;
+        
+        for (const [type, weight] of Object.entries(FIXED_TYPE_WEIGHTS)) {
+            cumulativeWeight += weight;
+            if (rand < cumulativeWeight) {
+                return type;
+            }
+        }
+        
+        // Fallback to asteroid
+        return 'asteroid';
+    }
+    
+    _getInitialVelocityForType(type) {
+        switch (type) {
+            case 'asteroid':
+                return -(Math.random() * 60 + 40); // -40 to -100
+            case 'lander':
+                return -(Math.random() * 30 + 30); // -30 to -60
+            case 'rover':
+                return -(Math.random() * 40 + 40); // -40 to -80
+            default:
+                return -50; // Default fallback
         }
     }
 
@@ -248,8 +290,7 @@ class SpaceObjectManager {
             // Handle objects marked for removal (e.g., off-screen) before update
             if (obj.isMarkedForRemoval) {
                 if (!obj._destructionInProgress) {
-                    // console.log(`[SpaceObjMgr Update] Object ${id} found marked for removal (pre-update). Triggering destroy...`);
-                     // Use the context object when calling the internal destruction method
+                    // Use the context object when calling the internal destruction method
                     this._destroyObjectInternal(id, null, 'cleanup', managerContext);
                 }
                 continue; // Move to the next object
@@ -267,7 +308,6 @@ class SpaceObjectManager {
 
                 // Check again if update marked it for removal
                 if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
-                    // console.log(`[SpaceObjMgr Update] Object ${id} marked for removal during spawner update. Triggering destroy...`);
                     this._destroyObjectInternal(id, null, 'offscreen', managerContext);
                 }
                 // Check for significant state changes *if* it wasn't destroyed
@@ -280,7 +320,6 @@ class SpaceObjectManager {
                     const healthChanged = Math.abs(obj.health - oldHealth) > 0.1;
 
                     if (posChanged || velChanged || rotChanged || healthChanged) {
-                    // --- End Enhanced Change Detection ---
                         updates[id] = obj.getSyncData();
                         needsNetworkUpdate = true;
                     }
@@ -290,16 +329,10 @@ class SpaceObjectManager {
             else {
                 // Interpolate first, then predict next local frame
                 if (this.activeObjects[id] && !obj.isMarkedForRemoval && !obj._destructionInProgress) {
-                    // --- CALL INTERPOLATION ---
                     obj.interpolateState(REMOTE_OBJECT_INTERPOLATION_FACTOR);
-                    // --- END INTERPOLATION ---
-
                     obj.update(deltaTime, this.gameBounds, this.groundLevelY);
                     // If *local* update caused removal condition (e.g., off-screen)
                     if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
-                        // Don't trigger destroy, let the spawner handle it via network state (null)
-                        // Just remove locally to stop rendering/processing
-                        // console.log(`[SpaceObjMgr] Non-spawner removed object ${id} locally due to offscreen.`);
                         delete this.activeObjects[id];
                     }
                 }
@@ -309,7 +342,6 @@ class SpaceObjectManager {
         // Send network updates only if something changed and we are the spawner
         // Throttle updates slightly? Maybe not necessary yet.
         if (needsNetworkUpdate && this.isSpawner && Object.keys(updates).length > 0) {
-            // console.log(`[SpaceObjMgr] Spawner sending updates for ${Object.keys(updates).length} objects.`); // Debug log
             this.networkManager.updateRoomState({ spaceObjects: updates });
         }
 
