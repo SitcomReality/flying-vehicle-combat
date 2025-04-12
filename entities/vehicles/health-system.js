@@ -1,6 +1,5 @@
-// New file: Handles health, damage, invulnerability, and death
-
-import { GLOBAL_PHYSICS } from '../player-state.js'; // For INVULNERABILITY_DURATION
+// Import GLOBAL_PHYSICS from player-state which now aliases BASE_PLAYER_PHYSICS from the config
+import { GLOBAL_PHYSICS } from '../player-state.js';
 import { PlayerLifecycleState } from '../player-lifecycle.js';
 import { PowerupType } from '../powerups/powerup-types.js';
 
@@ -49,6 +48,7 @@ export function applyDamage(playerState, damageAmount, currentTime, playerManage
 export function updateHealth(playerState, deltaTime, currentTime) {
     // Update invulnerability timer
     if (playerState.isInvulnerable) {
+        // Use INVULNERABILITY_DURATION from imported global physics config
         const invulnerableTimeElapsed = currentTime - playerState.lastDamageTime;
         if (invulnerableTimeElapsed > GLOBAL_PHYSICS.INVULNERABILITY_DURATION * 1000) {
              // Check if an INVULNERABILITY powerup is active before turning it off

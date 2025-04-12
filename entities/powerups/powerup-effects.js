@@ -1,7 +1,6 @@
-// New file: Functions to apply and remove powerup effects on PlayerState
-
+// Import GLOBAL_PHYSICS from player-state which now aliases BASE_PLAYER_PHYSICS from the config
+import { GLOBAL_PHYSICS } from '../player-state.js';
 import { PowerupType, getPowerupConfig } from './powerup-types.js';
-import { GLOBAL_PHYSICS } from '../player-state.js'; // For invulnerability duration
 
 /**
  * Applies the effect of a picked-up powerup to the player's state.
@@ -45,6 +44,7 @@ export function applyPowerupEffect(playerState, powerup, currentTime) {
              playerState.isInvulnerable = true;
              // Set lastDamageTime to ensure the effect lasts the full duration
              // Use a negative duration offset to ensure it doesn't conflict with damage invuln
+             // Use INVULNERABILITY_DURATION from imported global physics config
              playerState.lastDamageTime = currentTime - (GLOBAL_PHYSICS.INVULNERABILITY_DURATION * 1000) - config.duration;
              console.log(`  Player ${playerState.id} is INVULNERABLE via powerup.`);
         }
@@ -82,6 +82,7 @@ export function updatePowerupEffects(playerState, currentTime) {
                   // AND the player isn't currently invulnerable from taking damage.
                   const remainingInvulnPowerup = Object.keys(playerState.activePowerups)
                                                     .some(t => t === PowerupType.INVULNERABILITY);
+                  // Use INVULNERABILITY_DURATION from imported global physics config
                   const damageInvulnActive = currentTime - playerState.lastDamageTime < GLOBAL_PHYSICS.INVULNERABILITY_DURATION * 1000;
 
                   if (!remainingInvulnPowerup && !damageInvulnActive) {
@@ -97,6 +98,7 @@ export function updatePowerupEffects(playerState, currentTime) {
 
      // If no invulnerability powerup was active this frame, check damage invulnerability
      if (!hadInvulnerabilityPowerup) {
+          // Use INVULNERABILITY_DURATION from imported global physics config
           const damageInvulnActive = currentTime - playerState.lastDamageTime < GLOBAL_PHYSICS.INVULNERABILITY_DURATION * 1000;
           if (!damageInvulnActive) {
               playerState.isInvulnerable = false; // Ensure it's off if no source is active

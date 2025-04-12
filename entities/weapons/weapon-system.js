@@ -205,6 +205,7 @@ class WeaponSystem {
 
         // --- Calculate Gravity Factor based on Charge Ratio ---
         // Inverse relationship: Full charge = 0 gravity factor, No charge = full gravity factor
+        // Use the base PROJECTILE_GRAVITY_FACTOR from the global physics config
         const gravityFactor = GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR * (1 - chargeRatio);
         // --- End Gravity Factor Calculation ---
 

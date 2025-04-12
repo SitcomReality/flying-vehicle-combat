@@ -1,22 +1,10 @@
 import { SPRITES } from 'config/sprites.js';
-import { VEHICLE_TYPES, getVehicleConfig } from './vehicles/vehicle-types.js';
+import { getVehicleConfig } from './vehicles/vehicle-types.js';
 import { PlayerLifecycleState } from './player-lifecycle.js';
+import { BASE_PLAYER_PHYSICS } from 'config/vehicle-config.js';
 
 // --- Constants ---
-export const GLOBAL_PHYSICS = {
-    GRAVITY: 900, // pixels/sec^2 - SIGNIFICANTLY INCREASED (was 280)
-    MAX_VERTICAL_SPEED: 450, // pixels/sec - Increased slightly to accommodate higher gravity
-    VERTICAL_DRAG_FACTOR: 0.5, // Higher = more drag when airborne
-    MAX_TILT_ANGLE: Math.PI / 2.5, // ~72 degrees
-    TILT_SPEED: 6, // How quickly the sprite tilts
-    AIR_FRICTION_FACTOR: 0.3, // Factor for horizontal drag when airborne (lower = less drag)
-    GROUND_FRICTION_FACTOR: 1.5, // Factor for horizontal friction when grounded (higher = more friction)
-    SPARK_EMIT_RATE: 5,
-    SMOKE_EMIT_RATE: 1,
-    PROJECTILE_SPEED_SCALE: 3,
-    PROJECTILE_GRAVITY_FACTOR: 0.5, // Base factor for projectiles (1 = full global gravity, 0 = none)
-    INVULNERABILITY_DURATION: 1.5, // Default invulnerability from damage
-};
+export const GLOBAL_PHYSICS = BASE_PLAYER_PHYSICS; 
 
 export const INTERPOLATION_SNAP_THRESHOLD = 0.5;
 export const FLIP_ANIMATION_DURATION = 250;
@@ -65,15 +53,16 @@ export class PlayerState {
         this.score = 0;
 
         // --- Vehicle-specific physics properties ---
+        // Initialize with base physics values from the config
         this.fuelRegenRate = 0;
         this.fuelConsumeRate = 0;
         this.thrustForce = 0;
         this.horizontalAcceleration = 0;
         this.maxHorizontalSpeed = 0;
-        this.gravity = GLOBAL_PHYSICS.GRAVITY; // Read initial global gravity
-        this.verticalDragFactor = GLOBAL_PHYSICS.VERTICAL_DRAG_FACTOR;
-        this.airFrictionFactor = GLOBAL_PHYSICS.AIR_FRICTION_FACTOR;
-        this.groundFrictionFactor = GLOBAL_PHYSICS.GROUND_FRICTION_FACTOR;
+        this.gravity = BASE_PLAYER_PHYSICS.GRAVITY; 
+        this.verticalDragFactor = BASE_PLAYER_PHYSICS.VERTICAL_DRAG_FACTOR;
+        this.airFrictionFactor = BASE_PLAYER_PHYSICS.AIR_FRICTION_FACTOR;
+        this.groundFrictionFactor = BASE_PLAYER_PHYSICS.GROUND_FRICTION_FACTOR;
 
         // --- Vehicle-specific WEAPON properties ---
         this.projectileDamage = 10;
@@ -113,7 +102,7 @@ export class PlayerState {
         this.drawOffsetY = 0;
         this.currentVehicle = null;
 
-        this.updateVehicleProperties(); // Update with specific vehicle stats (may override gravity)
+        this.updateVehicleProperties(); 
 
         const initialDirection = -1;
         this.facingDirection = initialDirection;
@@ -155,11 +144,10 @@ export class PlayerState {
         this.thrustForce = vehicleStats.thrustForce;
         this.horizontalAcceleration = vehicleStats.horizontalAcceleration;
         this.maxHorizontalSpeed = vehicleStats.maxHorizontalSpeed;
-        // Read gravity from vehicle stats, falling back to updated GLOBAL_PHYSICS value
-        this.gravity = vehicleStats.GRAVITY ?? GLOBAL_PHYSICS.GRAVITY;
-        this.verticalDragFactor = vehicleStats.VERTICAL_DRAG_FACTOR ?? GLOBAL_PHYSICS.VERTICAL_DRAG_FACTOR;
-        this.airFrictionFactor = vehicleStats.AIR_FRICTION_FACTOR ?? GLOBAL_PHYSICS.AIR_FRICTION_FACTOR;
-        this.groundFrictionFactor = vehicleStats.GROUND_FRICTION_FACTOR ?? GLOBAL_PHYSICS.GROUND_FRICTION_FACTOR;
+        this.gravity = vehicleStats.GRAVITY;
+        this.verticalDragFactor = vehicleStats.VERTICAL_DRAG_FACTOR;
+        this.airFrictionFactor = vehicleStats.AIR_FRICTION_FACTOR;
+        this.groundFrictionFactor = vehicleStats.GROUND_FRICTION_FACTOR;
 
         this.projectileDamage = vehicleStats.projectileDamage;
         this.projectileSpeed = vehicleStats.projectileSpeed;
