@@ -135,6 +135,18 @@ class CollectibleManager {
             activeCollectibles: updatePayload
         });
 
+        // ***** ADDED: Create and add locally immediately *****
+        const configLocal = getCollectibleConfig(type);
+        if (configLocal) {
+            const newCollectible = new Collectible(
+                newId, type, x, y, configLocal.value
+            );
+            newCollectible.creationTime = creationTime; // Sync creation time
+            this.activeCollectibles[newId] = newCollectible;
+            console.log(`[CollMgr ${this.networkManager.getClientId()}] Locally added collectible ${newId} after spawning.`);
+        } else {
+            console.error(`[CollMgr] Failed to create local collectible instance for ${newId} - config not found for type ${type}.`);
+        }
         return newId;
     }
 

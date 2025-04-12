@@ -193,6 +193,14 @@ class PowerupManager {
         this.networkManager.updateRoomState({
             activePowerups: updatePayload
         });
+
+        // ***** ADDED: Create and add locally immediately *****
+        const newPowerup = new Powerup(
+            newId, type, x, y, POWERUP_SPAWN_CONFIG.RADIUS
+        );
+        this.activePowerups[newId] = newPowerup;
+        console.log(`[PowerupMgr ${this.networkManager.getClientId()}] Locally added powerup ${newId} after spawning.`);
+
         return newId; // Return the actual ID created
     }
     // Keep old name for compatibility if needed
