@@ -29,7 +29,7 @@ export const VEHICLE_TYPES = {
         // Core Stats
         maxHealth: 100,
         maxFuel: 100,
-        fuelRegenRate: 25, // units per second
+        fuelRegenRate: 30, // units per second
         fuelConsumeRate: 30, // units per second of thrust
         // Movement - balanced
         thrustForce: 1500, // INCREASED (Needs > GRAVITY)
@@ -40,7 +40,7 @@ export const VEHICLE_TYPES = {
         projectileSpeed: 450, // Base speed for this weapon type
         projectileColor: '#FFFF00', // Yellow
         fireRate: 5, // shots per second
-        chargeRate: 100, // charge units per second
+        chargeRate: 120, // charge units per second
         maxChargeLevel: 100,
         // Inherit or override base physics
         ...BASE_PLAYER_PHYSICS, // Use base for gravity, tilt, drag etc. unless specified below
@@ -52,7 +52,7 @@ export const VEHICLE_TYPES = {
         // Core Stats
         maxHealth: 150, // More health
         maxFuel: 150,    // MOST fuel (swapped from 80)
-        fuelRegenRate: 20,
+        fuelRegenRate: 30,
         fuelConsumeRate: 35, // Consumes more fuel
         // Movement - slower, less agile
         thrustForce: 1400, // INCREASED (Needs > GRAVITY)
@@ -63,7 +63,7 @@ export const VEHICLE_TYPES = {
         projectileSpeed: 380,
         projectileColor: '#FF8C00', // Dark Orange
         fireRate: 3,
-        chargeRate: 120,
+        chargeRate: 150,
         maxChargeLevel: 120, // Higher max charge potential
         // Inherit or override base physics
         ...BASE_PLAYER_PHYSICS,
@@ -75,7 +75,7 @@ export const VEHICLE_TYPES = {
         // Core Stats
         maxHealth: 75,  // Less health
         maxFuel: 80,   // LEAST fuel (swapped from 120)
-        fuelRegenRate: 35, // Faster regen
+        fuelRegenRate: 30, // Faster regen
         fuelConsumeRate: 25, // Consumes less fuel
         // Movement - faster, more agile
         thrustForce: 1600, // INCREASED (Needs > GRAVITY)
@@ -86,7 +86,7 @@ export const VEHICLE_TYPES = {
         projectileSpeed: 520,
         projectileColor: '#00FF00', // Bright Green
         fireRate: 7,
-        chargeRate: 90,
+        chargeRate: 100,
         maxChargeLevel: 90, // Lower max charge
         // Inherit or override base physics
         ...BASE_PLAYER_PHYSICS,
