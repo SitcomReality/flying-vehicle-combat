@@ -1,5 +1,3 @@
-// New file: Handles damage application and destruction logic for Space Objects
-
 import { createObjectExplosionEffect } from './space-object-explosion-handler.js';
 import { handleObjectDestructionPowerupDrop } from '../drop-system.js';
 import { PlayerLifecycleState } from '../player-lifecycle.js';
@@ -49,7 +47,7 @@ export function handleDamage(id, amount, playerDestroyerId, managerContext) {
         // --- Non-Spawner Behavior ---
         // Non-spawners do NOT modify the object's health state directly.
         // They rely on the spawner's `roomState` updates to reflect health changes.
-        console.log(`[SpaceObjDmgHandler] Non-spawner detected damage to ${id}. Waiting for spawner update.`);
+        // console.log(`[SpaceObjDmgHandler] Non-spawner detected damage to ${id}. Waiting for spawner update.`); // REMOVED LOG
 
         // Optionally, trigger a local-only visual effect for immediate feedback.
         if (particleSystem) {
@@ -124,7 +122,7 @@ export function handleDestruction(id, playerDestroyerId, reason, managerContext)
             networkManager.updateRoomState({
                 spaceObjects: removalPayload
             });
-            console.log(`[SpaceObjDestructionHandler] Spawner ${networkManager.getClientId()} sent removal signal for object ${id}`);
+            // console.log(`[SpaceObjDestructionHandler] Spawner ${networkManager.getClientId()} sent removal signal for object ${id}`); // REMOVED LOG
         } else {
              // Non-spawners log that they detected destruction locally, but removal comes from network
              // console.log(`[SpaceObjDestructionHandler] Non-spawner ${networkManager.getClientId()} detected destruction for object ${id}, removal will come from network.`);

@@ -83,13 +83,13 @@ class SpaceObjectManager {
     attemptSpawnObject(currentTime) {
         // Only perform spawn interval check if we're the spawner
         if (!this.isSpawner) return;
-        
+
         const now = performance.now();
         if (now - this.lastSpawnAttemptTime <= SPAWN_INTERVAL) return;
-        
+
         // Update attempt time
         this.lastSpawnAttemptTime = now;
-        
+
         // Log spawner check (less frequently)
         if (Math.random() < 0.1) {
             console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] SPAWNER checking spawn conditions.`);
@@ -111,17 +111,17 @@ class SpaceObjectManager {
         let type = this._getWeightedRandomType();
         let spawnX = this.gameWidth + 100;
         let spawnY;
-        
+
         // Create a consistent ID for this spawn
         const newId = `sobj-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
-        
+
         // FIX: More consistent initial state generation
         const initialState = {
             // Set more consistent initial velocities
             vx: this._getInitialVelocityForType(type),
             // Any other type-specific state
         };
-        
+
         // Determine spawn Y position based on type
         if (type === 'rover') {
             // Rovers always spawn on the ground
@@ -134,59 +134,59 @@ class SpaceObjectManager {
             const airbornePadding = 50;
             spawnY = Math.random() * (this.groundLevelY - airbornePadding * 2) + airbornePadding;
         }
-        
+
         // Create the object using proper constructor params
         const ObjectClass = SPACE_OBJECT_CLASSES[type];
         if (!ObjectClass) {
             console.error(`Invalid object class for type: ${type}`);
             return;
         }
-        
+
         try {
             // Create object instance
             const newObject = new ObjectClass(newId, type, spawnX, spawnY, initialState, this.groundLevelY);
-            
+
             // Synchronize server state
             newObject.serverX = spawnX;
             newObject.serverY = spawnY;
             newObject.serverRotation = newObject.rotation;
             newObject.serverHealth = newObject.health;
             newObject.lastServerUpdateTime = now;
-            
+
             // Log the spawn
-            console.log(`[SpaceObjMgr] SPAWNER spawning ${type} (${newId}) at (${spawnX.toFixed(0)}, ${spawnY.toFixed(0)})`);
-            
+            // console.log(`[SpaceObjMgr] SPAWNER spawning ${type} (${newId}) at (${spawnX.toFixed(0)}, ${spawnY.toFixed(0)})`); // REMOVED LOG
+
             // Get data for network sync
             const syncData = newObject.getSyncData();
-            
+
             // Update room state so all clients see this object
             const updatePayload = {};
             updatePayload[newId] = syncData;
             this.networkManager.updateRoomState({ spaceObjects: updatePayload });
-            
+
             // Add to local collection
             this.activeObjects[newId] = newObject;
         } catch (error) {
             console.error(`Failed to spawn object of type ${type}:`, error);
         }
     }
-    
+
     // FIX: Helper methods for more deterministic spawning
     _getWeightedRandomType() {
         const rand = Math.random();
         let cumulativeWeight = 0;
-        
+
         for (const [type, weight] of Object.entries(FIXED_TYPE_WEIGHTS)) {
             cumulativeWeight += weight;
             if (rand < cumulativeWeight) {
                 return type;
             }
         }
-        
+
         // Fallback to asteroid
         return 'asteroid';
     }
-    
+
     _getInitialVelocityForType(type) {
         switch (type) {
             case 'asteroid':
