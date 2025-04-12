@@ -1,9 +1,10 @@
-// Handles Projectile-SpaceObject collisions
 import { checkAABBCollision } from './aabb-collision.js';
+import { ProjectileRemovalReason } from '../projectile.js'; // Import removal reasons
 
 /**
  * Checks for collisions between projectiles and space objects.
  * Applies damage to the space object and removes the projectile.
+ * Triggers projectile impact effect.
  * @param {Object.<string, Projectile>} activeProjectiles - Active projectile objects map {id: object}.
  * @param {Object.<string, SpaceObject>} activeSpaceObjects - Active space objects map {id: object}.
  * @param {number} renderScale - Not directly used here, but kept for consistency.
@@ -41,7 +42,7 @@ export function checkProjectileSpaceObjectCollisions(activeProjectiles, activeSp
 
              // --- Check for AABB Collision ---
              if (checkAABBCollision(projRect, objectRect)) {
-                 console.log(`Collision detected between projectile ${projId} (owner: ${projectile.ownerId}) and space object ${objectId}`);
+                 // console.log(`Collision detected between projectile ${projId} (owner: ${projectile.ownerId}) and space object ${objectId}`);
 
                  // Calculate damage the projectile deals to the space object
                  const damage = calculateDamageFunc('projectile-spaceobject', spaceObject, projectile, currentTime);
@@ -49,20 +50,18 @@ export function checkProjectileSpaceObjectCollisions(activeProjectiles, activeSp
                  // Apply damage to the space object via the manager
                  // This now delegates to the damage handler, respecting spawner authority
                  if (damage > 0) {
-                     console.log(`Applying ${damage} projectile damage to space object ${objectId}`);
+                     // console.log(`Applying ${damage} projectile damage to space object ${objectId}`);
                      // Pass projectile owner ID to know who caused the potential drop and add score
                      // The manager's method will now use the damage handler internally.
                      spaceObjectManager.applyDamageToObject(objectId, damage, projectile.ownerId);
                      // applyDamageToObject handles the logic for spawner vs non-spawner
                  }
 
-                 // Emit impact particle effect locally
-                 if (particleSystem) {
-                    particleSystem.emitSparks(projectile.x, projectile.y, 10, projectile.vx * 0.05, projectile.vy * 0.05);
-                 }
+                // Emit projectile impact particle effect locally
+                particleSystem?.emitProjectileImpact(projectile.x, projectile.y, projectile.vx, projectile.vy, projectile.color);
 
-                 // Mark the projectile for removal locally. It has hit something.
-                 projectile.isMarkedForRemoval = true;
+                // Mark the projectile for removal locally, specifying the reason.
+                projectile.markForRemoval(ProjectileRemovalReason.HIT_OBJECT);
 
                  // A projectile can only hit one target per frame/check.
                  // Break the inner loop to move to the next projectile.

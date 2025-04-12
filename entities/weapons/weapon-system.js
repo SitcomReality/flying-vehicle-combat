@@ -4,8 +4,8 @@ import { PowerupType } from '../powerups/powerup-types.js';
 import { PlayerLifecycleState } from '../player-lifecycle.js';
 // Import constants from ParticleSystem
 import {
-    CHARGE_PARTICLE_EMIT_RATE,
-    FULLY_CHARGED_PARTICLE_EMIT_RATE // Add constant for fully charged emission
+    CHARGE_PARTICLE_EMIT_RATE, // Use updated constant
+    FULLY_CHARGED_PARTICLE_EMIT_RATE
 } from '../../rendering/particle-system.js';
 
 const TAP_FIRE_CHARGE_THRESHOLD = 5; // Minimal charge level considered a tap fire (for wantsToFire logic)
@@ -129,7 +129,6 @@ class WeaponSystem {
             }
         }
 
-
         // Sync back internal state changes to player state
         this.state.chargeLevel = this.chargeLevel;
         // isCharging and wantsToFire are primarily set by input/stopCharging/attemptFire
@@ -162,7 +161,7 @@ class WeaponSystem {
             this.wantsToFire = false;
             this.state.wantsToFire = false;
             this.isTapFire = false;
-             console.log(`[WeaponSystem ${this.state.id}] Fire canceled due to cooldown. WantsToFire reset.`);
+            console.log(`[WeaponSystem ${this.state.id}] Fire canceled due to cooldown. WantsToFire reset.`);
             return; // Exit if on cooldown
         }
         // --- End Fire Rate Check ---
@@ -186,10 +185,10 @@ class WeaponSystem {
         const maxCharge = this.state.maxChargeLevel;
         // Ensure maxCharge is not zero to avoid division by zero
         if (maxCharge > 0) {
-             chargeRatio = Math.max(0, Math.min(1, currentCharge / maxCharge)); // Clamp ratio 0-1
+            chargeRatio = Math.max(0, Math.min(1, currentCharge / maxCharge)); // Clamp ratio 0-1
         } else {
-             chargeRatio = 0; // Default to 0 if maxCharge is invalid
-             console.warn(`[WeaponSystem ${this.state.id}] Max charge level is 0 or invalid. Cannot calculate charge ratio.`);
+            chargeRatio = 0; // Default to 0 if maxCharge is invalid
+            console.warn(`[WeaponSystem ${this.state.id}] Max charge level is 0 or invalid. Cannot calculate charge ratio.`);
         }
 
 

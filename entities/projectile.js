@@ -1,10 +1,17 @@
-// Import GLOBAL_PHYSICS from player-state which now aliases BASE_PLAYER_PHYSICS from the config
 import { GLOBAL_PHYSICS } from './player-state.js';
-// Import BASE_PLAYER_PHYSICS directly from the config file to get specific constants like drag
 import { BASE_PLAYER_PHYSICS } from '../config/vehicle-config.js';
 
 const PROJECTILE_RADIUS = 4;
 const PROJECTILE_LIFESPAN = 3; // seconds
+
+// Define the reasons for removal
+export const ProjectileRemovalReason = {
+    HIT_PLAYER: 'hit_player',
+    HIT_OBJECT: 'hit_object',
+    GROUND: 'ground',
+    BOUNDS: 'bounds',
+    LIFESPAN: 'lifespan',
+};
 
 // DEBUG: Counter for logging frequency control
 let logCounter = 0;
@@ -24,6 +31,7 @@ class Projectile {
         this.creationTime = performance.now();
         this.lifespan = PROJECTILE_LIFESPAN * 1000; // milliseconds
         this.isMarkedForRemoval = false;
+        this.removalReason = null; // Store the reason for removal
         this.damage = damage;
         this.gravityFactor = gravityFactor;
         this.isLocal = false; // Added flag, set by ProjectileManager
@@ -33,24 +41,37 @@ class Projectile {
         this.logCounter = 0;
     }
 
+    /**
+     * Marks the projectile for removal and optionally sets the reason.
+     * @param {string | null} reason - The reason for removal (e.g., ProjectileRemovalReason.HIT_PLAYER).
+     */
+    markForRemoval(reason = null) {
+        if (!this.isMarkedForRemoval) { // Only mark once
+            this.isMarkedForRemoval = true;
+            this.removalReason = reason;
+            // Log removal details
+            // if (!this.isLocal && reason) { // Log for remote projectiles with a reason
+            //      const timeAlive = (performance.now() - this.creationTime) / 1000;
+            //      console.log(`[Projectile ${this.id} REMOTE] Marked for removal. Reason: ${reason}. Time alive: ${timeAlive.toFixed(2)}s. Pos: (${this.x.toFixed(1)}, ${this.y.toFixed(1)})`);
+            // }
+        }
+    }
+
     update(deltaTime, groundLevelY) {
         if (this.isMarkedForRemoval) return; // Check at start
 
         const now = performance.now();
-        let reasonForRemoval = null; // Track reason for logging
 
-        // Check lifespan
+        // Check lifespan first, mark if expired
         if (now - this.creationTime > this.lifespan) {
-            this.isMarkedForRemoval = true;
-            reasonForRemoval = 'lifespan';
+            this.markForRemoval(ProjectileRemovalReason.LIFESPAN);
+            return; // Stop update if expired
         }
 
         // --- Vertical Physics ---
-        // Apply gravity using the stored gravityFactor for this projectile
         const gravityForce = GLOBAL_PHYSICS.GRAVITY * this.gravityFactor * deltaTime;
         this.vy += gravityForce;
 
-        // Apply vertical drag to limit terminal velocity
         const dragForce = -this.vy * BASE_PLAYER_PHYSICS.PROJECTILE_VERTICAL_DRAG_FACTOR * deltaTime;
         this.vy += dragForce;
 
@@ -58,45 +79,22 @@ class Projectile {
         this.x += this.vx * deltaTime;
         this.y += this.vy * deltaTime;
 
-        // DEBUG: Log projectile state periodically (less frequent)
-        // this.logCounter++;
-        // if (this.logCounter % (LOG_FREQUENCY * 5) === 0) {
-        //     console.log(`[Projectile ${this.id} Local:${this.isLocal}] Update. Pos: (${this.x.toFixed(1)}, ${this.y.toFixed(1)}), Vel: (${this.vx.toFixed(1)}, ${this.vy.toFixed(1)})`);
-        // }
-
-
-        // Check ground collision
-        if (!this.isMarkedForRemoval && this.y + this.radius >= groundLevelY) {
-            this.isMarkedForRemoval = true;
-            reasonForRemoval = 'ground';
+        // Check ground collision, mark if hit
+        if (this.y + this.radius >= groundLevelY) {
+             this.y = groundLevelY - this.radius; // Adjust position slightly above ground
+            this.markForRemoval(ProjectileRemovalReason.GROUND);
+            return; // Stop update if hit ground
         }
 
-        // Check screen bounds (simple removal for now)
-        const gameWidth = 800;
-        if (!this.isMarkedForRemoval && (this.x < -this.radius || this.x > gameWidth + this.radius || this.y < -this.radius)) {
-             this.isMarkedForRemoval = true;
-             reasonForRemoval = 'bounds';
+        // Check screen bounds (simple removal for now), mark if outside
+        const gameWidth = 800; // TODO: Get this from config/game state
+        if (this.x < -this.radius || this.x > gameWidth + this.radius || this.y < -this.radius) {
+             this.markForRemoval(ProjectileRemovalReason.BOUNDS);
+             return; // Stop update if out of bounds
         }
-
-        // --- Added Logging ---
-        // Log ONLY when a REMOTE projectile is marked for removal
-        if (this.isMarkedForRemoval && reasonForRemoval && !this.isLocal) {
-            const timeAlive = (now - this.creationTime) / 1000;
-            console.log(`[Projectile ${this.id} REMOTE] Marked for removal. Reason: ${reasonForRemoval}. Time alive: ${timeAlive.toFixed(2)}s. Pos: (${this.x.toFixed(1)}, ${this.y.toFixed(1)})`);
-        }
-        // --- End Logging ---
-
     }
 
     draw(ctx) {
-        // --- Added Logging ---
-        const localClientId = window.websim?.socket?.clientId || 'UnknownClient';
-        // Log only for remote projectiles, occasionally
-        if (!this.isLocal && Math.random() < 0.01) {
-             // console.log(`[Projectile ${this.id} REMOTE @ ${localClientId}] Draw call. Marked for removal: ${this.isMarkedForRemoval}. Pos: (${this.x.toFixed(1)}, ${this.y.toFixed(1)})`);
-        }
-        // --- End Logging ---
-
         if (this.isMarkedForRemoval) return;
 
         ctx.fillStyle = this.color;

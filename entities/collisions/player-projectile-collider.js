@@ -1,10 +1,12 @@
 // Handles Player-Projectile collisions
 import { checkAABBCollision } from './aabb-collision.js';
 import { PlayerLifecycleState } from '../player-lifecycle.js'; // Needed if filtering by state
+import { ProjectileRemovalReason } from '../projectile.js'; // Import removal reasons
 
 /**
  * Checks for collisions between projectiles and players.
  * Applies damage ONLY TO the local player if hit. Marks projectile for removal.
+ * Triggers projectile impact effect.
  * @param {Object.<string, Player>} activePlayers - Active player objects (filtered by PlayerManager for ACTIVE state).
  * @param {Object.<string, Projectile>} activeProjectiles - Active projectile objects.
  * @param {number} renderScale - The game's render scale.
@@ -53,22 +55,22 @@ export function checkPlayerProjectileCollisions(activePlayers, activeProjectiles
 
             if (checkAABBCollision(playerRect, projRect)) {
                 // Collision detected between projectile and local player
-                console.log(`Collision detected between projectile ${projId} (owner: ${projectile.ownerId}) and local player ${playerId}`);
+                // console.log(`Collision detected between projectile ${projId} (owner: ${projectile.ownerId}) and local player ${playerId}`);
 
                 // Calculate damage using the damage calculator
                 const damage = calculateDamageFunc('player-projectile', player.state, projectile, currentTime); // Pass player state
 
                 // Apply damage directly to the local player if damage > 0
                 if (damage > 0) {
-                    console.log(`Applying ${damage} projectile damage to local player ${playerId}`);
+                    // console.log(`Applying ${damage} projectile damage to local player ${playerId}`);
                     player.takeDamage(damage, currentTime); // Use player's method
                 }
 
-                // Emit impact effect at the projectile's position
-                particleSystem?.emitSparks(projectile.x, projectile.y, 15, projectile.vx * 0.1, projectile.vy * 0.1); // More prominent spark burst
+                // Emit projectile impact effect locally
+                particleSystem?.emitProjectileImpact(projectile.x, projectile.y, projectile.vx, projectile.vy, projectile.color);
 
-                // Mark the projectile for removal *after* processing its hit
-                projectile.isMarkedForRemoval = true;
+                // Mark the projectile for removal *after* processing its hit, specifying the reason
+                projectile.markForRemoval(ProjectileRemovalReason.HIT_PLAYER);
 
                 // Since only the local player can be hit authoritatively on this client,
                 // we can break the inner loop once a projectile hits the local player.

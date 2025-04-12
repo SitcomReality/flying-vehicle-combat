@@ -1,11 +1,15 @@
-// New file: Manages all active projectiles
-
-import Projectile from '../entities/projectile.js';
+import Projectile, { ProjectileRemovalReason } from '../entities/projectile.js';
 
 class ProjectileManager {
     constructor() {
         this.projectiles = {}; // Store projectiles by ID
         this.nextProjectileId = 0; // Simple local ID generation for client-side effects
+        this.particleSystem = null; // Added reference to particle system
+    }
+
+    // Method to set the particle system after instantiation
+    setParticleSystem(particleSystem) {
+        this.particleSystem = particleSystem;
     }
 
     // Creates a projectile locally (e.g., from network event or local fire)
@@ -14,11 +18,11 @@ class ProjectileManager {
         const localClientId = window.websim?.socket?.clientId || 'UnknownClient'; // Safer way to get ID
 
         // --- Refined Logging ---
-        console.log(`[ProjectileMgr ${localClientId}] Enter createProjectile for ID ${id} (Owner: ${ownerId})`);
+        // console.log(`[ProjectileMgr ${localClientId}] Enter createProjectile for ID ${id} (Owner: ${ownerId})`);
 
         // Check if this projectile ID already exists in the local manager
         if (this.projectiles[id]) {
-            console.warn(`[ProjectileMgr ${localClientId}] Attempted to create projectile with duplicate ID ${id}. Skipping creation.`);
+            // console.warn(`[ProjectileMgr ${localClientId}] Attempted to create projectile with duplicate ID ${id}. Skipping creation.`);
             return; // Prevent duplicates
         }
 
@@ -32,9 +36,7 @@ class ProjectileManager {
             if (projectile) {
                 projectile.isLocal = isLocal; // Set the flag here
                 this.projectiles[id] = projectile;
-                // --- FIX: Correct logging based on isLocal flag ---
-                console.log(`[ProjectileMgr ${localClientId}] Successfully CREATED ${isLocal ? 'LOCAL' : 'REMOTE'} projectile ${id}. Pos: (${x.toFixed(1)},${y.toFixed(1)}), Vel: (${vx.toFixed(1)},${vy.toFixed(1)}), Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}`);
-                // --- End FIX ---
+                // console.log(`[ProjectileMgr ${localClientId}] Successfully CREATED ${isLocal ? 'LOCAL' : 'REMOTE'} projectile ${id}. Pos: (${x.toFixed(1)},${y.toFixed(1)}), Vel: (${vx.toFixed(1)},${vy.toFixed(1)}), Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}`);
             } else {
                  console.error(`[ProjectileMgr ${localClientId}] FAILED to create projectile instance for ID ${id} - Constructor returned null/undefined.`);
             }
@@ -44,7 +46,7 @@ class ProjectileManager {
              if (this.projectiles[id]) delete this.projectiles[id];
         }
 
-        console.log(`[ProjectileMgr ${localClientId}] Exit createProjectile for ID ${id}`);
+        // console.log(`[ProjectileMgr ${localClientId}] Exit createProjectile for ID ${id}`);
         // --- End Refined Logging ---
     }
 
@@ -72,8 +74,18 @@ class ProjectileManager {
             projectile.update(deltaTime, groundLevelY);
 
             if (projectile.isMarkedForRemoval) {
+                // --- Trigger explosion effect based on removal reason ---
+                if (this.particleSystem &&
+                    (projectile.removalReason === ProjectileRemovalReason.HIT_PLAYER ||
+                     projectile.removalReason === ProjectileRemovalReason.HIT_OBJECT ||
+                     projectile.removalReason === ProjectileRemovalReason.GROUND))
+                {
+                    this.particleSystem.emitProjectileImpact(projectile.x, projectile.y, projectile.vx, projectile.vy, projectile.color);
+                }
+                // --- End Trigger effect ---
+
                 // Log removal *before* deleting
-                // console.log(`[ProjectileMgr] Removing projectile ${id} (Owner: ${projectile.ownerId}, Local: ${projectile.isLocal})`);
+                // console.log(`[ProjectileMgr] Removing projectile ${id} (Owner: ${projectile.ownerId}, Local: ${projectile.isLocal}, Reason: ${projectile.removalReason})`);
                 delete this.projectiles[id];
             }
         }
@@ -87,9 +99,9 @@ class ProjectileManager {
              if (projectile) {
                  // --- Added Logging ---
                  // Occasionally log drawing attempt for remote projectiles
-                 if (!projectile.isLocal && Math.random() < 0.01) {
-                     // console.log(`[ProjectileMgr ${localClientId}] Attempting to draw REMOTE projectile ${id}. Marked for removal: ${projectile.isMarkedForRemoval}`);
-                 }
+                 // if (!projectile.isLocal && Math.random() < 0.01) {
+                 //     // console.log(`[ProjectileMgr ${localClientId}] Attempting to draw REMOTE projectile ${id}. Marked for removal: ${projectile.isMarkedForRemoval}`);
+                 // }
                  // --- End Logging ---
                 projectile.draw(ctx);
              }

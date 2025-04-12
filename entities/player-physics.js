@@ -5,6 +5,8 @@ import { getPowerupMultiplier } from './powerups/powerup-effects.js';
 import { PowerupType } from './powerups/powerup-types.js';
 import { PlayerLifecycleState } from './player-lifecycle.js';
 import { getVisualCenter } from './player-visuals.js';
+// Import spark emit rate constant
+import { SPARK_EMIT_RATE } from '../rendering/particle-system.js';
 
 const GROUND_DAMAGE_INTERVAL = 500;
 const GROUND_DAMAGE_AMOUNT = 5;
@@ -156,23 +158,19 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
 
     // --- Particle Effects ---
     if (playerState.isOnGround && particleSystem && playerState.currentVehicle) {
-        // --- Fixed Ground Effect Origin ---
         const spriteConfig = playerState.currentVehicle;
-        const spriteDrawWidth = spriteConfig.width * renderScale;
-        // Calculate the visual top-left X based on state position and DRAW offset
+        // Calculate the visual left X based on state position and DRAW offset
         const drawX = playerState.x - playerState.drawOffsetX * renderScale;
-        // Contact point is always the visual left edge of the sprite frame
-        const contactX = drawX;
-        // --- End Fixed Origin ---
-
+        const contactX = drawX; // Sparks always originate from the visual left edge
         const contactY = groundLevelY - 2; // Slightly above ground line
-        // Base velocity remains generally leftward/upward
-        const baseSparkVX = -150 + playerState.vx * 0.3; // Increased base speed leftwards
-        const baseSmokeVX = -70 + playerState.vx * 0.2; // Increased base speed leftwards
+
+        // Base velocity is always leftward/upward, slightly influenced by player vx
+        const baseSparkVX = -200 + playerState.vx * 0.1; // More powerful base ejection speed leftwards
+        const baseSmokeVX = -100 + playerState.vx * 0.1; // More powerful base ejection speed leftwards
 
         // Emit particles using GLOBAL_PHYSICS rates (can be overridden per vehicle later)
-        // Use configured rates from particle system (which have been increased)
-        particleSystem.emitSparks(contactX, contactY, 0, baseSparkVX); // Count handled by rate logic inside
+        // Use the imported constant for spark rate
+        particleSystem.emitSparks(contactX, contactY, SPARK_EMIT_RATE, baseSparkVX); // Count handled by rate logic inside
         particleSystem.emitSmoke(contactX, contactY, 0, baseSmokeVX); // Count handled by rate logic inside
     }
 
