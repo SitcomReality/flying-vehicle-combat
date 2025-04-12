@@ -99,6 +99,8 @@ class Particle {
             return { r: parseFloat(parts[0]), g: parseFloat(parts[1]), b: parseFloat(parts[2]), a: parseFloat(parts[3]) };
         }
         // Fallback for simple colors or errors (e.g., 'red')
+        const tempCanvas = document.createElement('canvas');
+        const ctx = tempCanvas.getContext('2d');
         ctx.fillStyle = colorString || 'white';
         const colorData = ctx.fillStyle; // This forces browser to parse it
         if (colorData.startsWith('#')) { // Simple hex fallback
@@ -106,7 +108,14 @@ class Particle {
              const bigint = parseInt(hex, 16);
              return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255, a: 1 };
         }
+        // Check if it's rgba again after browser parsing
+        const rgbaParts = colorData.match(/[\d.]+/g);
+        if (rgbaParts && rgbaParts.length === 4) {
+             return { r: parseFloat(rgbaParts[0]), g: parseFloat(rgbaParts[1]), b: parseFloat(rgbaParts[2]), a: parseFloat(rgbaParts[3]) };
+        }
+
         // If still not parsable, default to white
+        console.warn(`Could not parse color string: ${colorString}. Defaulting to white.`);
         return { r: 255, g: 255, b: 255, a: 1 };
     }
 }
@@ -276,3 +285,35 @@ export class ParticleSystem {
         this.particles.forEach(p => p.draw(ctx));
     }
 }
+
+// --- Export Constants ---
+export {
+    ParticleSystem,
+    // Explosion Constants
+    OBJ_EXPLOSION_PARTICLE_COUNT,
+    PLAYER_EXPLOSION_PARTICLE_COUNT,
+    EXPLOSION_LIFESPAN_MIN,
+    EXPLOSION_LIFESPAN_MAX,
+    EXPLOSION_SPEED_MIN,
+    EXPLOSION_SPEED_MAX,
+    PLAYER_EXPLOSION_SPEED_MAX,
+    EXPLOSION_COLORS_OBJ,
+    EXPLOSION_COLORS_PLAYER,
+    EXPLOSION_GRAVITY,
+    // Pickup Constants (if needed elsewhere)
+    PICKUP_PARTICLE_COUNT,
+    PICKUP_LIFESPAN,
+    PICKUP_SPEED,
+    PICKUP_SIZE,
+    COLLECTIBLE_COLORS,
+    POWERUP_PICKUP_COLOR,
+    // Charging Constants (if needed elsewhere)
+    CHARGE_PARTICLE_COLOR,
+    CHARGE_PARTICLE_SPEED,
+    CHARGE_PARTICLE_SPAWN_RADIUS,
+    CHARGE_PARTICLE_LIFESPAN,
+    // Spark/Smoke Constants (if needed elsewhere)
+    SPARK_COLOR,
+    SMOKE_COLOR_START,
+    SMOKE_COLOR_END
+};
