@@ -82,7 +82,7 @@ class ScorePersistence {
     }
 
     /**
-     * Deletes all high score records created by the specific user "SitcomReality".
+     * Deletes all high score records created by the current user if their username is "SitcomReality".
      * Can only be executed by the user "SitcomReality".
      * @returns {Promise<boolean>} True if successful (or not the target user), false on error or permission denial.
      */
@@ -113,10 +113,11 @@ class ScorePersistence {
         console.log(`User ${localUsername} is attempting to reset their scores...`);
 
         try {
-            // Fetch only the scores belonging to the target user
-            const userScores = this.room.collection(HIGHSCORE_RECORD_TYPE)
-                                     .filter({ username: targetUsername })
-                                     .getList();
+            // Fetch ALL scores first, then filter locally.
+            // This is a workaround for getList potentially returning empty arrays
+            // immediately after applying a filter before data is synced.
+            const allScores = this.room.collection(HIGHSCORE_RECORD_TYPE).getList();
+            const userScores = allScores.filter(score => score.username === targetUsername);
 
             if (userScores.length === 0) {
                 console.log(`No scores found for ${targetUsername} to reset.`);
