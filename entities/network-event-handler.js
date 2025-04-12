@@ -14,7 +14,7 @@ class NetworkEventHandler {
         this.networkManager.onPresenceUpdate(this._handlePresenceUpdate.bind(this));
         this.networkManager.onRoomStateUpdate(this._handleRoomStateUpdate.bind(this));
         this.networkManager.onPresenceUpdateRequest(this._handlePresenceUpdateRequest.bind(this));
-        this.networkManager.onMessage(this._handleMessage.bind(this)); // Pass the bound function
+        this.networkManager.onMessage(this._handleMessage.bind(this));
 
         console.log("Network event handlers are registered.");
     }
@@ -141,82 +141,93 @@ class NetworkEventHandler {
     }
 
     _handleMessage(event) {
-         // The 'event' object passed from NetworkManager IS the payload from room.onmessage
-         const data = event; // Let's assume the entire event object is the data payload
-         const myClientId = this.networkManager?.getClientId();
+        // --- FIX: Extract the actual payload from event.data ---
+        const data = event.data;
+        // --- End FIX ---
 
-         // Log the received event structure for clarity
-         // console.log(`[NetEvt ${myClientId}] Raw event received in _handleMessage:`, event);
+        // Check if data exists and has a type before proceeding
+        if (!data || !data.type) {
+            // console.warn(`[NetworkEventHandler] Received event with missing data or type:`, event);
+            return;
+        }
 
-         // Check if data exists and has a type property
-         if (!data || typeof data.type !== 'string') {
-             console.warn(`[NetEvt ${myClientId}] Received event without a valid 'type' string property:`, data);
-             return;
-         }
+        const myClientId = this.networkManager?.getClientId();
 
-         // Log the type we are about to switch on
-         console.log(`[NetEvt ${myClientId}] Processing message type: "${data.type}"`);
+        // Reduce logging frequency for non-essential messages
+        if (data.type !== 'connected' && data.type !== 'disconnected' && data.type !== 'fireProjectile') {
+            // console.log(`[NetworkEventHandler ${myClientId}] Received message:`, data);
+        }
 
-         switch (data.type) {
-             case 'fireProjectile':
-                 console.log(`[NetEvt ${myClientId}] === Matched 'fireProjectile' case ===`);
-                 // Check 1: Projectile Manager existence
-                 if (!this.projectileManager) {
-                      console.error(`[NetEvt ${myClientId}] ABORT: ProjectileManager not available!`);
-                      break;
+        // --- The switch statement now correctly checks data.type ---
+        switch (data.type) {
+            case 'connected': // These still won't be hit here because NetworkManager filters them, but harmless
+            case 'disconnected':
+                break;
+            case 'fireProjectile':
+                // --- START DETAILED LOGGING ---
+                console.log(`[NetEvt ${myClientId}] === Received 'fireProjectile' event from ${data.clientId || 'Unknown'} ===`);
+                console.log(`[NetEvt ${myClientId}] Event Data:`, JSON.stringify(data.projectile)); // Stringify for cleaner log
+
+                // Check 1: Projectile Manager existence
+                if (!this.projectileManager) {
+                     console.error(`[NetEvt ${myClientId}] ABORT: ProjectileManager not available!`);
+                     break; // Exit case
+                }
+                console.log(`[NetEvt ${myClientId}] Check 1 PASSED: ProjectileManager exists.`);
+
+                // Check 2: Projectile data presence
+                if (!data.projectile) {
+                    console.warn(`[NetEvt ${myClientId}] ABORT: 'projectile' data is missing.`);
+                    break; // Exit case
+                }
+                console.log(`[NetEvt ${myClientId}] Check 2 PASSED: Projectile data exists.`);
+
+                const p = data.projectile;
+
+                // Check 3: Basic data type validation
+                 if (typeof p.x !== 'number' || typeof p.y !== 'number' ||
+                     typeof p.vx !== 'number' || typeof p.vy !== 'number' ||
+                     typeof p.id !== 'string' || typeof p.ownerId !== 'string') {
+                      console.warn(`[NetEvt ${myClientId}] ABORT: Invalid data types in projectile data.`, p);
+                      break; // Exit case
                  }
-                 // console.log(`[NetEvt ${myClientId}] Check 1 PASSED: ProjectileManager exists.`);
+                 console.log(`[NetEvt ${myClientId}] Check 3 PASSED: Basic data types valid.`);
 
-                 // Check 2: Projectile data presence (now check data.projectile directly)
-                 const p = data.projectile; // Get projectile data from the payload
-                 if (!p) {
-                     console.warn(`[NetEvt ${myClientId}] ABORT: 'projectile' data property is missing in event data.`);
-                     break;
-                 }
-                 // console.log(`[NetEvt ${myClientId}] Check 2 PASSED: Projectile data exists:`, p);
+                // Check 4: Duplicate Check
+                if (this.projectileManager.projectiles[p.id]) {
+                    console.warn(`[NetEvt ${myClientId}] ABORT: Duplicate projectile ID ${p.id} detected. Skipping creation.`);
+                    break; // Exit case - prevent duplicate creation
+                }
+                 console.log(`[NetEvt ${myClientId}] Check 4 PASSED: Projectile ID ${p.id} is not a duplicate.`);
+                // --- END DUPLICATE CHECK ---
 
-                 // Check 3: Basic data type validation
-                  if (typeof p.x !== 'number' || typeof p.y !== 'number' ||
-                      typeof p.vx !== 'number' || typeof p.vy !== 'number' ||
-                      typeof p.id !== 'string' || typeof p.ownerId !== 'string') {
-                       console.warn(`[NetEvt ${myClientId}] ABORT: Invalid data types in projectile data.`, p);
-                       break;
-                  }
-                  // console.log(`[NetEvt ${myClientId}] Check 3 PASSED: Basic data types valid.`);
+                // Extract data, providing defaults if necessary
+                const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
+                const damage = p.damage ?? 10; // Default damage if missing
+                const color = p.color ?? 'yellow'; // Default color if missing
+                console.log(`[NetEvt ${myClientId}] Extracted projectile details - Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}, Color: ${color}`);
 
-                 // Check 4: Duplicate Check
-                 if (this.projectileManager.projectiles[p.id]) {
-                     console.warn(`[NetEvt ${myClientId}] ABORT: Duplicate projectile ID ${p.id} detected. Skipping creation.`);
-                     break;
-                 }
-                 // console.log(`[NetEvt ${myClientId}] Check 4 PASSED: Projectile ID ${p.id} is not a duplicate.`);
+                // Attempt Creation
+                console.log(`[NetEvt ${myClientId}] >>> Calling projectileManager.createProjectile for ID ${p.id}...`);
+                try {
+                    this.projectileManager.createProjectile(
+                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, color, damage, gravityFactor // Pass validated/defaulted data
+                    );
+                    console.log(`[NetEvt ${myClientId}] <<< projectileManager.createProjectile call completed for ID ${p.id}.`);
+                } catch (error) {
+                     console.error(`[NetEvt ${myClientId}] XXX Error during projectileManager.createProjectile call for ID ${p.id}:`, error);
+                }
+                // --- END DETAILED LOGGING ---
 
-                 // Extract data, providing defaults if necessary
-                 const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
-                 const damage = p.damage ?? 10;
-                 const color = p.color ?? 'yellow';
-                 // console.log(`[NetEvt ${myClientId}] Extracted projectile details - Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}, Color: ${color}`);
-
-                 // Attempt Creation
-                 console.log(`[NetEvt ${myClientId}] >>> Calling projectileManager.createProjectile for ID ${p.id}...`);
-                 try {
-                     this.projectileManager.createProjectile(
-                         p.id, p.ownerId, p.x, p.y, p.vx, p.vy, color, damage, gravityFactor
-                     );
-                     console.log(`[NetEvt ${myClientId}] <<< projectileManager.createProjectile call completed successfully for ID ${p.id}.`);
-                 } catch (error) {
-                      console.error(`[NetEvt ${myClientId}] XXX Error during projectileManager.createProjectile call for ID ${p.id}:`, error);
-                 }
-                 break;
-
-             default:
-                 // Only log unhandled if it wasn't a built-in type we expect NetworkManager to filter
-                 if (data.type !== 'connected' && data.type !== 'disconnected') {
-                     console.log(`[NetEvt ${myClientId}] Received unhandled message type: "${data.type}"`, data);
-                 }
-                 break;
-         }
-     }
+                break;
+            default:
+                 // Check data.type here instead of event.type
+                if (data.type !== 'connected' && data.type !== 'disconnected') {
+                    console.log(`[NetworkEventHandler ${myClientId}] Received unhandled message type: ${data.type}`, data);
+                }
+                break;
+        }
+    }
 
     updateLocalPlayerPresence(timestamp) {
         const player = this.playerManager.getLocalPlayer();

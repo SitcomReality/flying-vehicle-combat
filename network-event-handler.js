@@ -141,72 +141,71 @@ class NetworkEventHandler {
     }
 
     _handleMessage(event) {
-        const data = event; // data is the whole event object now
-        const myClientId = this.networkManager?.getClientId(); // Use optional chaining
+        // CRITICAL FIX: The event object structure is different than expected
+        // We need to extract the actual data from the event
+        const data = event; // The entire event IS the data object
+        const myClientId = this.networkManager?.getClientId();
 
-        // Reduce logging frequency for non-essential messages
-        if (data.type !== 'connected' && data.type !== 'disconnected' && data.type !== 'fireProjectile') {
-            // console.log(`[NetworkEventHandler ${myClientId}] Received message:`, data);
-        }
+        console.log(`[NetworkEventHandler ${myClientId}] Processing message type: ${data.type}`);
 
         switch (data.type) {
             case 'connected':
             case 'disconnected':
                 // These are handled automatically by presence updates now
-                // console.log(`[NetworkEventHandler ${myClientId}] Network Event: ${data.type} - Client: ${data.clientId}, ${data.username}`);
                 break;
+                
             case 'fireProjectile':
-                console.log(`[NetworkEventHandler ${myClientId}] Received 'fireProjectile' event from ${data.clientId || 'Unknown'}. Data:`, data.projectile);
-
-                // Check if projectileManager exists
+                console.log(`[NetworkEventHandler ${myClientId}] Processing 'fireProjectile' event from ${data.clientId || 'Unknown'}`);
+                
                 if (!this.projectileManager) {
-                     console.error(`[NetworkEventHandler ${myClientId}] ProjectileManager not available! Cannot process fireProjectile event.`);
-                     break;
-                }
-                // Validate essential data presence
-                if (!data.projectile) {
-                    console.warn(`[NetworkEventHandler ${myClientId}] Received 'fireProjectile' event but 'projectile' data is missing. Skipping.`);
+                    console.error(`[NetworkEventHandler ${myClientId}] ProjectileManager not available! Cannot process fireProjectile event.`);
                     break;
                 }
-
+                
+                if (!data.projectile) {
+                    console.warn(`[NetworkEventHandler ${myClientId}] Received 'fireProjectile' event but 'projectile' data is missing.`);
+                    break;
+                }
+                
                 const p = data.projectile;
-
-                // Basic validation of essential projectile data types from network
-                 if (typeof p.x !== 'number' || typeof p.y !== 'number' ||
-                     typeof p.vx !== 'number' || typeof p.vy !== 'number' ||
-                     typeof p.id !== 'string' || typeof p.ownerId !== 'string') {
-                      console.warn(`[NetworkEventHandler ${myClientId}] Received invalid 'fireProjectile' event data types. Skipping.`, p);
-                      break;
-                 }
-
-                 // --- Duplicate Check ---
-                 // echo: false should prevent receiving our own events, so this check is mainly
-                 // a safeguard against potential network glitches or unexpected behavior.
-                 // Check if the ProjectileManager *already* has this projectile instance.
+                
+                // Validate required fields are present
+                if (!p.id || !p.ownerId || typeof p.x !== 'number' || typeof p.y !== 'number' || 
+                    typeof p.vx !== 'number' || typeof p.vy !== 'number') {
+                    console.warn(`[NetworkEventHandler ${myClientId}] Received invalid projectile data:`, p);
+                    break;
+                }
+                
+                // If this projectile already exists, skip creating it
                 if (this.projectileManager.projectiles[p.id]) {
-                    console.warn(`[NetworkEventHandler ${myClientId}] Received 'fireProjectile' event for existing projectile ${p.id}. This shouldn't happen with echo:false. Ignoring creation.`);
-                    break; // Prevent creating a duplicate if it somehow already exists
+                    console.warn(`[NetworkEventHandler ${myClientId}] Projectile ${p.id} already exists locally. Skipping.`);
+                    break;
                 }
-                // --- End Duplicate Check ---
-
-
-                // Extract data, providing defaults if necessary
-                const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
-                const damage = p.damage ?? 10; // Default damage if missing
-                const color = p.color ?? 'yellow'; // Default color if missing
-
-                // Create the projectile using data directly from p
-                // The createProjectile method now handles the creation logic
+                
+                // Use provided values or defaults
+                const color = p.color || '#FFFF00'; // Default yellow
+                const damage = p.damage || 10; // Default damage 
+                const gravityFactor = p.gravityFactor || GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
+                
+                console.log(`[NetworkEventHandler ${myClientId}] Creating remote projectile: ${p.id} at (${p.x}, ${p.y})`);
+                
+                // Create the projectile
                 this.projectileManager.createProjectile(
-                    p.id, p.ownerId, p.x, p.y, p.vx, p.vy, color, damage, gravityFactor // Pass validated/defaulted data
+                    p.id, 
+                    p.ownerId, 
+                    p.x, 
+                    p.y, 
+                    p.vx, 
+                    p.vy, 
+                    color, 
+                    damage, 
+                    gravityFactor
                 );
-                console.log(`[NetworkEventHandler ${myClientId}] Successfully created projectile ${p.id} from network event.`);
-
+                
                 break;
+                
             default:
-                if (data.type !== 'connected' && data.type !== 'disconnected') {
-                    // console.log(`[NetworkEventHandler ${myClientId}] Received unhandled message:`, data);
-                }
+                console.log(`[NetworkEventHandler ${myClientId}] Unhandled message type: ${data.type}`);
                 break;
         }
     }
