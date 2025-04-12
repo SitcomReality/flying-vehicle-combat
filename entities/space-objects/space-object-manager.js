@@ -6,6 +6,8 @@ import { Lander } from './space-object-types/lander.js';
 import { Rover } from './space-object-types/rover.js';
 import { handleObjectDestructionDrop, handleObjectDestructionPowerupDrop } from '../collectibles/drop-system.js';
 import { createObjectExplosionEffect } from './space-object-explosion-handler.js';
+// Import the new sync module
+import { initializeSpaceObjectsFromRoomState, handleSpaceObjectRoomStateUpdate } from './space-object-sync.js';
 
 // Map types to classes for easy instantiation
 const SPACE_OBJECT_CLASSES = {
@@ -50,117 +52,24 @@ class SpaceObjectManager {
             console.warn("SpaceObjectManager initialized without ParticleSystem. Explosions will be missing.");
         }
 
-        // Listen for room state changes to sync objects
+        // Listen for room state changes to sync objects using the new module
         this.networkManager.onPresenceUpdate(this._handlePresenceUpdate.bind(this)); // Listen to presence to get latest peer list reliably
-        this.networkManager.onRoomStateUpdate(this._handleRoomStateUpdate.bind(this));
-        this._initializeFromRoomState(); // Try to initialize immediately, onRoomStateUpdate will overwrite if needed
+        // Bind the room state update handler to the function in the sync module
+        this.networkManager.onRoomStateUpdate((roomState) => {
+            handleSpaceObjectRoomStateUpdate(this.activeObjects, roomState, this.networkManager.getClientId(), this.groundLevelY);
+        });
+        // Call the initialization function from the sync module
+        initializeSpaceObjectsFromRoomState(this.activeObjects, this.networkManager, this.groundLevelY);
     }
 
-    _initializeFromRoomState() {
-        const roomState = this.networkManager.getRoomState();
-        if (roomState && roomState.spaceObjects && Object.keys(roomState.spaceObjects).length > 0) {
-            console.log("Attempting immediate initialization of space objects from room state:", JSON.stringify(Object.keys(roomState.spaceObjects)));
-            this._syncObjects(roomState.spaceObjects);
-        } else {
-            console.log("No initial space objects found in room state during immediate check.");
-        }
-    }
+    // --- Sync logic moved to space-object-sync.js ---
+    // _initializeFromRoomState() - Removed
+    // _handleRoomStateUpdate() - Now calls sync module
+    // _syncObjects() - Removed
 
     _handlePresenceUpdate(presence) {
         // The presence update implicitly updates networkManager.peers
         // No specific action needed here other than letting the spawner check work
-    }
-
-    _handleRoomStateUpdate(roomState) {
-        if (roomState.hasOwnProperty('spaceObjects')) {
-            const objectData = roomState.spaceObjects || {};
-            this._syncObjects(objectData);
-        }
-    }
-
-    _syncObjects(objectData) {
-        const currentIds = Object.keys(this.activeObjects);
-        const myClientId = this.networkManager.getClientId();
-        const serverIds = Object.keys(objectData);
-        let changed = false;
-
-        // FIXED: Only remove objects that are explicitly set to null, not ones missing from the update
-        for (const id of currentIds) {
-            if (objectData[id] === null) {  // Only remove if explicitly null
-                if (this.activeObjects[id]) {
-                    // console.log(`[SpaceObjMgr ${myClientId}] Removing object ${id} due to explicit null`); // Reduce log noise
-                    delete this.activeObjects[id];
-                    changed = true;
-                }
-            }
-        }
-
-        for (const id of serverIds) {
-            const data = objectData[id];
-            if (data === null) continue; // Skip null entries
-
-            if (!data || !data.type || typeof data.x !== 'number' || typeof data.y !== 'number') {
-                console.warn(`[SpaceObjMgr ${myClientId}] Invalid data for space object ${id}. Skipping. Data:`, data);
-                if (this.activeObjects[id]) delete this.activeObjects[id];
-                changed = true;
-                continue;
-            }
-            const ObjectClass = SPACE_OBJECT_CLASSES[data.type];
-            if (!ObjectClass) {
-                console.warn(`[SpaceObjMgr ${myClientId}] Unknown space object type "${data.type}" for ID ${id}. Skipping.`);
-                if (this.activeObjects[id]) delete this.activeObjects[id];
-                changed = true;
-                continue;
-            }
-
-            if (!this.activeObjects[id]) {
-                if (data.health !== undefined && data.health <= 0) {
-                    continue;
-                }
-                try {
-                    // console.log(`[SpaceObjMgr ${myClientId}] Creating new object ${id} of type ${data.type} at (${data.x.toFixed(0)}, ${data.y.toFixed(0)})`); // Reduce log noise
-                    const newObj = new ObjectClass(id, data.type, data.x, data.y, data, this.groundLevelY);
-                    if (!newObj || !newObj.id) {
-                        console.error(`[SpaceObjMgr ${myClientId}] FAILED to create object ${id} - Constructor returned invalid object.`);
-                        continue;
-                    }
-                    this.activeObjects[id] = newObj;
-                    changed = true;
-                } catch (error) {
-                    console.error(`[SpaceObjMgr ${myClientId}] Error creating object ${id} of type ${data.type}:`, error);
-                    continue;
-                }
-            } else {
-                const localObj = this.activeObjects[id];
-                if (data.health !== undefined && data.health <= 0) {
-                    if (!localObj.isMarkedForRemoval) {
-                        localObj.isMarkedForRemoval = true;
-                        changed = true;
-                    }
-                    continue;
-                }
-                if (localObj.x !== data.x || localObj.y !== data.y || localObj.vx !== data.vx || localObj.vy !== data.vy || localObj.rotation !== data.rotation || localObj.health !== data.health) {
-                    localObj.x = data.x;
-                    localObj.y = data.y;
-                    localObj.vx = data.vx ?? localObj.vx;
-                    localObj.vy = data.vy ?? localObj.vy;
-                    localObj.rotation = data.rotation ?? localObj.rotation;
-                    localObj.health = data.health ?? localObj.health;
-                    localObj.scoreValue = data.scoreValue ?? localObj.scoreValue;
-                    changed = true;
-                    if (localObj instanceof Lander && data.baseY !== undefined) {
-                        localObj.baseY = data.baseY;
-                    }
-                    if (localObj instanceof Rover) {
-                        localObj.y = this.groundLevelY - (localObj.drawHeight / 2);
-                    }
-                }
-            }
-        }
-        // ADDED: Log active count after sync for debugging
-        // if (changed || Math.random() < 0.01) { // Log on change or occasionally
-        //     console.log(`[SpaceObjMgr ${myClientId}] Active objects after sync: ${Object.keys(this.activeObjects).length}`);
-        // }
     }
 
     attemptSpawnObject(currentTime) {
@@ -190,9 +99,11 @@ class SpaceObjectManager {
                 return;
             }
 
+            // Use groundLevelY for Rover positioning
             const tempInstance = new ObjectClass('temp-calc', type, 0, 0, {}, this.groundLevelY);
             if (type === 'rover') {
-                spawnY = this.groundLevelY - (tempInstance.drawHeight / 2);
+                // Rover constructor now handles placement on ground level
+                spawnY = this.groundLevelY; // Pass ground level, constructor will adjust
             } else {
                 const airbornePadding = 50;
                 spawnY = Math.random() * (this.groundLevelY - airbornePadding * 2) + airbornePadding;
@@ -200,6 +111,7 @@ class SpaceObjectManager {
 
             const initialState = {};
             const newId = `sobj-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
+            // Pass groundLevelY to constructor here too
             const tempInstanceForSync = new ObjectClass(newId, type, spawnX, spawnY, initialState, this.groundLevelY);
             if (!tempInstanceForSync || !tempInstanceForSync.id) {
                 console.error(`Failed to create temporary instance for sync for type ${type}`);
@@ -216,8 +128,7 @@ class SpaceObjectManager {
                 spaceObjects: updatePayload
             });
 
-            // ADDED: Add the object to local state immediately rather than waiting for the update
-            // This ensures the object exists locally before the next frame's update
+            // Add the object to local state immediately for responsiveness
             this.activeObjects[newId] = tempInstanceForSync;
         }
     }
@@ -228,15 +139,13 @@ class SpaceObjectManager {
 
     destroyObject(id, playerDestroyerId = null) {
         const obj = this.getObject(id);
-        // ADDED: Additional check to prevent multiple destruction calls for the same object
         if (obj && !obj._destructionInProgress) {
-            obj._destructionInProgress = true; // Mark that destruction logic is running
+            obj._destructionInProgress = true; // Mark destruction start
 
             console.log(`[SpaceObjMgr] Destroying object ${id}. Player: ${playerDestroyerId || 'None'}`);
 
             // --- EXPLOSION HANDLING ---
             if (this.particleSystem) {
-                // Use the dedicated handler function
                 createObjectExplosionEffect(obj, this.particleSystem);
             } else {
                 console.warn("[SpaceObjMgr] ParticleSystem is missing, cannot create explosion effect for object", id);
@@ -252,14 +161,12 @@ class SpaceObjectManager {
                 }
             }
 
-            // Drop handling only happens if destroyed by a player (or maybe always?)
-            // Decided: Always drop, even if hit environment/off-screen? Yes, let's be generous.
+            // Drop handling
             handleObjectDestructionDrop(obj, playerDestroyerId, this.collectibleManager);
             handleObjectDestructionPowerupDrop(obj, playerDestroyerId, this.powerupManager);
 
 
-            // Network removal request (only by spawner ideally, but simpler to always send for now)
-            // Check if spawner before sending removal? Let's keep it simple: always send null.
+            // Network removal request (ideally only by spawner, but always sending is simpler for now)
             const removalPayload = {};
             removalPayload[id] = null; // Signal removal
             this.networkManager.updateRoomState({
@@ -267,7 +174,6 @@ class SpaceObjectManager {
             });
 
             // Mark for removal locally *after* handling drops/explosions
-            // This flag is mainly for the update loop to ignore it
             obj.isMarkedForRemoval = true;
 
             // Remove locally immediately after signalling removal
@@ -287,11 +193,10 @@ class SpaceObjectManager {
         const wasDestroyed = obj.takeDamage(amount);
 
         if (wasDestroyed) {
-            // Call destroyObject which handles explosion, drops, score, sync removal
             this.destroyObject(id, playerDestroyerId);
             return true;
         } else {
-            // Object took damage but wasn't destroyed. Sync its new state if we are the spawner.
+             // Object took damage but wasn't destroyed. Sync its new state if we are the spawner.
              const peers = this.networkManager.getPeers();
              const peerIds = Object.keys(peers).sort();
              if (peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0]) {
@@ -306,6 +211,7 @@ class SpaceObjectManager {
     }
 
     applyDamageToObject(id, amount, playerDestroyerId = null) {
+        // Ensure applyDamageToObject is the one called by colliders
         return this.handleDamageToObject(id, amount, playerDestroyerId);
     }
 
@@ -331,55 +237,40 @@ class SpaceObjectManager {
         const peerIds = Object.keys(peers).sort();
         const isSpawner = peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0];
 
-        // Create a copy of keys to iterate over, as `destroyObject` modifies the map
         const objectIds = Object.keys(this.activeObjects);
 
         for (const id of objectIds) {
             const obj = this.activeObjects[id];
-            // Skip if object was removed during iteration (e.g., by destroyObject)
-            if (!obj) continue;
+            if (!obj) continue; // Object might have been removed mid-iteration by destroyObject
 
-            // If object is marked for removal (e.g., off-screen, lifespan), destroy it properly
+            // Handle objects marked for removal (e.g., off-screen, lifespan)
             if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
-                console.log(`[SpaceObjMgr Update] Object ${id} found marked for removal. Triggering destroy...`);
-                this.destroyObject(id, null); // Trigger full destruction logic (explosion, network removal)
-                // No need to add to updates here, destroyObject handles network removal
+                // console.log(`[SpaceObjMgr Update] Object ${id} found marked for removal. Triggering destroy...`);
+                this.destroyObject(id, null); // Trigger full destruction logic
                 continue; // Move to the next object
             }
 
-            // Skip if destruction is already happening or object removed
-             if (obj.isMarkedForRemoval || obj._destructionInProgress) {
-                 continue;
-             }
+            // Skip further processing if destruction started or object removed
+            if (obj._destructionInProgress) {
+                continue;
+            }
 
             // --- Spawner-side Physics & State Update ---
             if (isSpawner) {
-                const oldX = obj.x;
-                const oldY = obj.y;
-                const oldVx = obj.vx;
-                const oldVy = obj.vy;
-                const oldRotation = obj.rotation;
-                const oldHealth = obj.health;
+                const oldX = obj.x; const oldY = obj.y; const oldVx = obj.vx;
+                const oldVy = obj.vy; const oldRotation = obj.rotation; const oldHealth = obj.health;
 
                 obj.update(deltaTime, this.gameBounds, this.groundLevelY);
 
-                // Check again if update marked it for removal (e.g., went off-screen)
+                // Check again if update marked it for removal
                 if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
-                    console.log(`[SpaceObjMgr Update] Object ${id} marked for removal during spawner update. Triggering destroy...`);
-                    this.destroyObject(id, null); // Trigger destruction
-                    // No need to add to updates here
+                    // console.log(`[SpaceObjMgr Update] Object ${id} marked for removal during spawner update. Triggering destroy...`);
+                    this.destroyObject(id, null);
                 }
-                // Check if object still exists after potential destruction
-                else if (this.activeObjects[id] && !obj.isMarkedForRemoval) { // Check for significant state changes *if* it wasn't destroyed
-                    if (
-                        obj.x !== oldX ||
-                        obj.y !== oldY ||
-                        obj.vx !== oldVx ||
-                        obj.vy !== oldVy ||
-                        obj.rotation !== oldRotation ||
-                        obj.health !== oldHealth
-                    ) {
-                        updates[id] = obj.getSyncData(); // Get updated data
+                // Check for significant state changes *if* it wasn't destroyed
+                else if (this.activeObjects[id]) { // Check object still exists locally
+                    if (obj.x !== oldX || obj.y !== oldY || obj.vx !== oldVx || obj.vy !== oldVy || obj.rotation !== oldRotation || obj.health !== oldHealth) {
+                        updates[id] = obj.getSyncData();
                         needsNetworkUpdate = true;
                     }
                 }
@@ -387,17 +278,16 @@ class SpaceObjectManager {
             // --- Non-Spawner Update ---
             else {
                 // Non-spawners update locally for smooth visuals only if the object exists
-                // and is not marked (local prediction based on last known state)
-                 if (this.activeObjects[id] && !obj.isMarkedForRemoval && !obj._destructionInProgress) {
+                // This includes checking local removal conditions like going off-screen
+                if (this.activeObjects[id] && !obj.isMarkedForRemoval && !obj._destructionInProgress) {
                     obj.update(deltaTime, this.gameBounds, this.groundLevelY);
-                     // Check if the *local* update caused it to go off-screen (or other removal condition)
-                     if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
-                         console.log(`[SpaceObjMgr Update] Non-spawner detected ${id} marked for removal locally.`);
+                    // If *local* update caused removal condition (e.g., off-screen)
+                    if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
                          // Don't trigger destroy, let the spawner handle it via network state (null)
-                         // Just remove it locally to stop rendering/processing
+                         // Just remove locally to stop rendering/processing
                          delete this.activeObjects[id];
-                     }
-                 }
+                    }
+                }
             }
         } // End loop over objectIds
 
@@ -406,18 +296,14 @@ class SpaceObjectManager {
             this.networkManager.updateRoomState({ spaceObjects: updates });
         }
 
-        // Attempt spawning new objects
+        // Attempt spawning new objects (only spawner does this)
         this.attemptSpawnObject(performance.now());
-
-        // Optional debug log
-        // if (Math.random() < 0.01) {
-        //     console.log(`[SpaceObjMgr] Active objects after update: ${Object.keys(this.activeObjects).length}`);
-        // }
     }
 
     draw(ctx) {
         for (const id in this.activeObjects) {
-            if (this.activeObjects[id] && !this.activeObjects[id].isMarkedForRemoval) {
+             // Ensure object exists and isn't undergoing destruction visually
+            if (this.activeObjects[id] && !this.activeObjects[id].isMarkedForRemoval && !this.activeObjects[id]._destructionInProgress) {
                 this.activeObjects[id].draw(ctx, this.assets, 1.0);
             }
         }

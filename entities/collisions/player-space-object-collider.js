@@ -2,9 +2,13 @@
 import { checkAABBCollision } from './aabb-collision.js';
 import { PlayerLifecycleState } from '../player-lifecycle.js'; // Import lifecycle states
 
+// Added constant for knockback strength
+const PLAYER_KNOCKBACK_STRENGTH = 150; // Adjust as needed
+
 /**
  * Checks for collisions between players and space objects.
  * Applies damage TO the local player if involved, and TO the space object.
+ * Applies knockback TO the local player.
  * @param {Object.<string, Player>} activePlayers - Active player objects (filtered for ACTIVE state).
  * @param {Object.<string, SpaceObject>} activeSpaceObjects - Active space objects map {id: object}.
  * @param {number} renderScale - The game's render scale (for player hitbox).
@@ -32,36 +36,58 @@ export function checkPlayerSpaceObjectCollisions(activePlayers, activeSpaceObjec
 
         for (const objectId of spaceObjectIds) {
             const spaceObject = activeSpaceObjects[objectId];
-            if (!spaceObject || spaceObject.isMarkedForRemoval) continue;
+            if (!spaceObject || spaceObject.isMarkedForRemoval || spaceObject._destructionInProgress) continue; // Check destruction flag
 
             const objectRect = spaceObject.getHitbox(); // Use the object's hitbox calculation
             if (!objectRect || objectRect.width <= 0 || objectRect.height <= 0) continue;
 
             if (checkAABBCollision(playerRect, objectRect)) {
                  // Collision detected!
-                // console.log(`Collision detected between player ${playerId} and space object ${objectId}`); // Logged in detector
+                 // console.log(`Collision detected between player ${playerId} and space object ${objectId}`);
 
                 // Calculate damage
-                // Pass state objects for damage calculation context if needed
                 const damageToObject = calculateDamageFunc('player-spaceobject', spaceObject, player.state, currentTime);
                 const damageToPlayer = calculateDamageFunc('player-spaceobject', player.state, spaceObject, currentTime);
 
                 // Apply damage to the space object (handled by manager)
                 if (damageToObject > 0) {
-                    console.log(`Applying ${damageToObject} collision damage to space object ${objectId} from player ${playerId}`);
+                    // console.log(`Applying ${damageToObject} collision damage to space object ${objectId} from player ${playerId}`);
                     // Pass player reference to know who caused the potential drop and add score
                     spaceObjectManager.applyDamageToObject(objectId, damageToObject, playerId);
                 }
 
                 // Apply damage ONLY to the LOCAL player
                 if (player.isLocalPlayer && damageToPlayer > 0) {
-                    console.log(`Applying ${damageToPlayer} collision damage to local player ${playerId} from space object ${objectId}`);
+                    // console.log(`Applying ${damageToPlayer} collision damage to local player ${playerId} from space object ${objectId}`);
                     player.takeDamage(damageToPlayer, currentTime);
+
+                    // --- Apply Knockback to Local Player ---
+                    const playerCenterX = playerRect.x + playerRect.width / 2;
+                    const playerCenterY = playerRect.y + playerRect.height / 2;
+                    const objectCenterX = objectRect.x + objectRect.width / 2;
+                    const objectCenterY = objectRect.y + objectRect.height / 2;
+
+                    const dx = playerCenterX - objectCenterX;
+                    const dy = playerCenterY - objectCenterY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist > 0.1) { // Avoid division by zero if centers overlap exactly
+                         const nx = dx / dist; // Normalized collision vector x
+                         const ny = dy / dist; // Normalized collision vector y
+
+                         // Apply impulse directly to player velocity
+                         player.state.vx += nx * PLAYER_KNOCKBACK_STRENGTH;
+                         player.state.vy += ny * PLAYER_KNOCKBACK_STRENGTH;
+                         console.log(`Applied knockback (${(nx * PLAYER_KNOCKBACK_STRENGTH).toFixed(1)}, ${(ny * PLAYER_KNOCKBACK_STRENGTH).toFixed(1)}) to player ${playerId}`);
+
+                         // Optional: Clamp velocity immediately after knockback?
+                         // player.state.vx = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, player.state.vx));
+                         // player.state.vy = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, player.state.vy));
+                    }
+                    // --- End Knockback ---
                 }
 
-                 // Apply physics response (e.g., knockback)? - Future enhancement
-                 // Since an object might be destroyed, we continue checking other objects
-                 // If player is destroyed, their state change will handle future collisions
+                 // Object might be destroyed, continue checking collisions with other objects
             }
         }
     }

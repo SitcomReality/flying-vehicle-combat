@@ -1,4 +1,4 @@
-// New file: Manages player lifecycle transitions (respawn, death, selection)
+// Manages player lifecycle transitions (respawn, death, selection)
 
 import { PlayerLifecycleState } from './player-lifecycle.js';
 import { SPRITES } from 'config/sprites.js';
