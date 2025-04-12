@@ -1,14 +1,12 @@
 // New file: Renders health and fuel bars for players
 
-import { getVisualCenter } from '../entities/player-visuals.js'; // Use helper for positioning
+import { getVisualCenter } from '../entities/player-visuals.js';
 
 const BAR_WIDTH = 50;
 const BAR_HEIGHT = 5;
 const BAR_Y_OFFSET = 5; // Offset below the sprite's bottom edge
 const HEALTH_COLOR = 'rgb(200, 50, 50)'; // Red
-const HEALTH_BG_COLOR = 'rgba(100, 25, 25, 0.7)'; // Darker red background
-const FUEL_COLOR = 'rgb(50, 150, 200)'; // Blue
-const FUEL_BG_COLOR = 'rgba(25, 75, 100, 0.7)'; // Darker blue background
+const HEALTH_BG_COLOR = 'rgba(100, 25, 25';
 
 class StatusBarRenderer {
     constructor(ctx, playerManager, renderScale) {
@@ -67,10 +65,10 @@ class StatusBarRenderer {
         const fuelRatio = state.fuel / state.maxFuel;
         const fuelBarY = healthBarY + BAR_HEIGHT + 1; // Place below health bar with 1px gap
         // Background
-        this.ctx.fillStyle = FUEL_BG_COLOR;
+        this.ctx.fillStyle = 'rgba(25, 75, 100, 0.7)'; 
         this.ctx.fillRect(centerX - BAR_WIDTH / 2, fuelBarY, BAR_WIDTH, BAR_HEIGHT);
         // Foreground
-        this.ctx.fillStyle = FUEL_COLOR;
+        this.ctx.fillStyle = 'rgb(50, 150, 200)'; 
         this.ctx.fillRect(centerX - BAR_WIDTH / 2, fuelBarY, BAR_WIDTH * fuelRatio, BAR_HEIGHT);
         // Optional: Draw border
         // this.ctx.strokeStyle = 'rgba(0,0,0,0.5)';

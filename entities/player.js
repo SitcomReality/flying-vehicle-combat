@@ -46,7 +46,7 @@ class Player {
                 this.state,
                 this.projectileManager,
                 this.networkManager,
-                boundGetVisualNosePos // Pass function ref
+                boundGetVisualNosePos 
             );
             console.log(`WeaponSystem initialized for local player ${this.id}`);
         } else if (this.state.isLocalPlayer && !this.inputManager) {
@@ -73,6 +73,7 @@ class Player {
     update(deltaTime, groundLevelY, particleSystem, currentTime, playerManager) {
         if (this.state.isMarkedForRemoval || this.state.lifecycleState === PlayerLifecycleState.CONNECTING) {
             updateHealth(this.state, deltaTime, currentTime);
+            updatePowerupEffects(this.state, currentTime);
             return;
         }
 
@@ -80,32 +81,41 @@ class Player {
         updatePowerupEffects(this.state, currentTime);
 
         if (this.state.lifecycleState === PlayerLifecycleState.DEAD || this.state.lifecycleState === PlayerLifecycleState.SELECTING) {
-            return;
+            return; 
         }
 
-        updatePlayerAnimation(this.state, currentTime);
-
-        if (this.state.isLocalPlayer && this.weaponSystem && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
-            const boundGetVisualCenter = () => getVisualCenter(this.state, this.renderScale);
-            this.weaponSystem.update(deltaTime, particleSystem, boundGetVisualCenter);
-            this.weaponSystem.attemptFire(currentTime);
+        if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
+             updatePlayerAnimation(this.state, currentTime);
         }
 
-        if (this.isLocalPlayer) {
+        if (this.state.isLocalPlayer) {
+            if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE && this.inputManager) {
+                 const inputState = this.inputManager.getInputState(); 
+                 handlePlayerInput(this.state, inputState, this.inputManager, this.weaponSystem); 
+            }
+
+             if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE && this.weaponSystem) {
+                const boundGetVisualCenter = () => getVisualCenter(this.state, this.renderScale);
+                this.weaponSystem.update(deltaTime, particleSystem, boundGetVisualCenter);
+                this.weaponSystem.attemptFire(currentTime);
+            }
+
              if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
                 updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem, currentTime, playerManager);
                 updateFuel(this.state, deltaTime);
              }
-        } else {
+        } else { 
             interpolatePlayerState(this.state, REMOTE_PLAYER_INTERPOLATION_FACTOR);
+
             if (this.state.serverIsOnGround && particleSystem && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
-                 const spriteDrawWidth = this.state.currentVehicle ? this.state.currentVehicle.width * this.renderScale : 0;
-                 const spriteDrawOffsetX = this.state.currentVehicle ? this.state.drawOffsetX * this.renderScale : 0;
-                 const contactX = (this.state.x - spriteDrawOffsetX + spriteDrawWidth / 2)
-                                + (this.state.visualFacingDirection === 1 ? -spriteDrawWidth * 0.3 : spriteDrawWidth * 0.3);
-                 const contactY = groundLevelY - 2;
-                 if (Math.random() < 0.5) particleSystem.emitSparks(contactX, contactY, 1, -80);
-                 if (Math.random() < 0.3) particleSystem.emitSmoke(contactX, contactY, 1, -30);
+                const visualCenter = getVisualCenter(this.state, this.renderScale);
+                if (this.state.currentVehicle) {
+                    const spriteDrawWidth = this.state.currentVehicle.width * this.renderScale;
+                    const contactX = visualCenter.x + (this.state.visualFacingDirection === 1 ? -spriteDrawWidth * 0.3 : spriteDrawWidth * 0.3);
+                    const contactY = groundLevelY - 2;
+                    if (Math.random() < 0.3) particleSystem.emitSparks(contactX, contactY, 1, -80);
+                    if (Math.random() < 0.2) particleSystem.emitSmoke(contactX, contactY, 1, -30);
+                }
             }
         }
     }
@@ -119,7 +129,7 @@ class Player {
 
         const isVisuallyInvulnerable = this.state.isInvulnerable && Math.floor(performance.now() / 150) % 2 === 0;
         if (isVisuallyInvulnerable) {
-            this.ctx.globalAlpha = 0.6;
+            this.ctx.globalAlpha = 0.6; 
         }
 
         drawPlayer(this.ctx, this.state, this.assets, this.renderScale);
@@ -144,29 +154,30 @@ class Player {
     }
 
     transitionToState(newState) {
-         if (this.state.lifecycleState !== newState) {
-             console.log(`Player ${this.id} transitioning state: ${this.state.lifecycleState} -> ${newState}`);
-             const oldState = this.state.lifecycleState;
-             this.state.lifecycleState = newState;
-
-             if (newState === PlayerLifecycleState.DEAD) {
-                 this.state.vx = 0; this.state.vy = 0; this.state.ax = 0; this.state.ay = 0;
-                 this.state.isThrusting = false; this.state.isMovingLeft = false; this.state.isMovingRight = false;
-                 this.state.isCharging = false; this.state.wantsToFire = false; this.state.isOnGround = false;
-                 this.state.health = 0;
-                 this.state.activePowerups = {};
-                 if (this.weaponSystem) {
-                     this.weaponSystem.chargeLevel = 0; this.weaponSystem.isCharging = false; this.weaponSystem.wantsToFire = false; this.weaponSystem.isTapFire = false;
-                 }
-             }
-
-             if (this.state.isLocalPlayer && this.networkManager) {
-                this.networkManager.updatePresence(this.getPresenceData());
-                console.log(`Local player ${this.id} presence updated due to state change: ${oldState} -> ${newState}`);
-             }
-             return true;
+         if (this.state.lifecycleState === newState) {
+              return false; 
          }
-         return false;
+
+         console.log(`Player ${this.id} transitioning state: ${this.state.lifecycleState} -> ${newState}`);
+         const oldState = this.state.lifecycleState;
+         this.state.lifecycleState = newState;
+
+         if (newState === PlayerLifecycleState.DEAD) {
+             this.state.vx = 0; this.state.vy = 0; this.state.ax = 0; this.state.ay = 0;
+             this.state.isThrusting = false; this.state.isMovingLeft = false; this.state.isMovingRight = false;
+             this.state.isCharging = false; this.state.wantsToFire = false; this.state.isOnGround = false; 
+             this.state.health = 0;
+             this.state.activePowerups = {};
+             if (this.weaponSystem) {
+                 this.weaponSystem.chargeLevel = 0; this.weaponSystem.isCharging = false; this.weaponSystem.wantsToFire = false; this.weaponSystem.isTapFire = false;
+             }
+         }
+
+         if (this.state.isLocalPlayer && this.networkManager) {
+            this.networkManager.updatePresence(this.getPresenceData());
+            console.log(`Local player ${this.id} presence updated due to state change: ${oldState} -> ${newState}`);
+         }
+         return true; 
     }
 
     resetStateForSpawn(x, y) {
@@ -178,6 +189,7 @@ class Player {
             this.weaponSystem.wantsToFire = false;
             this.weaponSystem.isTapFire = false;
         }
+        this.transitionToState(PlayerLifecycleState.ACTIVE);
     }
 
     takeDamage(amount, currentTime) {
@@ -185,9 +197,10 @@ class Player {
     }
 
     addScore(amount) {
-        if (amount > 0 && this.lifecycleState === PlayerLifecycleState.ACTIVE) {
+        if (amount > 0 && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
             this.state.score += amount;
-            console.log(`Player ${this.id} scored ${amount} points. Total score: ${this.state.score}`);
+            if (this.state.isLocalPlayer) {
+            }
         }
     }
 }

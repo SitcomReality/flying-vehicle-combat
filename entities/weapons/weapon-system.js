@@ -2,6 +2,7 @@ import { GLOBAL_PHYSICS } from '../player-state.js';
 import { getPowerupMultiplier } from '../powerups/powerup-effects.js';
 import { PowerupType } from '../powerups/powerup-types.js';
 import { PlayerLifecycleState } from '../player-lifecycle.js';
+import { getVisualNosePosition } from '../player-visuals.js';
 
 // Configuration
 const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
@@ -12,14 +13,14 @@ const TAP_FIRE_CHARGE_THRESHOLD = 5; // Minimal charge level considered a tap fi
  * Reads weapon stats from the provided PlayerState.
  */
 class WeaponSystem {
-    constructor(playerState, projectileManager, networkManager, getVisualNosePosFunc) {
-        if (!playerState || !projectileManager || !networkManager || !getVisualNosePosFunc) {
-            throw new Error("WeaponSystem requires playerState, projectileManager, networkManager, and getVisualNosePosFunc");
+    constructor(playerState, projectileManager, networkManager, renderScale) {
+        if (!playerState || !projectileManager || !networkManager || renderScale === undefined) {
+            throw new Error("WeaponSystem requires playerState, projectileManager, networkManager, and renderScale");
         }
         this.state = playerState; // Reference to the player's state object
         this.projectileManager = projectileManager;
         this.networkManager = networkManager;
-        this.getVisualNosePosition = getVisualNosePosFunc; // Function to get nose position
+        this.renderScale = renderScale; // Store render scale needed for visuals
 
         // Internal state managed here, but often reflects PlayerState properties
         this.isCharging = false;
@@ -89,14 +90,19 @@ class WeaponSystem {
         this.wantsToFire = this.state.wantsToFire; // Reflects input decisions
 
         if (this.isCharging) {
+            // Apply rapid fire multiplier to charge rate as well? (Optional synergy)
+            const rapidFireMultiplier = getPowerupMultiplier(this.state, PowerupType.RAPID_FIRE);
+            const effectiveChargeRate = this.state.chargeRate * rapidFireMultiplier; // Faster charge with rapid fire
+
             this.chargeLevel = Math.min(
-                this.chargeLevel + this.state.chargeRate * deltaTime, // Use vehicle's chargeRate from state
+                this.chargeLevel + effectiveChargeRate * deltaTime, // Use effective rate
                 this.state.maxChargeLevel // Use vehicle's maxChargeLevel from state
             );
 
             // Emit charging particles if system available
             if (particleSystem && getVisualCenterFunc) {
-                const nosePos = this.getVisualNosePosition();
+                 // Use the imported function here
+                const nosePos = getVisualNosePosition(this.state, this.renderScale);
                 const centerPos = getVisualCenterFunc(); // Assumes visual center is needed
                 particleSystem.emitChargeParticles(
                     centerPos.x, centerPos.y,
@@ -152,7 +158,8 @@ class WeaponSystem {
         const damageMultiplier = getPowerupMultiplier(this.state, PowerupType.DAMAGE_BOOST);
 
         // Calculate projectile initial state
-        const nosePos = this.getVisualNosePosition();
+        // Use the imported function here
+        const nosePos = getVisualNosePosition(this.state, this.renderScale);
         const startX = nosePos.x;
         const startY = nosePos.y;
 
@@ -193,8 +200,10 @@ class WeaponSystem {
         let vy = Math.sin(angle) * speed;
 
         // Add player's current velocity to the projectile (inherited velocity)
-        vx += this.state.vx * 0.5;
-        vy += this.state.vy * 0.5;
+        // Reduce inheritance factor slightly
+        vx += this.state.vx * 0.3;
+        vy += this.state.vy * 0.3;
+
 
         // Calculate final damage including powerup multiplier
         const finalDamage = Math.round(projectileDamage * damageMultiplier);
