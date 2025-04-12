@@ -23,6 +23,7 @@ This document outlines the step-by-step process for implementing new features in
 *   **Lifecycle Management**: `PlayerLifecycleManager` created to handle death, respawn, vehicle selection flow. Integrated score saving via `ScorePersistence` on death. Added death explosion effect.
 *   **Weapon System V2**: Refactored firing into `WeaponSystem` class. Implemented charging mechanic, tap-fire logic, fire rate cooldown. Integrated powerup effects (Damage Boost, Rapid Fire). Added charge particle effects.
 *   **Player Refactor**: Extracted physics, rendering, network sync, animation, and input handling logic from `Player.js` into separate modules (`player-physics.js`, `player-renderer.js`, `player-network-sync.js`, `player-animation.js`, `player-input.js`). `Player.js` now primarily coordinates these modules and manages state transitions.
+*   **File Cleanup**: Removed duplicate `javascript entities/player.js` and `javascript game.js` files leftover from refactoring.
 
 ## Remaining Steps
 
@@ -37,4 +38,6 @@ This document outlines the step-by-step process for implementing new features in
     *   Add more diverse space object behaviors (e.g., shooting landers?).
     *   Consider adding simple AI behaviors for some objects.
 3.  **Bug Fixing & Performance Optimization**: Address any remaining bugs. Profile and optimize critical code paths.
+
+
 
