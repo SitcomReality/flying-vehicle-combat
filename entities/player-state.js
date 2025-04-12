@@ -4,8 +4,8 @@ import { PlayerLifecycleState } from './player-lifecycle.js';
 
 // --- Constants ---
 export const GLOBAL_PHYSICS = {
-    GRAVITY: 280, // pixels/sec^2 - Reduced by 20% from 350
-    MAX_VERTICAL_SPEED: 300, // pixels/sec
+    GRAVITY: 900, // pixels/sec^2 - SIGNIFICANTLY INCREASED (was 280)
+    MAX_VERTICAL_SPEED: 450, // pixels/sec - Increased slightly to accommodate higher gravity
     VERTICAL_DRAG_FACTOR: 0.5, // Higher = more drag when airborne
     MAX_TILT_ANGLE: Math.PI / 2.5, // ~72 degrees
     TILT_SPEED: 6, // How quickly the sprite tilts
@@ -14,7 +14,7 @@ export const GLOBAL_PHYSICS = {
     SPARK_EMIT_RATE: 5,
     SMOKE_EMIT_RATE: 1,
     PROJECTILE_SPEED_SCALE: 3,
-    PROJECTILE_GRAVITY_FACTOR: 0.5,
+    PROJECTILE_GRAVITY_FACTOR: 0.5, // Base factor for projectiles (1 = full global gravity, 0 = none)
     INVULNERABILITY_DURATION: 1.5, // Default invulnerability from damage
 };
 
