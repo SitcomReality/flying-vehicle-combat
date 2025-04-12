@@ -13,12 +13,10 @@ export const BASE_PLAYER_PHYSICS = {
     GROUND_FRICTION_FACTOR: 1.5, // Factor for horizontal friction when grounded (higher = more friction)
     SPARK_EMIT_RATE: 5,
     SMOKE_EMIT_RATE: 1,
-    PROJECTILE_SPEED_SCALE: 1,
-    PROJECTILE_GRAVITY_FACTOR: 3,
-    INVULNERABILITY_DURATION: 1.5,
-    // --- ADDED PROJECTILE TERMINAL VELOCITY ---
-    MAX_PROJECTILE_VERTICAL_SPEED: 400, // Max downward speed for projectiles
-    // --- END ADDED ---
+    PROJECTILE_SPEED_SCALE: 1, // Multiplier for speed gained per charge unit
+    PROJECTILE_GRAVITY_FACTOR: 3, // Base multiplier for gravity effect on projectiles (0 charge = this * GRAVITY)
+    PROJECTILE_VERTICAL_DRAG_FACTOR: 0.4, // Drag applied to projectile vertical velocity
+    INVULNERABILITY_DURATION: 1.5, // seconds after taking damage
 };
 
 /**
