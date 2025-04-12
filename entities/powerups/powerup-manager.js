@@ -22,6 +22,7 @@ class PowerupManager {
     _initializeFromRoomState() {
         const roomState = this.networkManager.getRoomState();
         if (roomState && roomState.activePowerups) {
+            console.log("Initializing powerups from initial room state:", roomState.activePowerups);
             this._syncPowerups(roomState.activePowerups);
         }
     }
@@ -32,8 +33,12 @@ class PowerupManager {
     }
 
     _handleRoomStateUpdate(roomState) {
-        const powerupData = roomState.activePowerups || {};
-        this._syncPowerups(powerupData);
+        // Check if activePowerups exists in the update
+        if (roomState.hasOwnProperty('activePowerups')) {
+            // console.log("Received room state update for activePowerups:", roomState.activePowerups); // Reduce noise
+            const powerupData = roomState.activePowerups || {};
+            this._syncPowerups(powerupData);
+        }
     }
 
     _syncPowerups(powerupData) {
@@ -60,8 +65,7 @@ class PowerupManager {
             }
 
             if (!this.activePowerups[id]) {
-                // Create new local instance
-                // console.log(`Creating new local powerup instance ${id} of type ${data.type}`);
+                console.log(`Creating new local powerup instance ${id} of type ${data.type}`);
                 this.activePowerups[id] = new Powerup(
                     id,
                     data.type,
@@ -75,11 +79,11 @@ class PowerupManager {
                 localPowerup.x = data.x;
                 localPowerup.y = data.y;
                 if (localPowerup.type !== data.type) {
-                     console.warn(`Powerup ${id} changed type unexpectedly. Recreating.`);
-                     delete this.activePowerups[id];
-                     this.activePowerups[id] = new Powerup(
-                         id, data.type, data.x, data.y, POWERUP_SPAWN_CONFIG.RADIUS
-                     );
+                    console.warn(`Powerup ${id} changed type unexpectedly. Recreating.`);
+                    delete this.activePowerups[id];
+                    this.activePowerups[id] = new Powerup(
+                        id, data.type, data.x, data.y, POWERUP_SPAWN_CONFIG.RADIUS
+                    );
                 }
             }
         }
@@ -87,53 +91,55 @@ class PowerupManager {
 
     // Attempt to spawn a powerup periodically (only by designated spawner)
     attemptRandomSpawn(currentTime, gameWidth, gameHeight, groundLevelY) {
-         // --- Spawner Determination ---
-         const peers = this.networkManager.getPeers();
-         const peerIds = Object.keys(peers).sort();
-         if (!peerIds.length || this.networkManager.getClientId() !== peerIds[0]) {
-             return; // Not the designated spawner
-         }
+        // --- Spawner Determination ---
+        const peers = this.networkManager.getPeers();
+        const peerIds = Object.keys(peers).sort();
+        if (!peerIds.length || this.networkManager.getClientId() !== peerIds[0]) {
+            return; // Not the designated spawner
+        }
 
-         // --- Spawn Conditions ---
-         const numActive = Object.keys(this.activePowerups).length;
-         if (numActive >= POWERUP_SPAWN_CONFIG.MAX_ACTIVE) {
-             return; // Max limit reached
-         }
+        // --- Spawn Conditions ---
+        const numActive = Object.keys(this.activePowerups).length;
+        if (numActive >= POWERUP_SPAWN_CONFIG.MAX_ACTIVE) {
+            return; // Max limit reached
+        }
 
-         if (currentTime - this.lastSpawnAttemptTime > POWERUP_SPAWN_CONFIG.INTERVAL) {
-             this.lastSpawnAttemptTime = currentTime;
+        if (currentTime - this.lastSpawnAttemptTime > POWERUP_SPAWN_CONFIG.INTERVAL) {
+            this.lastSpawnAttemptTime = currentTime;
 
-              // Random chance to spawn within the interval
-              if (Math.random() > POWERUP_SPAWN_CONFIG.SPAWN_CHANCE_PER_INTERVAL) {
-                   return;
-              }
+            // Random chance to spawn within the interval
+            if (Math.random() > POWERUP_SPAWN_CONFIG.SPAWN_CHANCE_PER_INTERVAL) {
+                return;
+            }
 
-             // --- Spawn Logic ---
-             const type = getRandomPowerupType();
-             if (!type) {
-                 console.log("Attempted random spawn, but no powerup type selected (check weights).");
-                 return;
-             }
+            // --- Spawn Logic ---
+            const type = getRandomPowerupType();
+            if (!type) {
+                console.log("Attempted random spawn, but no powerup type selected (check weights).");
+                return;
+            }
 
-             const padding = 50;
-             const spawnableHeight = groundLevelY - padding * 2;
-             const x = Math.random() * (gameWidth - padding * 2) + padding;
-             const y = Math.random() * spawnableHeight + padding;
+            const padding = 50;
+            // Ensure spawnableHeight is positive
+            const spawnableHeight = Math.max(0, groundLevelY - padding * 2);
+            const x = Math.random() * (gameWidth - padding * 2) + padding;
+            const y = Math.random() * spawnableHeight + padding;
 
-             const newId = `powerup-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
-             console.log(`Spawner ${this.networkManager.getClientId()} attempting to spawn powerup ${newId} (${type}) at ${x.toFixed(0)},${y.toFixed(0)}`);
+            const newId = `powerup-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
+            console.log(`Spawner ${this.networkManager.getClientId()} attempting to spawn powerup ${newId} (${type}) at ${x.toFixed(0)},${y.toFixed(0)}`);
 
-             // Update room state to add the new powerup
-             this.networkManager.updateRoomState({
-                 activePowerups: {
-                     [newId]: {
-                         type: type,
-                         x: x,
-                         y: y
-                     }
-                 }
-             });
-         }
+            // Update room state to add the new powerup
+            this.networkManager.updateRoomState({
+                activePowerups: {
+                    [newId]: {
+                        type: type,
+                        x: x,
+                        y: y
+                    }
+                }
+            });
+            // The spawner client will also receive this update via _handleRoomStateUpdate and create the local instance.
+        }
     }
 
     // Spawns a powerup at a specific location (e.g., from object drop)
@@ -149,19 +155,19 @@ class PowerupManager {
             type = getRandomPowerupType(); // Get a random type based on weights if not specified
         }
         if (!type) {
-             console.warn("Could not determine powerup type to spawn from drop.");
-             return null; // Invalid type or weights issue
+            console.warn("Could not determine powerup type to spawn from drop.");
+            return null; // Invalid type or weights
         }
 
         // Determine who should actually add this to room state (designated spawner)
         const peers = this.networkManager.getPeers();
         const peerIds = Object.keys(peers).sort();
         if (!peerIds.length || this.networkManager.getClientId() !== peerIds[0]) {
-             // console.log(`Not designated spawner, skipping roomState update for dropped powerup ${type}`);
-             // Still return an ID so the caller knows *a* powerup *should* have dropped,
-             // even if this client isn't adding it to the room state.
-             // The actual instance will be created via sync from the spawner's update.
-             return `dropped-powerup-${type}`; // Placeholder ID
+            // console.log(`Not designated spawner, skipping roomState update for dropped powerup ${type}`);
+            // Still return an ID so the caller knows *a* powerup *should* have dropped,
+            // even if this client isn't adding it to the room state.
+            // The actual instance will be created via sync from the spawner's update.
+            return `dropped-powerup-${type}`; // Placeholder ID
         }
 
         // If this *is* the designated spawner, add it to room state
