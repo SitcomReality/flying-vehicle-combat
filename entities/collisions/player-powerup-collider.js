@@ -10,7 +10,7 @@ import { applyPowerupEffect } from '../powerups/powerup-effects.js'; // Import p
  * @param {Array<Powerup>} activePowerups - Array of active Powerup instances.
  * @param {number} renderScale - The game's render scale.
  * @param {number} currentTime - The current game time.
- * @param {PowerupManager} powerupManager - PowerupManager instance for pickup removal.
+ * @param {PowerupManager} powerupManager - PowerupManager instance for pickup initiation.
  */
 export function checkPlayerPowerupCollisions(localPlayer, activePowerups, renderScale, currentTime, powerupManager) {
     if (!localPlayer || !localPlayer.state || localPlayer.isMarkedForRemoval || localPlayer.state.lifecycleState !== PlayerLifecycleState.ACTIVE) {
@@ -26,10 +26,11 @@ export function checkPlayerPowerupCollisions(localPlayer, activePowerups, render
     // If dimensions are invalid, skip check
     if (playerRect.width <= 0 || playerRect.height <= 0) return;
 
-    // Iterate backwards for safe removal during iteration if needed (though manager handles removal)
+    // Iterate backwards is generally safer if modifying the array, though not strictly needed here
     for (let i = activePowerups.length - 1; i >= 0; i--) {
         const powerup = activePowerups[i];
-        if (!powerup || powerup.isMarkedForRemoval) continue;
+        // Check if powerup still exists locally (might have been removed by sync just before collision check)
+        if (!powerup || powerup.isMarkedForRemoval || !powerupManager.activePowerups[powerup.id]) continue;
 
         const powerupRect = {
             x: powerup.x - powerup.radius,
@@ -43,21 +44,20 @@ export function checkPlayerPowerupCollisions(localPlayer, activePowerups, render
         if (checkAABBCollision(playerRect, powerupRect)) {
             // console.log(`Collision detected between local player ${localPlayer.id} and powerup ${powerup.id}`);
 
-            // Tell the powerup manager that the local player picked this up
-            // The manager handles removing it from the game state and returns its info
-            const pickedUpPowerup = powerupManager.pickupPowerup(powerup.id);
+            // Initiate the pickup process via the manager
+            // This handles spawner vs non-spawner logic internally
+            const pickupInitiatedPowerup = powerupManager.initiatePickup(powerup.id, localPlayer.id);
 
-            // If pickup was successful (manager returned the powerup), apply the effect locally
-            if (pickedUpPowerup) {
-                 applyPowerupEffect(localPlayer.state, pickedUpPowerup, currentTime);
-                 // TODO: Play pickup sound effect here
+            // Apply effect locally *immediately* if pickup was initiated
+            // This gives instant feedback, removal sync follows via roomState
+            if (pickupInitiatedPowerup) {
+                 applyPowerupEffect(localPlayer.state, pickupInitiatedPowerup, currentTime);
+                 // Stop checking for other powerups this frame
+                 break;
             } else {
-                 // Log if pickup failed (e.g., already picked up by someone else simultaneously)
-                 // console.log(`[Collision] Pickup failed for powerup ${powerup.id}, likely already taken.`);
+                 // Pickup initiation failed (e.g., already picked up by someone else just before)
+                 // console.log(`[Collision] Pickup initiation failed for powerup ${powerup.id}.`);
             }
-            // A player can only pick up one powerup per collision check loop frame
-            // Break ensures we don't process multiple overlapping powerups instantly
-            break;
         }
     }
 }
