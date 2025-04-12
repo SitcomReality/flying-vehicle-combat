@@ -8,10 +8,22 @@ const SPARK_SPEED_DEVIATION = 50;
 const SMOKE_SPEED_DEVIATION = 10;
 const SMOKE_SIZE_START = 3;
 const SMOKE_SIZE_END = 10;
+
 const CHARGE_PARTICLE_COLOR = 'rgba(150, 180, 255, 0.7)'; // Light blue/purple
 const CHARGE_PARTICLE_SPEED = 150; // Speed towards the target point
-const CHARGE_PARTICLE_SPAWN_RADIUS = 50; // How far from the center particles spawn
+const CHARGE_PARTICLE_MIN_SPAWN_RADIUS = 5; // Minimum radius when charge starts
+const CHARGE_PARTICLE_MAX_SPAWN_RADIUS = 60; // Max radius when fully charged
 const CHARGE_PARTICLE_LIFESPAN = 0.3; // Short lifespan
+const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
+
+// --- Fully Charged Effect Constants ---
+const FULLY_CHARGED_PARTICLE_COLOR = 'rgba(255, 100, 80, 0.6)'; // Red/Orange, slightly transparent
+const FULLY_CHARGED_PARTICLE_COUNT = 2; // Fewer particles than charging
+const FULLY_CHARGED_PARTICLE_SPEED_MIN = 10;
+const FULLY_CHARGED_PARTICLE_SPEED_MAX = 40;
+const FULLY_CHARGED_PARTICLE_LIFESPAN = 0.4;
+const FULLY_CHARGED_PARTICLE_SIZE = 1.5;
+const FULLY_CHARGED_PARTICLE_EMIT_RATE = 2; // Emit rate while fully charged
 
 // --- Explosion Particle Constants ---
 const OBJ_EXPLOSION_PARTICLE_COUNT = 40; // Increased slightly
@@ -183,14 +195,17 @@ class ParticleSystem {
         );
     }
 
-    // New emitter for charging effect
-    emitChargeParticles(spawnCenterX, spawnCenterY, count, targetX, targetY) {
+    // Updated emitter for charging effect
+    emitChargeParticles(spawnCenterX, spawnCenterY, count, targetX, targetY, chargeRatio) {
+         // Calculate current spawn radius based on charge ratio
+         const currentSpawnRadius = CHARGE_PARTICLE_MIN_SPAWN_RADIUS + chargeRatio * (CHARGE_PARTICLE_MAX_SPAWN_RADIUS - CHARGE_PARTICLE_MIN_SPAWN_RADIUS);
+
          for (let i = 0; i < count; i++) {
             if (this.particles.length >= this.maxParticles) break;
 
-             // Spawn at a random angle and distance around the spawn center
+             // Spawn at a random angle and distance around the spawn center using current radius
              const angle = Math.random() * Math.PI * 2;
-             const radius = Math.random() * CHARGE_PARTICLE_SPAWN_RADIUS;
+             const radius = Math.random() * currentSpawnRadius; // Use calculated radius
              const spawnX = spawnCenterX + Math.cos(angle) * radius;
              const spawnY = spawnCenterY + Math.sin(angle) * radius;
 
@@ -214,6 +229,28 @@ class ParticleSystem {
              ));
          }
     }
+
+    // New emitter for fully charged sustain effect
+    emitFullyChargedSustain(emitX, emitY, count = FULLY_CHARGED_PARTICLE_COUNT) {
+        for (let i = 0; i < count; i++) {
+            if (this.particles.length >= this.maxParticles) break;
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * (FULLY_CHARGED_PARTICLE_SPEED_MAX - FULLY_CHARGED_PARTICLE_SPEED_MIN) + FULLY_CHARGED_PARTICLE_SPEED_MIN;
+            const vx = Math.cos(angle) * speed;
+            const vy = Math.sin(angle) * speed;
+            const lifespan = FULLY_CHARGED_PARTICLE_LIFESPAN * (Math.random() * 0.4 + 0.8); // +/- 20% variation
+            const colorEnd = FULLY_CHARGED_PARTICLE_COLOR.replace(/[\d.]+\)$/g, '0)'); // Fade to transparent
+
+            this._addParticle(new Particle(
+                emitX, emitY, vx, vy,
+                lifespan,
+                FULLY_CHARGED_PARTICLE_COLOR, colorEnd, // Color (fade)
+                FULLY_CHARGED_PARTICLE_SIZE, FULLY_CHARGED_PARTICLE_SIZE * 0.5 // Size (shrinks)
+            ));
+        }
+    }
+
 
     // --- Updated Explosion Emitter ---
 
@@ -310,10 +347,24 @@ export {
     // Charging Constants (if needed elsewhere)
     CHARGE_PARTICLE_COLOR,
     CHARGE_PARTICLE_SPEED,
-    CHARGE_PARTICLE_SPAWN_RADIUS,
+    CHARGE_PARTICLE_MIN_SPAWN_RADIUS,
+    CHARGE_PARTICLE_MAX_SPAWN_RADIUS,
     CHARGE_PARTICLE_LIFESPAN,
+    CHARGE_PARTICLE_EMIT_RATE,
+    // Fully Charged Constants
+    FULLY_CHARGED_PARTICLE_COLOR,
+    FULLY_CHARGED_PARTICLE_COUNT,
+    FULLY_CHARGED_PARTICLE_SPEED_MIN,
+    FULLY_CHARGED_PARTICLE_SPEED_MAX,
+    FULLY_CHARGED_PARTICLE_LIFESPAN,
+    FULLY_CHARGED_PARTICLE_SIZE,
+    FULLY_CHARGED_PARTICLE_EMIT_RATE,
     // Spark/Smoke Constants (if needed elsewhere)
     SPARK_COLOR,
     SMOKE_COLOR_START,
-    SMOKE_COLOR_END
+    SMOKE_COLOR_END,
+    SPARK_SPEED_DEVIATION,
+    SMOKE_SPEED_DEVIATION,
+    SMOKE_SIZE_START,
+    SMOKE_SIZE_END
 };

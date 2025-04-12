@@ -2,9 +2,12 @@ import { GLOBAL_PHYSICS } from '../player-state.js';
 import { getPowerupMultiplier } from '../powerups/powerup-effects.js';
 import { PowerupType } from '../powerups/powerup-types.js';
 import { PlayerLifecycleState } from '../player-lifecycle.js';
+// Import constants from ParticleSystem
+import {
+    CHARGE_PARTICLE_EMIT_RATE,
+    FULLY_CHARGED_PARTICLE_EMIT_RATE // Add constant for fully charged emission
+} from '../../rendering/particle-system.js';
 
-// Configuration
-const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
 const TAP_FIRE_CHARGE_THRESHOLD = 5; // Minimal charge level considered a tap fire (for wantsToFire logic)
 
 /**
@@ -87,21 +90,36 @@ class WeaponSystem {
             const rapidFireMultiplier = getPowerupMultiplier(this.state, PowerupType.RAPID_FIRE);
             const effectiveChargeRate = this.state.chargeRate * rapidFireMultiplier; // Faster charge with rapid fire
 
+            const wasFullyCharged = this.chargeLevel >= this.state.maxChargeLevel;
+
             this.chargeLevel = Math.min(
                 this.chargeLevel + effectiveChargeRate * deltaTime, // Use effective rate
                 this.state.maxChargeLevel // Use vehicle's maxChargeLevel from state
             );
 
+            const isFullyCharged = this.chargeLevel >= this.state.maxChargeLevel;
+
             // Emit charging particles if system available
             if (particleSystem && getVisualCenterFunc) {
-                // Use the imported function here
                 const nosePos = this.getVisualNosePositionFunc(this.state);
                 const centerPos = getVisualCenterFunc(); // Assumes visual center is needed
-                particleSystem.emitChargeParticles(
-                    centerPos.x, centerPos.y,
-                    CHARGE_PARTICLE_EMIT_RATE,
-                    nosePos.x, nosePos.y
-                );
+                const chargeRatio = this.state.maxChargeLevel > 0 ? Math.min(1, this.chargeLevel / this.state.maxChargeLevel) : 0;
+
+                if (!isFullyCharged) {
+                    // Emit "drawing in" particles while charging below max
+                    particleSystem.emitChargeParticles(
+                        centerPos.x, centerPos.y,
+                        CHARGE_PARTICLE_EMIT_RATE,
+                        nosePos.x, nosePos.y,
+                        chargeRatio // Pass charge ratio
+                    );
+                } else {
+                    // Emit "fully charged sustain" particles once max charge is reached and held
+                    particleSystem.emitFullyChargedSustain(
+                        nosePos.x, nosePos.y,
+                        FULLY_CHARGED_PARTICLE_EMIT_RATE // Use a different rate maybe?
+                    );
+                }
             }
 
         } else if (!this.wantsToFire) { // Reset/decay only if not actively trying to fire
