@@ -135,7 +135,8 @@ async function initializeGame() {
         );
 
         scoreboard = new Scoreboard(scoreboardEl, playerManager, networkManager);
-        leaderboard = new Leaderboard(leaderboardEl, scorePersistence, networkManager);
+        // Pass assets to Leaderboard
+        leaderboard = new Leaderboard(leaderboardEl, scorePersistence, networkManager, assets);
 
         // Pass PlayerManager to PlayerLifecycleManager
         playerLifecycleManager = new PlayerLifecycleManager(
@@ -193,6 +194,15 @@ async function initializeGame() {
 
         // --- Setup Network Handlers ---
         networkEventHandler.setupNetworkHandlers();
+
+        // --- Expose Debug Functions ---
+        window.websim.debug = window.websim.debug || {}; // Ensure debug namespace exists
+        window.websim.debug.resetMyScores = () => {
+            console.log("Calling resetMyScores...");
+            scorePersistence.resetMyScores();
+        };
+        console.log("Debug function window.websim.debug.resetMyScores() is available.");
+
 
         // --- Start Game Loop ---
         lastUpdateTime = performance.now();

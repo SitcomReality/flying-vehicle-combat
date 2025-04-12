@@ -61,7 +61,7 @@ class PlayerLifecycleManager {
         const spawnY = groundY - vehicleHeight - 10; // Spawn slightly above ground
 
         // Reset state and set to ACTIVE
-        localPlayer.resetStateForSpawn(spawnX, spawnY);
+        localPlayer.resetStateForSpawn(spawnX, spawnY); // This should reset score
 
         // Hide UI
         this.vehicleSelector?.hide();
@@ -97,10 +97,13 @@ class PlayerLifecycleManager {
        // Get username from network manager's peers list
        const localPeer = this.networkManager?.getPeer(playerId);
        const username = localPeer?.username;
+       // Get vehicle type BEFORE resetting state
+       const vehicleType = player.state.vehicleType;
 
        if (username && finalScore > 0 && this.scorePersistence) {
-           console.log(`Player ${username} died with score ${finalScore}. Saving score...`);
-           this.scorePersistence.saveScore(finalScore).catch(err => {
+           console.log(`Player ${username} died with score ${finalScore} in vehicle type ${vehicleType}. Saving score...`);
+           // Pass vehicleType to saveScore
+           this.scorePersistence.saveScore(finalScore, vehicleType).catch(err => {
                console.error("Failed to save score asynchronously:", err);
            });
        } else if (finalScore <= 0) {

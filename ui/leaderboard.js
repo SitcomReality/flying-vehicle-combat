@@ -1,10 +1,12 @@
 // New file: Renders the all-time leaderboard
+import { SPRITES } from '../config/sprites.js'; // Import SPRITES config
 
 class Leaderboard {
-    constructor(element, scorePersistence, networkManager, maxEntries = 10) {
+    constructor(element, scorePersistence, networkManager, assets, maxEntries = 10) { // Added assets
         this.element = element;
         this.scorePersistence = scorePersistence;
-        this.networkManager = networkManager; 
+        this.networkManager = networkManager;
+        this.assets = assets; // Store assets
         this.maxEntries = maxEntries;
         this.scores = [];
         this.unsubscribe = null;
@@ -20,6 +22,9 @@ class Leaderboard {
         }
         if (!this.networkManager) {
              console.error("Leaderboard requires NetworkManager instance!");
+        }
+        if (!this.assets || !this.assets.vehicles) { // Check for assets
+             console.warn("Leaderboard initialized without vehicle assets. Sprites will not be shown.");
         }
 
 
@@ -51,12 +56,36 @@ class Leaderboard {
                 const highlightClass = isLocalUserEntry ? ' class="local-player-score"' : '';
 
 
+                // --- Vehicle Sprite Rendering ---
+                let vehicleSpriteHtml = '';
+                const vehicleType = entry.vehicleType; // Get vehicle type from record
+                const vehicleSheet = this.assets?.vehicles;
+
+                if (vehicleType !== undefined && vehicleType !== null && vehicleSheet && SPRITES.vehicles.frames[vehicleType]) {
+                    const frame = SPRITES.vehicles.frames[vehicleType];
+                    // Use background-image for simplicity to avoid extra canvas elements
+                    vehicleSpriteHtml = `
+                        <div class="leader-vehicle-sprite"
+                             style="background-image: url(${SPRITES.vehicles.sheet});
+                                    background-position: -${frame.x}px -${frame.y}px;
+                                    width: ${frame.width}px;
+                                    height: ${frame.height}px;">
+                        </div>
+                    `;
+                } else {
+                    // Placeholder or empty if no type/asset
+                    vehicleSpriteHtml = '<div class="leader-vehicle-sprite placeholder">?</div>';
+                    if (vehicleType === undefined || vehicleType === null) console.warn(`High score entry missing vehicleType:`, entry);
+                }
+                // --- End Vehicle Sprite Rendering ---
+
                 html += `
                     <li${highlightClass}>
                         <span class="rank">${index + 1}.</span>
-                        <span class="leader-name" title="${safeName}${localIndicator}">
+                        <span class="leader-info"> 
+                            ${vehicleSpriteHtml} 
                             <img src="https://images.websim.ai/avatar/${encodeURIComponent(username)}" class="leader-avatar" alt="">
-                            ${safeName}${localIndicator}
+                            <span class="leader-name" title="${safeName}${localIndicator}">${safeName}${localIndicator}</span>
                         </span>
                         <span class="leader-score">${entry.score}</span>
                     </li>

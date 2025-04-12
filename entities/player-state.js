@@ -50,7 +50,7 @@ export class PlayerState {
         this.maxFuel = 100;
 
         // --- Scoring ---
-        this.score = 0;
+        this.score = 0; // Initialize score to 0
 
         // --- Vehicle-specific physics properties ---
         // Initialize with base physics values from the config
@@ -119,7 +119,7 @@ export class PlayerState {
         this.serverFuel = this.fuel;
         this.serverIsInvulnerable = this.isInvulnerable;
         this.serverLifecycleState = this.lifecycleState;
-        this.serverScore = this.score;
+        this.serverScore = this.score; // Initialize server score
     }
 
     updateVehicleProperties() {
@@ -248,8 +248,9 @@ export class PlayerState {
         this.lastGroundDamageTime = 0;
         this.activePowerups = {}; // Clear powerups on spawn
 
-        // Reset score? (Decide based on game rules - currently NOT resetting score on respawn)
-        // this.score = 0;
+        // --- RESET SCORE ON SPAWN ---
+        this.score = 0;
+        // --- END RESET SCORE ---
 
         // Reset server state representations
         this.serverX = x;
@@ -261,7 +262,7 @@ export class PlayerState {
         this.serverFuel = this.fuel;
         this.serverIsInvulnerable = this.isInvulnerable;
         this.serverLifecycleState = PlayerLifecycleState.ACTIVE; // Set to active on spawn
-        this.serverScore = this.score; // Reflect current score
+        this.serverScore = this.score; // Reflect reset score
         this.lastServerUpdateTime = 0;
 
         // Ensure flags are correct
