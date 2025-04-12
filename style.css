@@ -37,6 +37,7 @@ canvas {
 /* General UI Panel Styling */
 .ui-panel {
     position: absolute;
+    top: 10px; /* Align with debug */
     background-color: rgba(255, 255, 255, 0.9); /* Slightly more opaque */
     color: #222; /* Slightly darker text */
     padding: 15px 20px; /* Increase padding */
@@ -49,42 +50,10 @@ canvas {
     /* Font applied via body */
 }
 
-/* Controls Info Panel */
-#controlsInfo {
-    left: 10px; /* Position on the left */
-    top: 10px; /* Position at the top */
-    width: 180px; /* Match scoreboard width */
-    padding: 10px 15px; /* Smaller padding than scoreboard */
-}
-
-#controlsInfo h2 {
-    font-size: 1.4em; /* Slightly smaller heading */
-    margin-bottom: 10px;
-    padding-bottom: 5px;
-}
-
-#controlsInfo ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-#controlsInfo li {
-    padding: 3px 0; /* Less padding */
-    font-size: 0.9em; /* Smaller font */
-    display: flex;
-    justify-content: space-between;
-}
-
-#controlsInfo li span:first-child {
-    font-weight: bold; /* Use Cabin Sketch bold for keys? No, stick to Irish Grover */
-    margin-right: 5px;
-}
-
 #scoreboard {
     left: 10px; /* Position on the left */
     width: 180px; /* Fixed width */
-    top: calc(10px + 90px + 10px); /* Approx height of controls panel + margin */
+    top: 10px; /* Align with debug */
 }
 
 /* Apply Cabin Sketch to panel headings */
@@ -134,7 +103,7 @@ canvas {
 #leaderboard {
     right: 10px; /* Position on the right */
     width: 220px; /* Slightly wider for avatars */
-    top: 10px; /* Align with debug/controls */
+    top: 10px; /* Align with debug */
 }
 
 #leaderboard ul {
@@ -226,7 +195,7 @@ canvas {
 
 /* Media Query for smaller screens */
 @media (max-width: 1100px) { 
-    #controlsInfo, #scoreboard, #leaderboard { 
+    #scoreboard, #leaderboard { 
         position: relative; 
         top: auto;
         left: auto;
@@ -238,7 +207,6 @@ canvas {
     body {
         flex-direction: column;
     }
-    #controlsInfo { order: 2; } 
     #scoreboard { order: 3; } 
     #leaderboard { order: 4; } 
 }

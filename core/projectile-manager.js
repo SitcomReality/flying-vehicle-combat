@@ -75,11 +75,14 @@ class ProjectileManager {
 
             if (projectile.isMarkedForRemoval) {
                 // --- Trigger explosion effect based on removal reason ---
+                // Only trigger effect if it hit something tangible (player, object, ground)
+                // NOT if it simply went out of bounds or timed out.
                 if (this.particleSystem &&
                     (projectile.removalReason === ProjectileRemovalReason.HIT_PLAYER ||
                      projectile.removalReason === ProjectileRemovalReason.HIT_OBJECT ||
                      projectile.removalReason === ProjectileRemovalReason.GROUND))
                 {
+                    // Use emitProjectileImpact which creates a small burst effect
                     this.particleSystem.emitProjectileImpact(projectile.x, projectile.y, projectile.vx, projectile.vy, projectile.color);
                 }
                 // --- End Trigger effect ---
