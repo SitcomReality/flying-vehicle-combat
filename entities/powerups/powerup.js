@@ -11,14 +11,19 @@ class Powerup {
         this.radius = radius;   // Collision radius
         this.spriteFrame = getPowerupSpriteFrame(type); // Get sprite data
         this.isMarkedForRemoval = false; // Flag for cleanup
-        this.bobOffset = 0;   // For visual bobbing effect
+        this.bobOffset = Math.random() * Math.PI * 2; // Random start offset for bobbing
         this.bobSpeed = 2;    // Speed of bobbing
         this.bobRange = 3;    // Max distance to bob up/down
+        this.creationTime = performance.now(); // Timestamp for spawner sync checks
     }
 
     update(deltaTime) {
-        // Simple bobbing effect
-        this.bobOffset = Math.sin(performance.now() / (1000 / this.bobSpeed)) * this.bobRange;
+        // Simple bobbing effect using internal offset and speed
+        this.bobOffset += this.bobSpeed * deltaTime;
+        // Keep offset within reasonable bounds to prevent large numbers
+        if (this.bobOffset > Math.PI * 4) { // Allow a bit more than 2PI before reset
+             this.bobOffset -= Math.PI * 2;
+        }
     }
 
     draw(ctx, assets, renderScale) {
@@ -32,8 +37,9 @@ class Powerup {
         const drawWidth = frame.width * visualScale;
         const drawHeight = frame.height * visualScale;
         const drawX = Math.round(this.x - drawWidth / 2);
-        // Apply bobbing offset to Y position
-        const drawY = Math.round(this.y - drawHeight / 2 + this.bobOffset);
+        // Apply bobbing offset to Y position using Math.sin
+        const currentBob = Math.sin(this.bobOffset) * this.bobRange;
+        const drawY = Math.round(this.y - drawHeight / 2 + currentBob);
 
         try {
             ctx.drawImage(
