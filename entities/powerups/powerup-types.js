@@ -32,7 +32,7 @@ export const POWERUP_CONFIG = {
     },
     [PowerupType.FUEL_PACK]: {
         duration: 0, // Instant effect
-        value: 75,   // Amount of fuel restored
+        value: 150,   // Amount of fuel restored
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.FUEL_PACK],
         name: 'Fuel Pack',
         dropWeight: 15, // Most common drop
@@ -46,7 +46,7 @@ export const POWERUP_CONFIG = {
     },
     [PowerupType.DAMAGE_BOOST]: {
         duration: 10000, // 10 seconds
-        multiplier: 1.5, // 50% damage increase
+        multiplier: 2.5, // 50% damage increase
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.DAMAGE_BOOST],
         name: 'Damage Boost',
         dropWeight: 4, // Medium drop rate
