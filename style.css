@@ -264,7 +264,7 @@ canvas {
 
 .vehicle-slot .vehicle-name {
     font-size: 1.5em;
-    color: rgba(255, 255, 255, 0.9);
+    color: #000;
     font-family: 'Irish Grover', cursive;
     text-align: center;
     visibility: hidden; /* Hidden by default */
