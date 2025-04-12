@@ -120,7 +120,7 @@ class Particle {
     }
 }
 
-export class ParticleSystem {
+class ParticleSystem {
     constructor(maxParticles = 1000) { // Increased max particles for explosions
         this.particles = [];
         this.maxParticles = maxParticles;
