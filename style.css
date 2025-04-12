@@ -1,8 +1,8 @@
 body {
     margin: 0;
     overflow: hidden;
-    /* background-color: #f0f0f0; Removed default background */
-    font-family: 'Comic Sans MS', 'Chalkduster', 'cursive'; /* Crayon-like font */
+    /* Changed font-family */
+    font-family: 'Irish Grover', cursive;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -15,7 +15,6 @@ canvas {
     border: 5px solid #333; /* Thick, slightly irregular border */
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.3); /* Subtle shadow */
     background-color: #0a0a1a; /* Default canvas background color (dark space) */
-    /* Potential TODO: Add a subtle paper/crayon texture background image */
     image-rendering: pixelated; /* Keep pixel art crisp */
     image-rendering: crisp-edges;
 }
@@ -37,16 +36,16 @@ canvas {
 .ui-panel {
     position: absolute;
     top: 10px; /* Align with debug */
-    background-color: rgba(255, 255, 255, 0.85); /* Slightly less transparent */
-    color: #333;
-    padding: 10px 15px;
-    border: 3px solid #555;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    background-color: rgba(255, 255, 255, 0.9); /* Slightly more opaque */
+    color: #222; /* Slightly darker text */
+    padding: 15px 20px; /* Increase padding */
+    border: 4px solid #444; /* Thicker border */
+    border-radius: 12px; /* More rounded */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Stronger shadow */
     z-index: 10;
     max-height: calc(100vh - 40px); /* Prevent vertical overflow */
     overflow-y: auto;
-    font-family: 'Comic Sans MS', 'Chalkduster', cursive;
+    /* Font applied via body */
 }
 
 #scoreboard {
@@ -55,12 +54,16 @@ canvas {
     top: 10px; /* Align with debug */
 }
 
-#scoreboard h2 {
-    margin: 0 0 10px 0;
-    font-size: 1.2em;
+/* Apply Cabin Sketch to headings */
+.ui-panel h2 {
+    font-family: 'Cabin Sketch', cursive;
+    font-weight: 700; /* Use bold variant */
+    margin: 0 0 15px 0; /* More space below */
+    font-size: 1.6em; /* Larger heading */
     text-align: center;
-    border-bottom: 2px solid #ccc;
-    padding-bottom: 5px;
+    border-bottom: 3px dashed #aaa; /* Dashed border like chalk */
+    padding-bottom: 8px;
+    color: #1a1a1a;
 }
 
 #scoreboard ul {
@@ -72,9 +75,9 @@ canvas {
 #scoreboard li {
     display: flex;
     justify-content: space-between;
-    padding: 4px 0;
-    border-bottom: 1px solid #eee;
-    font-size: 0.9em;
+    padding: 5px 0; /* Increased padding */
+    border-bottom: 1px solid #ddd; /* Lighter border */
+    font-size: 1.0em; /* Slightly larger font */
 }
 
 #scoreboard li:last-child {
@@ -82,7 +85,7 @@ canvas {
 }
 
 .score-name {
-    font-weight: bold;
+    font-weight: normal; /* Use regular Irish Grover */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -91,22 +94,14 @@ canvas {
 }
 
 .score-value {
-    font-weight: normal;
-    color: #0056b3; /* Distinct color for score */
+    font-weight: normal; /* Use regular Irish Grover */
+    color: #d9534f; /* Vibrant red for score */
 }
 
 #leaderboard {
     right: 10px; /* Position on the right */
     width: 220px; /* Slightly wider for avatars */
     top: 10px; /* Align with debug */
-}
-
-#leaderboard h2 {
-    margin: 0 0 10px 0;
-    font-size: 1.2em;
-    text-align: center;
-    border-bottom: 2px solid #ccc;
-    padding-bottom: 5px;
 }
 
 #leaderboard ul {
@@ -118,9 +113,9 @@ canvas {
 #leaderboard li {
     display: flex;
     align-items: center; /* Align items vertically */
-    padding: 5px 0; /* Increased padding */
-    border-bottom: 1px solid #eee;
-    font-size: 0.9em;
+    padding: 6px 0; /* Further increased padding */
+    border-bottom: 1px solid #ddd;
+    font-size: 1.0em; /* Match scoreboard font size */
 }
 
 #leaderboard li:last-child {
@@ -128,15 +123,15 @@ canvas {
 }
 
 #leaderboard li.local-player-score {
-    background-color: #e0f0ff; /* Light blue highlight */
-    font-weight: bold;
+    background-color: #eef8ff; /* Lighter blue highlight */
+    /* Font weight comes from Irish Grover */
 }
 
 #leaderboard .rank {
     flex: 0 0 25px; /* Fixed width for rank */
     text-align: right;
     margin-right: 8px;
-    color: #666;
+    color: #555; /* Darker rank color */
 }
 
 #leaderboard .leader-name {
@@ -150,18 +145,17 @@ canvas {
 }
 
 #leaderboard .leader-avatar {
-    width: 18px;
-    height: 18px;
+    width: 20px; /* Slightly larger avatar */
+    height: 20px;
     border-radius: 50%;
-    margin-right: 5px;
-    border: 1px solid #ccc;
-    vertical-align: middle; /* Although flex alignment is primary now */
+    margin-right: 6px; /* More space */
+    border: 2px solid #bbb; /* Thicker border */
+    vertical-align: middle;
 }
 
 #leaderboard .leader-score {
     flex-shrink: 0; /* Prevent score from shrinking */
-    font-weight: bold;
-    color: #0056b3; /* Distinct color for score */
+    color: #d9534f; /* Vibrant red for score */
     margin-left: auto; /* Push score to the right */
 }
 
@@ -174,7 +168,7 @@ canvas {
         right: auto; /* Reset side positioning */
         width: 90%; /* Make it wider */
         max-width: 400px;
-        margin-top: 10px; /* Add space below canvas */
+        margin-top: 15px; /* More space below canvas */
     }
     /* Adjust body flex direction for vertical layout */
     body {
@@ -212,89 +206,99 @@ canvas {
     left: 50%;
     transform: translate(-50%, -50%);
     background-color: rgba(255, 255, 255, 0.9);
-    padding: 20px;
-    border: 5px solid #555;
-    border-radius: 10px;
+    padding: 25px; /* More padding */
+    border: 6px solid #444; /* Thicker border */
+    border-radius: 15px; /* More rounded */
     text-align: center;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4); /* Enhanced shadow */
     z-index: 20; /* Ensure selector is above debug and canvas */
 }
 
+/* Use Cabin Sketch for the overlay heading */
 #vehicleSelector h2 {
+    font-family: 'Cabin Sketch', cursive;
+    font-weight: 700;
     margin-top: 0;
-    margin-bottom: 15px;
-    color: #333;
+    margin-bottom: 20px; /* More space */
+    color: #1a1a1a; /* Darker text */
+    font-size: 2.0em; /* Even larger */
+    border-bottom: none; /* Remove default panel border */
 }
 
 #vehicleOptions {
     display: flex;
     justify-content: space-around;
-    gap: 15px;
-    margin-bottom: 20px;
+    gap: 20px; /* More gap */
+    margin-bottom: 25px; /* More space */
 }
 
 .vehicle-option {
-    border: 3px solid transparent;
-    padding: 10px;
+    border: 4px solid transparent; /* Thicker border for selection */
+    padding: 15px; /* More padding */
     cursor: pointer;
     transition: border-color 0.2s ease, background-color 0.2s ease;
-    background-color: #eee;
-    border-radius: 8px;
+    background-color: #f0f0f0; /* Lighter background */
+    border-radius: 10px; /* More rounded */
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
 .vehicle-option:hover {
-    background-color: #ddd;
+    background-color: #e0e0e0; /* Slightly darker hover */
 }
 
 .vehicle-option.selected {
     border-color: #333;
-    background-color: #ccf; /* Highlight selected */
+    background-color: #d0e0ff; /* Lighter blue highlight */
 }
 
 .vehicle-option canvas {
-    width: 100px; /* Scaled preview */
-    height: 100px;
-    margin-bottom: 10px;
-    background-color: #667; /* Simple background for preview */
-    border: 1px solid #aaa;
-    border-radius: 4px;
+    width: 110px; /* Larger preview */
+    height: 110px;
+    margin-bottom: 15px; /* More space */
+    background-color: #778; /* Medium grey background */
+    border: 2px solid #aaa;
+    border-radius: 6px;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
 }
 
+/* Use Irish Grover for option name/stats */
 .vehicle-option h3 {
-    margin: 5px 0;
-    font-size: 1em;
-    color: #444;
+    margin: 8px 0 5px 0;
+    font-size: 1.2em;
+    color: #333;
+    font-family: 'Irish Grover', cursive;
 }
 .vehicle-option p {
-    margin: 2px 0;
-    font-size: 0.8em;
-    color: #666;
+    margin: 3px 0;
+    font-size: 0.9em;
+    color: #555;
     white-space: nowrap; /* Prevent wrapping */
+    font-family: 'Irish Grover', cursive;
 }
 
 #confirmSelection {
-    padding: 10px 20px;
-    font-size: 1.1em;
-    font-family: 'Comic Sans MS', 'Chalkduster', 'cursive';
+    padding: 12px 25px; /* Bigger button */
+    font-size: 1.3em; /* Larger font */
+    font-family: 'Irish Grover', cursive; /* Use Irish Grover */
     background-color: #5cb85c;
     color: white;
-    border: 2px solid #4cae4c;
-    border-radius: 5px;
+    border: 3px solid #4cae4c; /* Thicker border */
+    border-radius: 8px; /* More rounded */
     cursor: pointer;
     transition: background-color 0.2s ease;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3); /* Add subtle text shadow */
 }
 
 #confirmSelection:hover {
-    background-color: #4cae4c;
+    background-color: #4aa04a; /* Slightly darker hover */
 }
 
 #confirmSelection:disabled {
     background-color: #aaa;
     border-color: #999;
     cursor: not-allowed;
+    text-shadow: none;
 }
