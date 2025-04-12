@@ -4,7 +4,6 @@ import Powerup from './powerup.js';
 import { PowerupType, POWERUP_SPAWN_CONFIG, getRandomPowerupType } from './powerup-types.js';
 
 class PowerupManager {
-    // Added particleSystem as a dependency
     constructor(networkManager, assets, renderScale, particleSystem) {
         this.networkManager = networkManager;
         this.assets = assets; // Loaded sprite sheets
@@ -13,10 +12,10 @@ class PowerupManager {
         this.activePowerups = {}; // Stores local Powerup instances { id: Powerup }
         this.lastSpawnAttemptTime = 0;
 
-        // Listen for room state changes to sync powerups
-        this.networkManager.onPresenceUpdate(this._handlePresenceUpdate.bind(this)); // Need peer list for spawner check
+        this.networkManager.onPresenceUpdate(this._handlePresenceUpdate.bind(this));
         this.networkManager.onRoomStateUpdate(this._handleRoomStateUpdate.bind(this));
-        this._initializeFromRoomState(); // Initial sync
+        // Delay initialization slightly
+        setTimeout(() => this._initializeFromRoomState(), 200);
     }
 
     _initializeFromRoomState() {
