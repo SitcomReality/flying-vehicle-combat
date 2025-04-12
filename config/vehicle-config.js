@@ -28,9 +28,9 @@ export const VEHICLE_TYPES = {
         name: "Standard Issue",
         // Core Stats
         maxHealth: 100,
-        maxFuel: 100,
-        fuelRegenRate: 30, // units per second
-        fuelConsumeRate: 30, // units per second of thrust
+        maxFuel: 200,
+        fuelRegenRate: 20, // units per second
+        fuelConsumeRate: 50, // units per second of thrust
         // Movement - balanced
         thrustForce: 1500, // INCREASED (Needs > GRAVITY)
         horizontalAcceleration: 800, // pixels/sec^2
@@ -51,9 +51,9 @@ export const VEHICLE_TYPES = {
         name: "Heavy Hauler",
         // Core Stats
         maxHealth: 150, // More health
-        maxFuel: 150,    // MOST fuel (swapped from 80)
-        fuelRegenRate: 30,
-        fuelConsumeRate: 35, // Consumes more fuel
+        maxFuel: 250,    // MOST fuel (swapped from 80)
+        fuelRegenRate: 20,
+        fuelConsumeRate: 55, // Consumes more fuel
         // Movement - slower, less agile
         thrustForce: 1400, // INCREASED (Needs > GRAVITY)
         horizontalAcceleration: 600,
@@ -74,9 +74,9 @@ export const VEHICLE_TYPES = {
         name: "Interceptor",
         // Core Stats
         maxHealth: 75,  // Less health
-        maxFuel: 80,   // LEAST fuel (swapped from 120)
-        fuelRegenRate: 30, // Faster regen
-        fuelConsumeRate: 25, // Consumes less fuel
+        maxFuel: 150,   // LEAST fuel (swapped from 120)
+        fuelRegenRate: 20, // Faster regen
+        fuelConsumeRate: 45, // Consumes less fuel
         // Movement - faster, more agile
         thrustForce: 1600, // INCREASED (Needs > GRAVITY)
         horizontalAcceleration: 1000,
