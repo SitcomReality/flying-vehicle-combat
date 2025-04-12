@@ -1,53 +1,59 @@
 // New file: Handles particle effects like sparks and smoke
 
-const DEFAULT_PARTICLE_LIFESPAN = 0.5; // seconds
-const SPARK_COLOR = 'rgba(255, 220, 100, 0.8)'; // Bright yellow/orange
-const SMOKE_COLOR_START = 'rgba(200, 200, 200, 0.6)'; // Light grey
-const SMOKE_COLOR_END = 'rgba(50, 50, 50, 0)'; // Fades to transparent dark grey
-const SPARK_SPEED_DEVIATION = 50;
-const SMOKE_SPEED_DEVIATION = 10;
-const SMOKE_SIZE_START = 3;
-const SMOKE_SIZE_END = 10;
+// --- Increased Spectacle Constants ---
+const DEFAULT_PARTICLE_LIFESPAN = 0.8; // Increased from 0.5
+const SPARK_COLOR = 'rgba(255, 230, 120, 0.9)'; // Brighter yellow/orange
+const SMOKE_COLOR_START = 'rgba(220, 220, 220, 0.7)'; // Lighter grey start
+const SMOKE_COLOR_END = 'rgba(60, 60, 60, 0)'; // Fades to transparent darker grey
+const SPARK_SPEED_BASE = 100; // Base speed magnitude
+const SPARK_SPEED_DEVIATION = 120; // Increased variance
+const SMOKE_SPEED_BASE = 40;   // Base speed magnitude
+const SMOKE_SPEED_DEVIATION = 30; // Increased variance
+const SMOKE_SIZE_START = 4; // Larger start
+const SMOKE_SIZE_END = 18; // Larger end
+const SPARK_EMIT_RATE = 15; // Increased sparks/second (probabilistic)
+const SMOKE_EMIT_RATE = 10; // Increased smoke/second (probabilistic)
 
-const CHARGE_PARTICLE_COLOR = 'rgba(150, 180, 255, 0.7)'; // Light blue/purple
-const CHARGE_PARTICLE_SPEED = 150; // Speed towards the target point
-const CHARGE_PARTICLE_MIN_SPAWN_RADIUS = 5; // Minimum radius when charge starts
-const CHARGE_PARTICLE_MAX_SPAWN_RADIUS = 60; // Max radius when fully charged
-const CHARGE_PARTICLE_LIFESPAN = 0.3; // Short lifespan
-const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
+const CHARGE_PARTICLE_COLOR = 'rgba(180, 200, 255, 0.8)'; // Slightly brighter blue/purple
+const CHARGE_PARTICLE_SPEED = 250; // Increased speed towards the target point
+const CHARGE_PARTICLE_MIN_SPAWN_RADIUS = 8; // Slightly larger start radius
+const CHARGE_PARTICLE_MAX_SPAWN_RADIUS = 80; // Larger max radius
+const CHARGE_PARTICLE_LIFESPAN = 0.4; // Slightly longer lifespan
+const CHARGE_PARTICLE_EMIT_RATE = 5; // More particles per frame while charging
 
 // --- Fully Charged Effect Constants ---
-const FULLY_CHARGED_PARTICLE_COLOR = 'rgba(255, 100, 80, 0.6)'; // Red/Orange, slightly transparent
-const FULLY_CHARGED_PARTICLE_COUNT = 2; // Fewer particles than charging
-const FULLY_CHARGED_PARTICLE_SPEED_MIN = 10;
-const FULLY_CHARGED_PARTICLE_SPEED_MAX = 40;
-const FULLY_CHARGED_PARTICLE_LIFESPAN = 0.4;
-const FULLY_CHARGED_PARTICLE_SIZE = 1.5;
-const FULLY_CHARGED_PARTICLE_EMIT_RATE = 2; // Emit rate while fully charged
+const FULLY_CHARGED_PARTICLE_COLOR = 'rgba(255, 120, 100, 0.8)'; // Brighter Red/Orange
+const FULLY_CHARGED_PARTICLE_COUNT = 3; // Slightly more particles
+const FULLY_CHARGED_PARTICLE_SPEED_MIN = 20;
+const FULLY_CHARGED_PARTICLE_SPEED_MAX = 60; // Increased range
+const FULLY_CHARGED_PARTICLE_LIFESPAN = 0.5; // Longer lifespan
+const FULLY_CHARGED_PARTICLE_SIZE = 2.5; // Larger size
+const FULLY_CHARGED_PARTICLE_EMIT_RATE = 4; // Increased emit rate
 
 // --- Explosion Particle Constants ---
-const OBJ_EXPLOSION_PARTICLE_COUNT = 40; // Increased slightly
-const PLAYER_EXPLOSION_PARTICLE_COUNT = 100; // Increased significantly for player
-const EXPLOSION_LIFESPAN_MIN = 0.4;
-const EXPLOSION_LIFESPAN_MAX = 1.2;
-const EXPLOSION_SPEED_MIN = 40;
-const EXPLOSION_SPEED_MAX = 250;
-const PLAYER_EXPLOSION_SPEED_MAX = 450; // Increased significantly for player
-const EXPLOSION_COLORS_OBJ = ['rgba(255, 160, 80, 0.9)', 'rgba(200, 200, 200, 0.8)', 'rgba(100, 100, 100, 0.7)']; // Orange/grey
-const EXPLOSION_COLORS_PLAYER = ['rgba(255, 100, 50, 0.9)', 'rgba(255, 200, 50, 0.9)', 'rgba(255, 255, 255, 0.8)', 'rgba(200, 50, 50, 0.8)']; // More vibrant orange/red/white
-const EXPLOSION_GRAVITY = 150; // Gravity effect on explosion particles
+const OBJ_EXPLOSION_PARTICLE_COUNT = 100; // Significantly Increased
+const PLAYER_EXPLOSION_PARTICLE_COUNT = 250; // Massively Increased
+const EXPLOSION_LIFESPAN_MIN = 0.6; // Increased min
+const EXPLOSION_LIFESPAN_MAX = 1.8; // Increased max
+const EXPLOSION_SPEED_MIN = 60; // Increased min
+const EXPLOSION_SPEED_MAX = 400; // Increased max for objects
+const PLAYER_EXPLOSION_SPEED_MAX = 700; // Increased max for players
+const EXPLOSION_COLORS_OBJ = ['rgba(255, 180, 100, 1.0)', 'rgba(230, 230, 230, 0.9)', 'rgba(150, 150, 150, 0.8)']; // Brighter
+const EXPLOSION_COLORS_PLAYER = ['rgba(255, 120, 70, 1.0)', 'rgba(255, 220, 70, 1.0)', 'rgba(255, 255, 255, 1.0)', 'rgba(220, 70, 70, 0.9)']; // More vibrant
+const EXPLOSION_GRAVITY = 250; // Increased gravity effect
 
-const PICKUP_PARTICLE_COUNT = 15;
-const PICKUP_LIFESPAN = 0.4;
-const PICKUP_SPEED = 80;
-const PICKUP_SIZE = 2;
+// --- Pickup Particle Constants ---
+const PICKUP_PARTICLE_COUNT = 30; // Increased count
+const PICKUP_LIFESPAN = 0.6; // Increased lifespan
+const PICKUP_SPEED = 120; // Increased speed
+const PICKUP_SIZE = 3; // Increased size
 const COLLECTIBLE_COLORS = {
-    COIN: 'rgba(255, 215, 0, 0.9)',   // Gold
-    GEM_GREEN: 'rgba(0, 255, 127, 0.9)', // Spring Green
-    GEM_RED: 'rgba(255, 69, 0, 0.9)',    // OrangeRed
-    GEM_BLUE: 'rgba(30, 144, 255, 0.9)'  // DodgerBlue
+    COIN: 'rgba(255, 225, 50, 1.0)',   // Brighter Gold
+    GEM_GREEN: 'rgba(50, 255, 150, 1.0)', // Brighter Green
+    GEM_RED: 'rgba(255, 80, 50, 1.0)',    // Brighter Red
+    GEM_BLUE: 'rgba(50, 160, 255, 1.0)'  // Brighter Blue
 };
-const POWERUP_PICKUP_COLOR = 'rgba(138, 43, 226, 0.9)'; // BlueViolet
+const POWERUP_PICKUP_COLOR = 'rgba(180, 80, 255, 1.0)'; // Brighter Violet
 
 class Particle {
     constructor(x, y, vx, vy, lifespan, colorStart, colorEnd = null, sizeStart = 2, sizeEnd = 2) {
@@ -133,7 +139,7 @@ class Particle {
 }
 
 class ParticleSystem {
-    constructor(maxParticles = 1500) { // Increased max particles for bigger explosions
+    constructor(maxParticles = 3000) { // Increased max particles further
         this.particles = [];
         this.maxParticles = maxParticles;
         // Pre-parse colors if needed for performance, though likely negligible here
@@ -154,7 +160,7 @@ class ParticleSystem {
     }
 
     // Generic emitter used by specific types below
-    _emitInternal(x, y, count, vxBase, vyBase, vxVariance, vyVariance, lifespan, colorStart, colorEnd, sizeStart, sizeEnd) {
+    _emitInternal(x, y, count, vxBase, vyBase, vxVariance, vyVariance, lifespan, colorStart, colorEnd, sizeStart, sizeEnd, gravity = 0) {
          for (let i = 0; i < count; i++) {
              // Prevent adding more if max is reached during emission loop
              if (this.particles.length >= this.maxParticles) break;
@@ -163,35 +169,46 @@ class ParticleSystem {
              const vy = vyBase + (Math.random() - 0.5) * 2 * vyVariance;
              const particleLifespan = lifespan * (Math.random() * 0.5 + 0.75); // +/- 25% variation
 
-             this._addParticle(new Particle(
+             const particle = new Particle(
                  x, y, vx, vy,
                  particleLifespan,
                  colorStart, colorEnd,
                  sizeStart, sizeEnd
-             ));
+             );
+             particle.gravity = gravity; // Apply gravity if specified
+             this._addParticle(particle);
          }
     }
 
-    // Specific emitters
-    emitSparks(x, y, count = 1, baseSpeedX = 0) {
+    // Specific emitters using probabilistic emission based on rate
+    // Count parameter is now ignored, emission based on rate * deltaTime
+    emitSparks(x, y, count = 0, baseSpeedX = 0) {
+        const emitCount = Math.floor(SPARK_EMIT_RATE * (1/60) + Math.random()); // Probabilistic count based on rate (assuming ~60fps)
+        if (emitCount <= 0) return;
+
         this._emitInternal(
-            x, y, count,
-            baseSpeedX - 80, -50, // Base velocity (up and slightly against player movement)
+            x, y, emitCount, // Use calculated emit count
+            baseSpeedX, -SPARK_SPEED_BASE, // Base velocity (up and against player movement)
             SPARK_SPEED_DEVIATION, SPARK_SPEED_DEVIATION, // Variance
-            DEFAULT_PARTICLE_LIFESPAN * 0.5, // Shorter life for sparks
+            DEFAULT_PARTICLE_LIFESPAN * 0.7, // Slightly shorter life for sparks?
             SPARK_COLOR, null, // Color (no fade)
-            1, 1 // Size (small, constant)
+            1.5, 0.5, // Size (starts slightly larger, shrinks)
+            EXPLOSION_GRAVITY * 0.5 // Add some gravity to sparks
         );
     }
 
-    emitSmoke(x, y, count = 1, baseSpeedX = 0) {
+    emitSmoke(x, y, count = 0, baseSpeedX = 0) {
+        const emitCount = Math.floor(SMOKE_EMIT_RATE * (1/60) + Math.random()); // Probabilistic count
+        if (emitCount <= 0) return;
+
         this._emitInternal(
-            x, y, count,
-            baseSpeedX - 20, -10, // Base velocity (slowly drift up and slightly against player movement)
+            x, y, emitCount, // Use calculated emit count
+            baseSpeedX, -SMOKE_SPEED_BASE, // Base velocity (slowly drift up and against player movement)
             SMOKE_SPEED_DEVIATION, SMOKE_SPEED_DEVIATION, // Variance
-            DEFAULT_PARTICLE_LIFESPAN * 1.5, // Longer life for smoke
+            DEFAULT_PARTICLE_LIFESPAN * 2.0, // Longer life for smoke
             SMOKE_COLOR_START, SMOKE_COLOR_END, // Color (fade)
-            SMOKE_SIZE_START, SMOKE_SIZE_END // Size (grows)
+            SMOKE_SIZE_START, SMOKE_SIZE_END, // Size (grows)
+            0 // No gravity for smoke
         );
     }
 
@@ -225,13 +242,13 @@ class ParticleSystem {
                  spawnX, spawnY, vx, vy,
                  CHARGE_PARTICLE_LIFESPAN,
                  CHARGE_PARTICLE_COLOR, null, // Color (no fade)
-                 1, 1 // Size (small)
+                 1.5, 1.5 // Size (slightly larger)
              ));
          }
     }
 
     // New emitter for fully charged sustain effect
-    emitFullyChargedSustain(emitX, emitY, count = FULLY_CHARGED_PARTICLE_COUNT) {
+    emitFullyChargedSustain(emitX, emitY, count = FULLY_CHARGED_PARTICLE_EMIT_RATE) { // Count uses rate
         for (let i = 0; i < count; i++) {
             if (this.particles.length >= this.maxParticles) break;
 
@@ -250,7 +267,6 @@ class ParticleSystem {
             ));
         }
     }
-
 
     // --- Updated Explosion Emitter ---
 
@@ -274,10 +290,12 @@ class ParticleSystem {
             const vy = Math.sin(angle) * speed;
             const lifespan = Math.random() * (EXPLOSION_LIFESPAN_MAX - EXPLOSION_LIFESPAN_MIN) + EXPLOSION_LIFESPAN_MIN;
             const color = colors[Math.floor(Math.random() * colors.length)];
-            const size = Math.random() * 3 + 1; // Size 1 to 4
+             // Ensure alpha doesn't go below a minimum to keep particles visible longer
+             const colorEnd = color.replace(/[\d.]+\)$/g, `${Math.random() * 0.2 + 0.1})`); // Fade to low alpha
+            const size = Math.random() * 4 + 2; // Size 2 to 6
 
-            const particle = new Particle(x, y, vx, vy, lifespan, color, null, size, size * 0.5);
-            particle.gravity = EXPLOSION_GRAVITY; // Add some gravity to explosion particles
+            const particle = new Particle(x, y, vx, vy, lifespan, color, colorEnd, size, size * 0.3); // Shrink more drastically
+            particle.gravity = EXPLOSION_GRAVITY; // Add gravity to explosion particles
             this._addParticle(particle);
         }
     }
@@ -363,8 +381,13 @@ export {
     SPARK_COLOR,
     SMOKE_COLOR_START,
     SMOKE_COLOR_END,
+    SPARK_SPEED_BASE,
     SPARK_SPEED_DEVIATION,
+    SMOKE_SPEED_BASE,
     SMOKE_SPEED_DEVIATION,
     SMOKE_SIZE_START,
-    SMOKE_SIZE_END
+    SMOKE_SIZE_END,
+    SPARK_EMIT_RATE,
+    SMOKE_EMIT_RATE,
+    DEFAULT_PARTICLE_LIFESPAN
 };

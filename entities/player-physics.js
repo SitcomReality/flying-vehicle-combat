@@ -1,12 +1,13 @@
-import { GLOBAL_PHYSICS } from './player-state.js'; 
-import { consumeFuel } from './vehicles/fuel-system.js'; 
+import { GLOBAL_PHYSICS } from './player-state.js';
+import { consumeFuel } from './vehicles/fuel-system.js';
 import { applyDamage } from './vehicles/health-system.js';
 import { getPowerupMultiplier } from './powerups/powerup-effects.js';
 import { PowerupType } from './powerups/powerup-types.js';
 import { PlayerLifecycleState } from './player-lifecycle.js';
+import { getVisualCenter } from './player-visuals.js';
 
-const GROUND_DAMAGE_INTERVAL = 500; 
-const GROUND_DAMAGE_AMOUNT = 5; 
+const GROUND_DAMAGE_INTERVAL = 500;
+const GROUND_DAMAGE_AMOUNT = 5;
 
 /**
  * Updates the player's physics state (position, velocity, rotation) based on forces and time.
@@ -154,21 +155,25 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
     }
 
     // --- Particle Effects ---
-    if (playerState.isOnGround && particleSystem) {
-        // Calculate contact point based on center + offset based on direction
-        const visualCenterX = playerState.x + (playerWidth / 2) - (playerState.drawOffsetX * renderScale); // Approx visual center X
-        const contactX = visualCenterX + (playerState.visualFacingDirection === 1 ? -playerWidth * 0.3 : playerWidth * 0.3);
+    if (playerState.isOnGround && particleSystem && playerState.currentVehicle) {
+        // --- Fixed Ground Effect Origin ---
+        const spriteConfig = playerState.currentVehicle;
+        const spriteDrawWidth = spriteConfig.width * renderScale;
+        // Calculate the visual top-left X based on state position and DRAW offset
+        const drawX = playerState.x - playerState.drawOffsetX * renderScale;
+        // Contact point is always the visual left edge of the sprite frame
+        const contactX = drawX;
+        // --- End Fixed Origin ---
+
         const contactY = groundLevelY - 2; // Slightly above ground line
-        const baseSparkVX = -80 + playerState.vx * 0.5; // Sparks move against player motion
-        const baseSmokeVX = -30 + playerState.vx * 0.3; // Smoke moves slower against player motion
+        // Base velocity remains generally leftward/upward
+        const baseSparkVX = -150 + playerState.vx * 0.3; // Increased base speed leftwards
+        const baseSmokeVX = -70 + playerState.vx * 0.2; // Increased base speed leftwards
 
         // Emit particles using GLOBAL_PHYSICS rates (can be overridden per vehicle later)
-        if (Math.random() < GLOBAL_PHYSICS.SPARK_EMIT_RATE * deltaTime) { // Probability based on rate and deltaTime
-             particleSystem.emitSparks(contactX, contactY, 1, baseSparkVX);
-        }
-         if (Math.random() < GLOBAL_PHYSICS.SMOKE_EMIT_RATE * deltaTime) {
-             particleSystem.emitSmoke(contactX, contactY, 1, baseSmokeVX);
-         }
+        // Use configured rates from particle system (which have been increased)
+        particleSystem.emitSparks(contactX, contactY, 0, baseSparkVX); // Count handled by rate logic inside
+        particleSystem.emitSmoke(contactX, contactY, 0, baseSmokeVX); // Count handled by rate logic inside
     }
 
     // --- Rotation / Tilt ---
