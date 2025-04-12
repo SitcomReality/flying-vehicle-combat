@@ -4,10 +4,12 @@ import Collectible from './collectible.js';
 import { getCollectibleConfig, getRandomCollectibleType } from './collectible-types.js';
 
 class CollectibleManager {
-    constructor(networkManager, assets, renderScale) {
+    // Added particleSystem as a dependency
+    constructor(networkManager, assets, renderScale, particleSystem) {
         this.networkManager = networkManager;
         this.assets = assets;
         this.renderScale = renderScale;
+        this.particleSystem = particleSystem; // Store particle system reference
         this.activeCollectibles = {}; // Stores local Collectible instances { id: Collectible }
 
         // Listen for room state changes to sync collectibles
@@ -106,6 +108,9 @@ class CollectibleManager {
 
         const collectible = this.activeCollectibles[collectibleId];
         console.log(`Local player picked up collectible ${collectible.id} (${collectible.type}), Value: ${collectible.value}`);
+
+        // Trigger pickup effect at the collectible's position BEFORE removing it
+        this.particleSystem?.emitCollectiblePickup(collectible.x, collectible.y, collectible.type);
 
         // Mark for local removal immediately
         delete this.activeCollectibles[collectibleId];

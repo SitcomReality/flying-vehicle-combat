@@ -5,12 +5,13 @@ import { SPRITES } from 'config/sprites.js';
 import { getVehicleConfig } from './vehicles/vehicle-types.js';
 
 class PlayerLifecycleManager {
-    // Added scorePersistence parameter
-    constructor(playerManager, networkManager, vehicleSelector, scorePersistence, gameWidth, gameHeight, renderScale) {
+    // Added scorePersistence and particleSystem parameters
+    constructor(playerManager, networkManager, vehicleSelector, scorePersistence, gameWidth, gameHeight, renderScale, particleSystem) {
         this.playerManager = playerManager;
         this.networkManager = networkManager;
         this.vehicleSelector = vehicleSelector;
         this.scorePersistence = scorePersistence; // Store reference
+        this.particleSystem = particleSystem; // Store reference
         this.gameWidth = gameWidth;
         this.gameHeight = gameHeight;
         this.renderScale = renderScale;
@@ -20,6 +21,9 @@ class PlayerLifecycleManager {
         }
         if (!this.scorePersistence) {
              console.warn("PlayerLifecycleManager initialized without ScorePersistence. High scores will not be saved.");
+        }
+        if (!this.particleSystem) {
+             console.warn("PlayerLifecycleManager initialized without ParticleSystem. Effects will be missing.");
         }
     }
 
@@ -78,7 +82,6 @@ class PlayerLifecycleManager {
     handlePlayerDeath(playerId) {
        const player = this.playerManager.getPlayer(playerId);
        if (!player || !player.isLocalPlayer || player.state.lifecycleState === PlayerLifecycleState.DEAD) {
-           // console.warn(`handlePlayerDeath called for invalid player: ${playerId} or player already dead.`); // Reduce noise
            return;
        }
 
@@ -103,13 +106,17 @@ class PlayerLifecycleManager {
        }
        // --- End Save Score ---
 
+       // Store position BEFORE resetting state for the explosion effect
+       const deathX = player.state.x + (player.state.width * this.renderScale / 2); // Center X
+       const deathY = player.state.y + (player.state.height * this.renderScale / 2); // Center Y
+
 
        // Transition to DEAD state (this also syncs presence)
        if (player.transitionToState(PlayerLifecycleState.DEAD)) {
            console.log(`Local player ${player.id} officially DEAD.`);
 
-           // TODO: Add explosion particle effect here using this.particleSystem (would need reference)
-           // Example: this.particleSystem?.emitExplosion(player.x, player.y);
+           // Trigger explosion particle effect at the player's last position
+           this.particleSystem?.emitExplosion(deathX, deathY);
 
            // Automatically trigger respawn selection after a short delay
            setTimeout(() => {

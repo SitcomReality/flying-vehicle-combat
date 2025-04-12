@@ -86,12 +86,14 @@ async function initializeGame() {
         console.log("Network initialized. Client ID:", localPlayerId);
 
         // 3. Instantiate Game Logic Modules (pass dependencies)
+        particleSystem = new ParticleSystem(); // Instantiate particle system earlier
+
         playerManager = new PlayerManager(assets, renderer.getContext(), RENDER_SCALE, GAME_WIDTH, GAME_HEIGHT);
         playerManager.setLocalPlayerId(localPlayerId);
 
-        powerupManager = new PowerupManager(networkManager, assets, RENDER_SCALE);
-
-        collectibleManager = new CollectibleManager(networkManager, assets, RENDER_SCALE);
+        // Pass particle system to managers that need it
+        powerupManager = new PowerupManager(networkManager, assets, RENDER_SCALE, particleSystem);
+        collectibleManager = new CollectibleManager(networkManager, assets, RENDER_SCALE, particleSystem);
 
         backgroundRenderer = new BackgroundRenderer(renderer.getContext(), GAME_WIDTH, GAME_HEIGHT);
         groundLevelY = backgroundRenderer.getGroundLevel();
@@ -102,11 +104,9 @@ async function initializeGame() {
             GAME_WIDTH,
             GAME_HEIGHT,
             groundLevelY,
-            collectibleManager,
-            playerManager
+            collectibleManager, // Needs collectible manager for drops
+            playerManager // Needs player manager for scoring
         );
-
-        particleSystem = new ParticleSystem();
 
         vehicleSelector = new VehicleSelector(vehicleSelectorEl, assets, (type) => {
             if (playerLifecycleManager) {
@@ -123,7 +123,8 @@ async function initializeGame() {
             scorePersistence,
             GAME_WIDTH,
             GAME_HEIGHT,
-            RENDER_SCALE
+            RENDER_SCALE,
+            particleSystem // Pass particle system here
         );
 
         statusBarRenderer = new StatusBarRenderer(renderer.getContext(), playerManager, RENDER_SCALE);
@@ -134,7 +135,7 @@ async function initializeGame() {
             powerupManager,
             spaceObjectManager,
             collectibleManager,
-            particleSystem,
+            particleSystem, // Pass particle system here too
             RENDER_SCALE
         );
 
@@ -148,6 +149,7 @@ async function initializeGame() {
         debugRenderer = new DebugRenderer(debugEl, playerManager, networkManager, inputManager, gameConfig);
         debugRenderer.setLocalPlayerId(localPlayerId);
 
+        // --- Initialize Local Player ---
         inputManager.update();
 
         const initialX = GAME_WIDTH / 2;
@@ -158,7 +160,7 @@ async function initializeGame() {
             vehicleType: 0,
             facingDirection: -1,
             rotation: 0,
-            lifecycleState: PlayerLifecycleState.SELECTING
+            lifecycleState: PlayerLifecycleState.SELECTING // Start in selection
         };
         const localPlayer = playerManager.createPlayer(localPlayerId, initialState, true);
         if (localPlayer) {
@@ -168,14 +170,17 @@ async function initializeGame() {
             throw new Error("Local player creation failed.");
         }
 
+        // Show vehicle selector if player is in SELECTING state
         if (localPlayer && localPlayer.state.lifecycleState === PlayerLifecycleState.SELECTING) {
             vehicleSelector.show();
         } else {
              console.log("Initial presence deferred until vehicle selection (or if player started ACTIVE).");
         }
 
+        // --- Setup Network Handlers ---
         networkEventHandler.setupNetworkHandlers();
 
+        // --- Start Game Loop ---
         lastUpdateTime = performance.now();
         requestAnimationFrame(gameLoop);
         console.log("Game initialized successfully.");
@@ -188,6 +193,7 @@ async function initializeGame() {
     }
 }
 
+// --- Update Function ---
 function update(deltaTime, currentTime) {
     backgroundRenderer.update(deltaTime);
     particleSystem.update(deltaTime);
@@ -239,6 +245,7 @@ function update(deltaTime, currentTime) {
     inputManager.update();
 }
 
+// --- Draw Function ---
 function draw() {
     renderer.clear();
     backgroundRenderer.draw();
@@ -253,11 +260,14 @@ function draw() {
     debugRenderer.updateDebugInfo();
 }
 
+// --- Game Loop ---
 function gameLoop(currentTime) {
     const rawDeltaTime = (currentTime - lastUpdateTime) / 1000;
+    // Clamp delta time to prevent physics instability
     const deltaTime = Math.min(rawDeltaTime, MAX_DELTA_TIME);
     lastUpdateTime = currentTime;
 
+    // Ensure all essential modules are initialized
     if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager || !spaceObjectManager || !collectibleManager || !scoreboard || !leaderboard) {
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
@@ -273,9 +283,12 @@ function gameLoop(currentTime) {
         if (debugEl) {
             debugEl.textContent = `GAME LOOP ERROR:\n${error.message}\n${error.stack}`;
         }
+        // Optionally stop the loop on critical errors
+        // return;
     }
 
     requestAnimationFrame(gameLoop);
 }
 
+// --- Start the game ---
 initializeGame();

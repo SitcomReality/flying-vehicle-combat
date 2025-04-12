@@ -4,10 +4,12 @@ import Powerup from './powerup.js';
 import { PowerupType, POWERUP_SPAWN_CONFIG } from './powerup-types.js';
 
 class PowerupManager {
-    constructor(networkManager, assets, renderScale) {
+    // Added particleSystem as a dependency
+    constructor(networkManager, assets, renderScale, particleSystem) {
         this.networkManager = networkManager;
         this.assets = assets; // Loaded sprite sheets
         this.renderScale = renderScale;
+        this.particleSystem = particleSystem; // Store particle system reference
         this.activePowerups = {}; // Stores local Powerup instances { id: Powerup }
         this.lastSpawnAttemptTime = 0;
 
@@ -113,6 +115,9 @@ class PowerupManager {
 
         const powerup = this.activePowerups[powerupId];
         console.log(`Local player picked up powerup ${powerup.id} (${powerup.type})`);
+
+        // Trigger pickup effect BEFORE removing
+        this.particleSystem?.emitPowerupPickup(powerup.x, powerup.y);
 
         // Mark for local removal immediately (visuals)
         // Network removal happens via roomState update
