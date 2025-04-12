@@ -1,10 +1,9 @@
 import { PlayerState } from './player-state.js';
-import { handlePlayerInput } from './player-input.js';
 import { updatePlayerPhysics } from './player-physics.js';
 import { drawPlayer } from './player-renderer.js';
 import { updatePlayerFromServer, interpolatePlayerState } from './player-network-sync.js';
 import { updatePlayerAnimation } from './player-animation.js';
-import { updatePlayerCharging, handlePlayerFiring } from './player-actions.js';
+import WeaponSystem from './weapons/weapon-system.js';
 import { getVisualCenter, getVisualNosePosition } from './player-visuals.js';
 import { PlayerLifecycleState } from './player-lifecycle.js'; 
 import { updateFuel } from './vehicles/fuel-system.js'; 
@@ -30,6 +29,9 @@ class Player {
         this.playerManager = null; 
         this.particleSystem = null; 
         this.powerupManager = null; 
+
+        // Weapon System (instantiated once managers are set)
+        this.weaponSystem = null;
     }
 
     // Set references to managers needed for actions
@@ -40,6 +42,18 @@ class Player {
         this.playerManager = playerManager; 
         this.particleSystem = particleSystem; 
         this.powerupManager = powerupManager; 
+
+        // Instantiate WeaponSystem now that managers are available
+        if (this.state.isLocalPlayer && !this.weaponSystem) {
+            const boundGetVisualNosePos = () => getVisualNosePosition(this.state, this.renderScale);
+            this.weaponSystem = new WeaponSystem(
+                this.state,
+                this.projectileManager,
+                this.networkManager,
+                boundGetVisualNosePos
+            );
+            console.log(`WeaponSystem initialized for local player ${this.id}`);
+        }
     }
 
     // --- Getters to access state properties easily ---
@@ -72,20 +86,53 @@ class Player {
         }
     }
 
-    // --- Input Handling ---
+    // --- Input Handling (Moved from player-input.js) ---
     handleInput(inputState) {
+        if (!this.isLocalPlayer) return; // Only handle input for the local player
+
         // Ignore input if not in ACTIVE state
         if (this.state.lifecycleState !== PlayerLifecycleState.ACTIVE) {
             // Clear movement flags if not active
             this.state.isThrusting = false;
             this.state.isMovingLeft = false;
             this.state.isMovingRight = false;
-            this.state.isCharging = false;
+            if (this.weaponSystem) {
+                // Ensure weapon system knows charging stopped if not active
+                 this.weaponSystem.stopCharging();
+                 this.weaponSystem.isCharging = false;
+                 this.weaponSystem.wantsToFire = false;
+            }
+            this.state.isCharging = false; // Also update state directly
             this.state.wantsToFire = false;
             return;
         }
-        handlePlayerInput(this.state, inputState);
+
+        // Update Movement Intent Flags
+        this.state.isThrusting = inputState.up;
+        this.state.isMovingLeft = inputState.left;
+        this.state.isMovingRight = inputState.right;
+
+        // Update Weapon System based on action key
+        if (this.weaponSystem) {
+            if (inputState.action) { // Action key pressed
+                 this.weaponSystem.startCharging();
+            } else { // Action key released or not pressed
+                 this.weaponSystem.stopCharging(); // This flags 'wantsToFire' internally if needed
+            }
+        } else {
+             console.warn("WeaponSystem not available for input handling.");
+        }
+
+
+        // Update Target Facing Direction based purely on last horizontal input
+        if (inputState.right) {
+            this.state.targetFacingDirection = 1; // Right
+        } else if (inputState.left) {
+            this.state.targetFacingDirection = -1; // Left
+        }
+        // If neither left nor right is pressed, targetFacingDirection remains unchanged.
     }
+
 
     // --- Update Cycle ---
     update(deltaTime, groundLevelY, particleSystem, currentTime, playerManager) { // Pass playerManager explicitly
@@ -109,23 +156,13 @@ class Player {
         // 2. Update animations (like the flip) based on current time
         updatePlayerAnimation(this.state, currentTime);
 
-        // 3. Handle Local Player Actions (Charging & Firing) - Only if ACTIVE
-        if (this.state.isLocalPlayer && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
+        // 3. Handle Local Player Actions (Weapon System Update & Firing) - Only if ACTIVE and local
+        if (this.state.isLocalPlayer && this.weaponSystem && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
             const boundGetVisualCenter = () => getVisualCenter(this.state, this.renderScale);
-            const boundGetVisualNosePosition = () => getVisualNosePosition(this.state, this.renderScale); 
-            updatePlayerCharging(
-                this.state,
-                deltaTime,
-                particleSystem,
-                boundGetVisualCenter,
-                boundGetVisualNosePosition
-            );
-            handlePlayerFiring(
-                this.state,
-                this.projectileManager,
-                this.networkManager,
-                boundGetVisualNosePosition
-            );
+            // Update weapon charge level and particles
+            this.weaponSystem.update(deltaTime, particleSystem, boundGetVisualCenter);
+            // Attempt to fire if flagged
+            this.weaponSystem.attemptFire();
         }
 
         // 4. Physics, Fuel and Interpolation
@@ -183,6 +220,13 @@ class Player {
     // --- State Modification ---
     setVehicle(vehicleTypeIndex) {
         this.state.setVehicle(vehicleTypeIndex);
+         // Re-initialize weapon system if needed (e.g., if weapon depends on vehicle)
+         // For now, assume WeaponSystem reads stats dynamically from playerState
+         // If weapon system needs re-creation based on vehicle:
+         // if (this.state.isLocalPlayer && this.projectileManager && this.networkManager) {
+         //     const boundGetVisualNosePos = () => getVisualNosePosition(this.state, this.renderScale);
+         //     this.weaponSystem = new WeaponSystem(...) // Potentially pass vehicle-specific config
+         // }
     }
 
     getPresenceData() {
@@ -212,6 +256,12 @@ class Player {
                  this.state.health = 0;
                  // Clear active powerups on death
                  this.state.activePowerups = {};
+                 // Reset weapon system state
+                 if (this.weaponSystem) {
+                     this.weaponSystem.chargeLevel = 0;
+                     this.weaponSystem.isCharging = false;
+                     this.weaponSystem.wantsToFire = false;
+                 }
              } else if (newState === PlayerLifecycleState.SELECTING) {
                  // Ensure player is visually static or hidden
              } else if (newState === PlayerLifecycleState.ACTIVE) {
@@ -234,6 +284,12 @@ class Player {
     resetStateForSpawn(x, y) {
         this.state.resetForSpawn(x, y); // Calls the reset logic in PlayerState
         console.log(`Player ${this.id} state reset for spawn at (${x.toFixed(0)}, ${y.toFixed(0)}). State: ${this.state.lifecycleState}`);
+         // Reset weapon system state on spawn
+         if (this.weaponSystem) {
+             this.weaponSystem.chargeLevel = 0;
+             this.weaponSystem.isCharging = false;
+             this.weaponSystem.wantsToFire = false;
+         }
     }
 
     // Method specifically for taking damage (called by collision/projectile hits)
@@ -257,4 +313,4 @@ class Player {
     }
 }
 
- export default Player;
+export default Player;
