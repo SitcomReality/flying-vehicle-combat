@@ -1,5 +1,6 @@
 // Import GLOBAL_PHYSICS from player-state which now aliases BASE_PLAYER_PHYSICS from the config
 import { GLOBAL_PHYSICS } from './player-state.js';
+import { BASE_PLAYER_PHYSICS } from '../config/vehicle-config.js';
 
 const PROJECTILE_RADIUS = 4;
 const PROJECTILE_LIFESPAN = 3; // seconds
@@ -42,6 +43,10 @@ class Projectile {
         // Apply gravity using the stored gravityFactor for this projectile
         const gravityForce = GLOBAL_PHYSICS.GRAVITY * this.gravityFactor * deltaTime;
         this.vy += gravityForce;
+
+        // --- ADDED: Clamp vertical velocity (downward speed) ---
+        this.vy = Math.min(this.vy, BASE_PLAYER_PHYSICS.MAX_PROJECTILE_VERTICAL_SPEED);
+        // --- END ADDED ---
 
         // Update position
         this.x += this.vx * deltaTime;

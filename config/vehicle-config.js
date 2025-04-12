@@ -16,6 +16,9 @@ export const BASE_PLAYER_PHYSICS = {
     PROJECTILE_SPEED_SCALE: 1,
     PROJECTILE_GRAVITY_FACTOR: 3,
     INVULNERABILITY_DURATION: 1.5,
+    // --- ADDED PROJECTILE TERMINAL VELOCITY ---
+    MAX_PROJECTILE_VERTICAL_SPEED: 400, // Max downward speed for projectiles
+    // --- END ADDED ---
 };
 
 /**
