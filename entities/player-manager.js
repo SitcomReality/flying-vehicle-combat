@@ -17,17 +17,18 @@ class PlayerManager {
         // Managers needed by Player instances (set via setManagers)
         this.projectileManager = null;
         this.networkManager = null;
-        this.playerLifecycleManager = null;
+        // this.playerLifecycleManager = null; // Not passed down directly anymore
         this.particleSystem = null;
         this.powerupManager = null;
         this.inputManager = null; // Player might need this ref too
     }
 
     // Setter for required managers to pass down to Player instances
-    setManagers(projectileManager, networkManager, playerLifecycleManager, particleSystem, powerupManager, inputManager) {
+    // Fixed: Removed invalid comment and unused playerLifecycleManager parameter from signature
+    setManagers(projectileManager, networkManager, particleSystem, powerupManager, inputManager) {
         this.projectileManager = projectileManager;
         this.networkManager = networkManager;
-        this.playerLifecycleManager = playerLifecycleManager;
+        // this.playerLifecycleManager = playerLifecycleManager; // No longer set here
         this.particleSystem = particleSystem;
         this.powerupManager = powerupManager;
         this.inputManager = inputManager; // Store input manager
@@ -67,11 +68,11 @@ class PlayerManager {
 
 
         // Pass necessary manager references to the player instance
+        // Note: PlayerManager now passes itself (this) as the 3rd argument
         player.setManagers(
             this.projectileManager,
             this.networkManager,
-            this // Pass PlayerManager itself
-            // this.playerLifecycleManager, // Pass PlayerManager instead
+            this, // Pass PlayerManager itself
             this.particleSystem,
             this.powerupManager,
             this.inputManager // Pass input manager
@@ -112,7 +113,8 @@ class PlayerManager {
         const active = {};
         for (const id in this.players) {
             const player = this.players[id];
-            if (player && player.state && !player.isMarkedForRemoval && player.lifecycleState === PlayerLifecycleState.ACTIVE) {
+            // Fixed typo: Use player.state.lifecycleState
+            if (player && player.state && !player.isMarkedForRemoval && player.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
                 active[id] = player;
             }
         }
@@ -123,11 +125,17 @@ class PlayerManager {
         return Object.keys(this.players);
     }
 
+    // Update player lifecycle manager reference (used by player.takeDamage->applyDamage->handlePlayerDeath)
+    setPlayerLifecycleManager(manager) {
+        this.playerLifecycleManager = manager;
+    }
+
+
     updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime) {
         for (const id in this.players) {
             const player = this.players[id];
             if (player && !player.isMarkedForRemoval) {
-                // Pass the PlayerManager itself instead of the lifecycle manager
+                // Pass the PlayerManager itself for context (e.g., for damage handling needing lifecycle manager)
                 player.update(deltaTime, groundLevelY, particleSystem, currentTime, this);
             } else if (player && player.isMarkedForRemoval) {
                 // If a player is marked, ensure they are removed from the manager
@@ -142,9 +150,10 @@ class PlayerManager {
         for (const id in this.players) {
             const player = this.players[id];
             // Ensure player is valid and drawable
+            // Fixed typo: Use player.state.lifecycleState
             if (player && !player.isMarkedForRemoval &&
-                player.lifecycleState !== PlayerLifecycleState.CONNECTING &&
-                player.lifecycleState !== PlayerLifecycleState.SELECTING)
+                player.state.lifecycleState !== PlayerLifecycleState.CONNECTING &&
+                player.state.lifecycleState !== PlayerLifecycleState.SELECTING)
             {
                 player.draw();
             }

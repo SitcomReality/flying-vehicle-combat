@@ -66,7 +66,7 @@ let debugRenderer = null;
 let backgroundRenderer = null;
 let particleSystem = null;
 let vehicleSelector = null;
-let statusBarRenderer = null;
+let statusBarRenderer = null; 
 let collisionManager = null;
 let playerLifecycleManager = null;
 let scoreboard = null;
@@ -93,6 +93,9 @@ async function initializeGame() {
         playerManager.setLocalPlayerId(localPlayerId);
         console.log("PlayerManager initialized.");
 
+        // Initialize Status Bar Renderer
+        statusBarRenderer = new StatusBarRenderer(renderer.getContext(), playerManager, RENDER_SCALE);
+
         // Pass particle system to managers that need it
         powerupManager = new PowerupManager(networkManager, assets, RENDER_SCALE, particleSystem);
         collectibleManager = new CollectibleManager(networkManager, assets, RENDER_SCALE, particleSystem);
@@ -106,9 +109,9 @@ async function initializeGame() {
             GAME_WIDTH,
             GAME_HEIGHT,
             groundLevelY,
-            collectibleManager, // Needs collectible manager for drops
-            playerManager, // Needs player manager for scoring
-            powerupManager // Needs powerup manager for drops
+            collectibleManager, 
+            playerManager, 
+            powerupManager 
         );
 
         vehicleSelector = new VehicleSelector(vehicleSelectorEl, assets, (type) => {
@@ -121,7 +124,7 @@ async function initializeGame() {
 
         // Pass PlayerManager to modules that need it (Scoreboard, DebugRenderer, etc.)
         collisionManager = new CollisionManager(
-            playerManager, // Pass PlayerManager
+            playerManager, 
             projectileManager,
             powerupManager,
             spaceObjectManager,
@@ -130,12 +133,12 @@ async function initializeGame() {
             RENDER_SCALE
         );
 
-        scoreboard = new Scoreboard(scoreboardEl, playerManager, networkManager); // Pass PlayerManager
+        scoreboard = new Scoreboard(scoreboardEl, playerManager, networkManager); 
         leaderboard = new Leaderboard(leaderboardEl, scorePersistence, networkManager);
 
         // Pass PlayerManager to PlayerLifecycleManager
         playerLifecycleManager = new PlayerLifecycleManager(
-            playerManager, // Pass PlayerManager
+            playerManager, 
             networkManager,
             vehicleSelector,
             scorePersistence,
@@ -144,28 +147,23 @@ async function initializeGame() {
             RENDER_SCALE,
             particleSystem
         );
+        playerManager.setPlayerLifecycleManager(playerLifecycleManager);
 
         // PlayerManager needs other managers set *after* they are created
-        // Pass InputManager here too
         playerManager.setManagers(
             projectileManager,
             networkManager,
             particleSystem,
             powerupManager,
-            inputManager // Pass InputManager
+            inputManager 
         );
 
         const gameConfig = { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE, groundLevelY };
-        // Pass PlayerManager to NetworkEventHandler and DebugRenderer
         networkEventHandler = new NetworkEventHandler(networkManager, playerManager, projectileManager, gameConfig);
         debugRenderer = new DebugRenderer(debugEl, playerManager, networkManager, inputManager, gameConfig);
         debugRenderer.setLocalPlayerId(localPlayerId);
 
         // --- Initialize Local Player ---
-        // InputManager update might not be strictly necessary here, happens in loop
-        // inputManager.update();
-
-        // Use PlayerManager to create the player
         const initialX = GAME_WIDTH / 2;
         const initialY = groundLevelY / 2;
         const initialState = {
@@ -174,21 +172,19 @@ async function initializeGame() {
             vehicleType: 0,
             facingDirection: -1,
             rotation: 0,
-            lifecycleState: PlayerLifecycleState.SELECTING // Start in selection
+            lifecycleState: PlayerLifecycleState.SELECTING 
         };
-        // Let PlayerManager handle creation
         const localPlayer = playerManager.createPlayer(localPlayerId, initialState, true);
-        // No need to assign to a global 'localPlayer' variable anymore
 
         if (playerManager.getLocalPlayer()) {
-             console.log(`Local player ${localPlayerId} created via manager, initial state: ${playerManager.getLocalPlayer().lifecycleState}`);
+             console.log(`Local player ${localPlayerId} created via manager, initial state: ${playerManager.getLocalPlayer().state.lifecycleState}`);
         } else {
             console.error("Failed to create local player via PlayerManager!");
             throw new Error("Local player creation failed.");
         }
 
         // Check state via manager
-        if (playerManager.getLocalPlayer()?.lifecycleState === PlayerLifecycleState.SELECTING) {
+        if (playerManager.getLocalPlayer()?.state.lifecycleState === PlayerLifecycleState.SELECTING) { 
             vehicleSelector.show();
         } else {
              console.log("Initial presence deferred until vehicle selection (or if player started ACTIVE).");
@@ -226,8 +222,6 @@ function update(deltaTime, currentTime) {
     const input = inputManager.getInputState();
 
     if (localPlayer && localPlayer.lifecycleState && !localPlayer.isMarkedForRemoval) {
-        // Removed call to localPlayer.handleInput(input); as it's handled within PlayerManager
-
         if (inputManager.wasKeyJustPressed(DEBUG_KILL_KEY) && localPlayer.lifecycleState === PlayerLifecycleState.ACTIVE) {
             console.log("Debug key pressed: Kill Local Player");
             playerManager.playerLifecycleManager.killLocalPlayer();
@@ -244,8 +238,6 @@ function update(deltaTime, currentTime) {
         }
     }
 
-    // Update players via PlayerManager
-    // Pass PlayerManager reference to updatePlayers for damage application context
     playerManager.updatePlayers(deltaTime, groundLevelY, particleSystem, currentTime);
 
     if (collisionManager) {
@@ -255,7 +247,7 @@ function update(deltaTime, currentTime) {
     }
 
     if (currentTime - lastPresenceUpdateTime > PRESENCE_UPDATE_THROTTLE) {
-         const localPlayer = playerManager.getLocalPlayer(); // Get local player ref here if needed
+         const localPlayer = playerManager.getLocalPlayer(); 
          if (localPlayer && localPlayer.lifecycleState !== PlayerLifecycleState.CONNECTING) {
              networkEventHandler.updateLocalPlayerPresence(currentTime);
          }
@@ -274,21 +266,18 @@ function draw() {
     powerupManager.draw(renderer.getContext());
     particleSystem.draw(renderer.getContext());
     projectileManager.draw(renderer.getContext());
-    // Draw players via PlayerManager
     playerManager.drawPlayers(renderer);
-    statusBarRenderer.draw(); // Assumes StatusBarRenderer gets players from PlayerManager internally
-    debugRenderer.drawPlayerInfo(renderer); // Assumes DebugRenderer uses PlayerManager
-    debugRenderer.updateDebugInfo(); // Assumes DebugRenderer uses PlayerManager
+    statusBarRenderer.draw(); 
+    debugRenderer.drawPlayerInfo(renderer); 
+    debugRenderer.updateDebugInfo(); 
 }
 
 // --- Game Loop ---
 function gameLoop(currentTime) {
     const rawDeltaTime = (currentTime - lastUpdateTime) / 1000;
-    // Clamp delta time to prevent physics instability
     const deltaTime = Math.min(rawDeltaTime, MAX_DELTA_TIME);
     lastUpdateTime = currentTime;
 
-    // Ensure all essential modules are initialized
     if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager || !spaceObjectManager || !collectibleManager || !scoreboard || !leaderboard || !playerLifecycleManager) {
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
@@ -304,8 +293,6 @@ function gameLoop(currentTime) {
         if (debugEl) {
             debugEl.textContent = `GAME LOOP ERROR:\n${error.message}\n${error.stack}`;
         }
-        // Optionally stop the loop on critical errors
-        // return;
     }
 
     requestAnimationFrame(gameLoop);
