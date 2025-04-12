@@ -160,18 +160,15 @@ canvas {
 }
 
 .leader-vehicle-sprite {
-    width: 32px; /* Desired display width */
-    height: 32px; /* Desired display height */
-    flex-shrink: 0; /* Don't shrink the sprite */
-    margin-right: 8px; /* Space between sprite and avatar */
-    background-size: cover; /* Scale the background image to fit */
+    width: 24px; 
+    height: 24px; 
+    flex-shrink: 0;
+    margin-right: 6px; 
     background-repeat: no-repeat;
-    image-rendering: pixelated; /* Keep it blocky */
+    image-rendering: pixelated;
     image-rendering: crisp-edges;
-    transform: scale(0.125); /* Scale down the div (32 / 256 = 0.125) */
-    transform-origin: top left; /* Scale from top-left */
-    border: 1px solid #ccc; /* Optional border */
-    background-color: #eee; /* Placeholder background */
+    border: 1px solid #ccc; 
+    background-color: #eee; 
 }
 
 .leader-vehicle-sprite.placeholder {
@@ -180,38 +177,36 @@ canvas {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 12px; 
     font-weight: bold;
     color: #888;
-    transform: none; /* No scaling for placeholder */
-    width: 20px; /* Smaller placeholder */
-    height: 20px;
+    width: 24px; 
+    height: 24px; 
     border-radius: 3px;
 }
 
 #leaderboard .leader-score {
-    flex-shrink: 0; /* Prevent score from shrinking */
-    color: #d9534f; /* Vibrant red for score */
-    margin-left: auto; /* Push score to the right */
+    flex-shrink: 0; 
+    color: #d9534f; 
+    margin-left: auto; 
 }
 
 /* Media Query for smaller screens */
-@media (max-width: 1100px) { /* Adjust breakpoint as needed */
-    #scoreboard, #leaderboard { /* Apply to both */
-        position: relative; /* Change positioning */
+@media (max-width: 1100px) { 
+    #scoreboard, #leaderboard { 
+        position: relative; 
         top: auto;
         left: auto;
-        right: auto; /* Reset side positioning */
-        width: 90%; /* Make it wider */
+        right: auto; 
+        width: 90%; 
         max-width: 400px;
-        margin-top: 15px; /* More space below canvas */
+        margin-top: 15px; 
     }
-    /* Adjust body flex direction for vertical layout */
     body {
         flex-direction: column;
     }
-    #scoreboard { order: 3; } /* Place below canvas */
-    #leaderboard { order: 4; } /* Place below scoreboard */
+    #scoreboard { order: 3; } 
+    #leaderboard { order: 4; } 
 }
 
 /* Style for player names/avatars (example - integrate later) */
@@ -223,7 +218,7 @@ canvas {
     border-radius: 5px;
     font-size: 10px;
     text-align: center;
-    transform: translateX(-50%); /* Center above player */
+    transform: translateX(-50%); 
     white-space: nowrap;
 }
 
@@ -237,7 +232,7 @@ canvas {
 
 /* New Vehicle Selector Styles */
 #vehicleSelector {
-    position: absolute; /* Position relative to the viewport */
+    position: absolute; 
     top: 0;
     left: 0;
     width: 100%;
@@ -246,18 +241,18 @@ canvas {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    z-index: 20; /* Ensure selector is above other UI */
-    pointer-events: none; /* Allow clicking through transparency by default */
+    z-index: 20; 
+    pointer-events: none; 
 }
 
 #vehicleSelector .selector-title {
     font-family: 'Cabin Sketch', cursive;
     font-weight: 700;
-    font-size: 3.5em; /* Larger title */
-    color: rgba(255, 255, 255, 0.9); /* White, slightly transparent */
-    text-shadow: 3px 3px 5px rgba(0, 0, 0, 0.5); /* Stronger shadow */
+    font-size: 3.5em; 
+    color: rgba(255, 255, 255, 0.9); 
+    text-shadow: 3px 3px 5px rgba(0, 0, 0, 0.5); 
     margin: 0px;
-    pointer-events: auto; /* Title can be interacted with if needed */
+    pointer-events: auto; 
 }
 
 .selector-carousel {
@@ -265,18 +260,18 @@ canvas {
     justify-content: center;
     align-items: center;
     margin-bottom: 20px;
-    width: 80%; /* Control overall width */
+    width: 80%; 
     max-width: 600px;
-    pointer-events: auto; /* Enable interaction within carousel */
+    pointer-events: auto; 
 }
 
 .vehicle-display-area {
     display: flex;
     justify-content: center;
     align-items: center;
-    flex-grow: 1; /* Takes space between arrows */
-    gap: 20px; /* Spacing between slots */
-    min-height: 200px; /* Ensure space for scaling */
+    flex-grow: 1; 
+    gap: 20px; 
+    min-height: 200px; 
 }
 
 .vehicle-slot {
@@ -288,8 +283,8 @@ canvas {
 }
 
 .vehicle-slot canvas {
-    width: 100%; /* Canvas width controlled by parent slot */
-    height: auto; /* Maintain aspect ratio */
+    width: 100%; 
+    height: auto; 
     display: block;
     border-radius: 8px;
     image-rendering: pixelated;
@@ -303,9 +298,9 @@ canvas {
     color: #000;
     font-family: 'Irish Grover', cursive;
     text-align: center;
-    visibility: hidden; /* Hidden by default */
+    visibility: hidden; 
     opacity: 0;
-    transition: visibility 0s linear 0.3s, opacity 0.3s ease-out; /* Fade in/out */
+    transition: visibility 0s linear 0.3s, opacity 0.3s ease-out; 
     margin: 0px -20px;
     text-shadow: 1px 1px 1px rgb(238 31 210);
     background-color: #ffffff;
@@ -314,10 +309,10 @@ canvas {
 }
 
 .slot-center {
-    transform: scale(1.2); /* Make center slot bigger */
+    transform: scale(1.2); 
     opacity: 1;
-    z-index: 1; /* Ensure center is on top */
-    width: 150px; /* Base width for center */
+    z-index: 1; 
+    width: 150px; 
 }
 
 .slot-center .vehicle-name {
@@ -327,14 +322,14 @@ canvas {
 }
 
 .slot-side {
-    transform: scale(0.8); /* Make side slots smaller */
-    opacity: 0.6; /* Make side slots semi-transparent */
-    width: 100px; /* Base width for sides */
+    transform: scale(0.8); 
+    opacity: 0.6; 
+    width: 100px; 
 }
 
 .cycle-button {
     font-family: 'Cabin Sketch', cursive;
-    font-size: 3em; /* Large arrows */
+    font-size: 3em; 
     background: none;
     border: none;
     color: rgba(255, 255, 255, 0.7);
@@ -342,7 +337,7 @@ canvas {
     cursor: pointer;
     padding: 0 20px;
     transition: color 0.2s ease, transform 0.1s ease;
-    user-select: none; /* Prevent text selection */
+    user-select: none; 
 }
 
 .cycle-button:hover {
@@ -355,16 +350,16 @@ canvas {
 }
 
 .stats-display {
-    background-color: rgba(255, 255, 255, 0.9); /* Opaque background */
+    background-color: rgba(255, 255, 255, 0.9); 
     color: #333;
     padding: 15px 20px;
     border: 4px solid #555;
     border-radius: 10px;
-    width: 250px; /* Fixed width */
+    width: 250px; 
     text-align: center;
     margin-bottom: 5px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    pointer-events: auto; /* Enable interaction */
+    pointer-events: auto; 
 }
 
 .stats-display h4 {
@@ -386,7 +381,7 @@ canvas {
 
 .confirm-button {
     padding: 12px 25px;
-    font-size: 1.5em; /* Slightly larger font */
+    font-size: 1.5em; 
     font-family: 'Irish Grover', cursive;
     background-color: #5cb85c;
     color: white;
@@ -395,7 +390,7 @@ canvas {
     cursor: pointer;
     transition: background-color 0.2s ease;
     text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-    pointer-events: auto; /* Enable interaction */
+    pointer-events: auto; 
 }
 
 .confirm-button:hover {

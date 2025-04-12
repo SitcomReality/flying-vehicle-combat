@@ -63,13 +63,30 @@ class Leaderboard {
 
                 if (vehicleType !== undefined && vehicleType !== null && vehicleSheet && SPRITES.vehicles.frames[vehicleType]) {
                     const frame = SPRITES.vehicles.frames[vehicleType];
-                    // Use background-image for simplicity to avoid extra canvas elements
+                    const sheetWidth = vehicleSheet.naturalWidth; // Get original sheet width
+                    const sheetHeight = vehicleSheet.naturalHeight; // Get original sheet height
+
+                    // Calculate background position as percentages for better scaling? No, stick to pixels for now.
+                    // const bgPosX = (frame.x / sheetWidth) * 100;
+                    // const bgPosY = (frame.y / sheetHeight) * 100;
+
+                    // Calculate background-size based on sheet dimensions and frame dimensions
+                    // We want to show just one frame (frame.width x frame.height) from the sheet (sheetWidth x sheetHeight)
+                    // scaled down to fit the div size defined in CSS.
+                    const bgSizeX = (sheetWidth / frame.width) * 100; // Percentage width of the sheet to show one frame's width
+                    const bgSizeY = (sheetHeight / frame.height) * 100; // Percentage height of the sheet to show one frame's height
+
+                    // Adjust background position based on the scaled background size
+                    const bgPosX = (frame.x / (sheetWidth - frame.width)) * 100;
+                    const bgPosY = (frame.y / (sheetHeight - frame.height)) * 100;
+
+
                     vehicleSpriteHtml = `
                         <div class="leader-vehicle-sprite"
                              style="background-image: url(${SPRITES.vehicles.sheet});
-                                    background-position: -${frame.x}px -${frame.y}px;
-                                    width: ${frame.width}px;
-                                    height: ${frame.height}px;">
+                                    background-position: ${bgPosX}% ${bgPosY}%;
+                                    background-size: ${bgSizeX}% ${bgSizeY}%;
+                                    ">
                         </div>
                     `;
                 } else {
@@ -82,8 +99,8 @@ class Leaderboard {
                 html += `
                     <li${highlightClass}>
                         <span class="rank">${index + 1}.</span>
-                        <span class="leader-info"> 
-                            ${vehicleSpriteHtml} 
+                        <span class="leader-info">
+                            ${vehicleSpriteHtml}
                             <img src="https://images.websim.ai/avatar/${encodeURIComponent(username)}" class="leader-avatar" alt="">
                             <span class="leader-name" title="${safeName}${localIndicator}">${safeName}${localIndicator}</span>
                         </span>
