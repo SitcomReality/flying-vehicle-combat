@@ -23,6 +23,9 @@ const MAX_ACTIVE_OBJECTS = 15; // Increased max objects
 const OBJECT_TYPES_TO_SPAWN = ['asteroid', 'lander', 'rover'];
 const SPAWN_CHANCE_PER_INTERVAL = 0.7; // Chance to spawn *if* conditions met
 
+// --- Interpolation Factor ---
+const REMOTE_OBJECT_INTERPOLATION_FACTOR = 0.15;
+
 class SpaceObjectManager {
     // --- Removed collectibleManager dependency ---
     constructor(networkManager, assets, gameWidth, gameHeight, groundLevelY, playerManager, powerupManager, particleSystem) {
@@ -39,6 +42,7 @@ class SpaceObjectManager {
 
         this.activeObjects = {};
         this.lastSpawnAttemptTime = 0;
+        this.isSpawner = false; // Added flag
 
         // --- Removed collectibleManager check ---
         if (!this.playerManager) {
@@ -59,19 +63,27 @@ class SpaceObjectManager {
         });
         // Call the initialization function from the sync module
         initializeSpaceObjectsFromRoomState(this.activeObjects, this.networkManager, this.groundLevelY);
+        this._determineSpawner(); // Determine spawner initially
     }
 
-    // ... (sync logic remains removed, handled by import) ...
+    _determineSpawner() {
+        const peers = this.networkManager.getPeers();
+        const peerIds = Object.keys(peers).sort();
+        const oldSpawnerStatus = this.isSpawner;
+        this.isSpawner = peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0];
+        if (this.isSpawner !== oldSpawnerStatus) {
+            console.log(`[SpaceObjMgr] Spawner status changed to: ${this.isSpawner}`);
+        }
+    }
 
     _handlePresenceUpdate(presence) {
-        // The presence update implicitly updates networkManager.peers
-        // No specific action needed here other than letting the spawner check work
+        // Re-determine spawner role on presence changes
+        this._determineSpawner();
     }
 
     attemptSpawnObject(currentTime) {
-        const peers = this.networkManager.getPeers();
-        const peerIds = Object.keys(peers).sort();
-        if (!peerIds.length || this.networkManager.getClientId() !== peerIds[0]) {
+        // Use the isSpawner flag directly
+        if (!this.isSpawner) {
             return;
         }
 
@@ -113,6 +125,13 @@ class SpaceObjectManager {
                 console.error(`Failed to create temporary instance for sync for type ${type}`);
                 return;
             }
+            // Initialize server state immediately for local object
+            tempInstanceForSync.serverX = tempInstanceForSync.x;
+            tempInstanceForSync.serverY = tempInstanceForSync.y;
+            tempInstanceForSync.serverRotation = tempInstanceForSync.rotation;
+            tempInstanceForSync.serverHealth = tempInstanceForSync.health;
+            tempInstanceForSync.lastServerUpdateTime = performance.now();
+
             const syncData = tempInstanceForSync.getSyncData();
 
             // console.log(`Spawner ${this.networkManager.getClientId()} attempting to spawn ${type} (${newId}) at (${syncData.x.toFixed(0)}, ${syncData.y.toFixed(0)}) with vx: ${syncData.vx.toFixed(1)}`); // Reduce log noise
@@ -135,6 +154,7 @@ class SpaceObjectManager {
 
     /**
      * Destroys a space object, handles drops, particles, and removal.
+     * Only the spawner sends the network removal message.
      * @param {string} id - The ID of the object to destroy.
      * @param {string | null} playerDestroyerId - ID of the player who dealt the final blow, if any.
      * @param {string} reason - Why the object is being destroyed ('damage', 'offscreen', 'cleanup', etc.).
@@ -207,9 +227,7 @@ class SpaceObjectManager {
             return true;
         } else {
              // Object took damage but wasn't destroyed. Sync its new state if we are the spawner.
-             const peers = this.networkManager.getPeers();
-             const peerIds = Object.keys(peers).sort();
-             if (peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0]) {
+             if (this.isSpawner) {
                  const updatePayload = {};
                  updatePayload[id] = obj.getSyncData(); // Get current state data
                  this.networkManager.updateRoomState({
@@ -243,10 +261,6 @@ class SpaceObjectManager {
         const updates = {};
         let needsNetworkUpdate = false;
 
-        const peers = this.networkManager.getPeers();
-        const peerIds = Object.keys(peers).sort();
-        const isSpawner = peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0];
-
         const objectIds = Object.keys(this.activeObjects);
 
         for (const id of objectIds) {
@@ -267,7 +281,7 @@ class SpaceObjectManager {
             }
 
             // --- Spawner-side Physics & State Update ---
-            if (isSpawner) {
+            if (this.isSpawner) {
                 const oldX = obj.x; const oldY = obj.y; const oldVx = obj.vx;
                 const oldVy = obj.vy; const oldRotation = obj.rotation; const oldHealth = obj.health;
 
@@ -304,7 +318,7 @@ class SpaceObjectManager {
         } // End loop over objectIds
 
         // Send network updates only if something changed and we are the spawner
-        if (needsNetworkUpdate && isSpawner && Object.keys(updates).length > 0) {
+        if (needsNetworkUpdate && this.isSpawner && Object.keys(updates).length > 0) {
             this.networkManager.updateRoomState({ spaceObjects: updates });
         }
 

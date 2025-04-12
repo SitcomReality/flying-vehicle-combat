@@ -4,6 +4,8 @@ import { SpaceObject } from './space-object.js';
 import { Asteroid } from './space-object-types/asteroid.js';
 import { Lander } from './space-object-types/lander.js';
 import { Rover } from './space-object-types/rover.js';
+// Import snap threshold constant
+import { INTERPOLATION_SNAP_THRESHOLD_SQ } from './space-object.js';
 
 // Map types to classes for easy instantiation (kept local to this module)
 const SPACE_OBJECT_CLASSES = {
@@ -55,6 +57,7 @@ export function syncSpaceObjects(activeObjects, objectData, myClientId, groundLe
     const currentIds = Object.keys(activeObjects);
     const serverIds = Object.keys(objectData);
     let changed = false;
+    const now = performance.now(); // Get timestamp for updates
 
     // Remove objects explicitly marked as null in the network data
     for (const id of currentIds) {
@@ -100,6 +103,12 @@ export function syncSpaceObjects(activeObjects, objectData, myClientId, groundLe
                     console.error(`[SpaceObjSync ${myClientId}] FAILED to create object ${id} - Constructor returned invalid object.`);
                     continue;
                 }
+                // Initialize server state immediately on creation
+                newObj.serverX = data.x;
+                newObj.serverY = data.y;
+                newObj.serverRotation = data.rotation ?? 0;
+                newObj.serverHealth = data.health ?? newObj.health;
+                newObj.lastServerUpdateTime = now;
                 activeObjects[id] = newObj;
                 changed = true;
             } catch (error) {
@@ -109,40 +118,50 @@ export function syncSpaceObjects(activeObjects, objectData, myClientId, groundLe
         } else {
             // Update existing object
             const localObj = activeObjects[id];
-            // If network data shows health <= 0, mark for removal locally (but don't delete yet, wait for explicit null)
-            if (data.health !== undefined && data.health <= 0) {
-                if (!localObj.isMarkedForRemoval) {
-                    localObj.isMarkedForRemoval = true;
-                    changed = true;
-                }
-                continue; // Don't apply further state updates if marked for removal
-            }
-            // Check if relevant properties have changed
-            if (localObj.x !== data.x || localObj.y !== data.y || localObj.vx !== data.vx || localObj.vy !== data.vy || localObj.rotation !== data.rotation || localObj.health !== data.health || localObj.scoreValue !== data.scoreValue) {
-                localObj.x = data.x;
-                localObj.y = data.y;
-                localObj.vx = data.vx ?? localObj.vx;
-                localObj.vy = data.vy ?? localObj.vy;
-                localObj.rotation = data.rotation ?? localObj.rotation;
-                localObj.health = data.health ?? localObj.health;
-                localObj.scoreValue = data.scoreValue ?? localObj.scoreValue;
+            // Update server state variables used for interpolation
+            localObj.serverX = data.x;
+            localObj.serverY = data.y;
+            localObj.serverRotation = data.rotation ?? localObj.serverRotation;
+            localObj.serverHealth = data.health ?? localObj.serverHealth; // Use server health
+            localObj.scoreValue = data.scoreValue ?? localObj.scoreValue; // Sync score value
+            localObj.lastServerUpdateTime = now;
+
+            // Sync velocities if needed for interpolation (currently commented out in object)
+            // localObj.serverVx = data.vx ?? localObj.serverVx;
+            // localObj.serverVy = data.vy ?? localObj.serverVy;
+
+            // Check if health <= 0 from server, mark for removal locally (visuals will fade/stop)
+            // The object will be fully deleted when the server sends 'null'
+            if (localObj.serverHealth <= 0 && !localObj.isMarkedForRemoval) {
+                localObj.isMarkedForRemoval = true; // Mark visually dead based on server health
                 changed = true;
-                // Handle subtype-specific properties
-                if (localObj instanceof Lander && data.baseY !== undefined && localObj.baseY !== data.baseY) {
-                    localObj.baseY = data.baseY;
-                }
-                if (localObj instanceof Rover) {
-                     // Ensure rover stays grounded visually based on sync data (spawner dictates position)
-                    localObj.y = groundLevelY - (localObj.drawHeight / 2);
-                }
+            } else if (localObj.serverHealth > 0 && localObj.isMarkedForRemoval && objectData[id] !== null) {
+                // Un-mark if server says it's alive again (and hasn't been explicitly removed via null)
+                 console.log(`[SpaceObjSync ${myClientId}] Un-marking ${id} for removal as server data shows it alive.`);
+                 localObj.isMarkedForRemoval = false;
+                 changed = true;
             }
-             // Reset removal flag if object is no longer marked as dead on server
-             // (e.g., race condition where server revived it before client got null)
-             if (localObj.isMarkedForRemoval && (data.health === undefined || data.health > 0)) {
-                  console.log(`[SpaceObjSync ${myClientId}] Un-marking ${id} for removal as server data shows it alive.`);
-                  localObj.isMarkedForRemoval = false;
-                  changed = true;
+
+             // --- Snap Check ---
+             const dx = localObj.serverX - localObj.x;
+             const dy = localObj.serverY - localObj.y;
+             const distSq = dx*dx + dy*dy;
+             if (distSq > INTERPOLATION_SNAP_THRESHOLD_SQ) {
+                 // console.log(`Snapping object ${id} due to large distance.`);
+                 localObj.x = localObj.serverX;
+                 localObj.y = localObj.serverY;
+                 localObj.rotation = localObj.serverRotation;
+                 localObj.health = localObj.serverHealth; // Snap health too
              }
+             // --- End Snap Check ---
+
+            // Handle subtype-specific properties (example)
+            if (localObj instanceof Lander && data.baseY !== undefined && localObj.baseY !== data.baseY) {
+                localObj.baseY = data.baseY;
+                changed = true;
+            }
+            // Ensure rover stays grounded (already handled in Rover.update based on groundLevelY,
+            // but sync might place it slightly off, let interpolation handle it)
         }
     }
     // Log active count after sync for debugging

@@ -7,23 +7,38 @@ const DEFAULT_HEALTH = 50;
 const DEFAULT_SIZE_SCALE = 0.3; // Visual scale relative to sprite frame size
 const DEFAULT_HITBOX_SCALE = 0.7; // Hitbox scale relative to visual size
 const DEFAULT_SCORE_VALUE = 5; // Default points awarded on destruction
+const INTERPOLATION_FACTOR = 0.15; // How quickly remote objects visually catch up
+const INTERPOLATION_SNAP_THRESHOLD_SQ = 150 * 150; // Squared distance threshold to snap position instantly
 
 export class SpaceObject {
     constructor(id, type, x, y, initialState = {}) {
         this.id = id;
         this.type = type; // e.g., 'asteroid', 'lander', 'rover'
+
+        // --- Authoritative State (synced from Spawner) ---
         this.x = x;
         this.y = y;
         this.vx = initialState.vx ?? -50; // Default horizontal drift left
         this.vy = initialState.vy ?? 0;
         this.rotation = initialState.rotation ?? 0;
-        this.rotationSpeed = initialState.rotationSpeed ?? 0; // Radians per second
         this.health = initialState.health ?? DEFAULT_HEALTH;
-        this.maxHealth = this.health; // Store initial health as max
+        this.scoreValue = initialState.scoreValue ?? DEFAULT_SCORE_VALUE; // Points awarded
+
+        // --- Local State (mostly for non-spawner clients) ---
+        this.rotationSpeed = initialState.rotationSpeed ?? 0; // Radians per second (local visual only unless synced)
         this.creationTime = performance.now();
         this.isMarkedForRemoval = false;
         this._destructionInProgress = false; // Add flag to prevent duplicate destroy calls
-        this.scoreValue = initialState.scoreValue ?? DEFAULT_SCORE_VALUE; // Points awarded
+        this.maxHealth = this.health; // Store initial health as max
+
+        // --- Network Interpolation State (for non-spawner clients) ---
+        this.serverX = x;
+        this.serverY = y;
+        this.serverRotation = this.rotation;
+        this.serverVx = this.vx; // Sync velocity for smoother interpolation? Maybe later.
+        this.serverVy = this.vy;
+        this.serverHealth = this.health; // Keep track of server health separately for visuals
+        this.lastServerUpdateTime = 0;
 
         // Get sprite frame based on type
         this.spriteFrame = this._getSpriteFrame(type);
@@ -53,32 +68,60 @@ export class SpaceObject {
         return frame;
     }
 
-    // Base update method (can be overridden by subtypes)
+    // Interpolates visual state towards server state (for non-spawners)
+    interpolateState(factor = INTERPOLATION_FACTOR) {
+        const dx = this.serverX - this.x;
+        const dy = this.serverY - this.y;
+        const distSq = dx*dx + dy*dy;
+
+        // Snap if too far apart
+        if (distSq > INTERPOLATION_SNAP_THRESHOLD_SQ) {
+            this.x = this.serverX;
+            this.y = this.serverY;
+            this.rotation = this.serverRotation; // Snap rotation too
+        } else {
+            // Interpolate position and rotation
+            this.x += dx * factor;
+            this.y += dy * factor;
+            // Interpolate rotation (simple lerp, handle wrap-around if needed)
+            this.rotation += (this.serverRotation - this.rotation) * factor;
+        }
+        // Optionally interpolate velocity for smoother visual updates between packets?
+        // this.vx += (this.serverVx - this.vx) * factor * 0.5; // Slower velocity interp
+        // this.vy += (this.serverVy - this.vy) * factor * 0.5;
+
+        // Interpolate health for smoother visuals (less jumpy than snapping)
+        this.health += (this.serverHealth - this.health) * factor * 0.5; // Slow interp
+        this.health = Math.max(0, Math.min(this.health, this.maxHealth)); // Clamp interpolated health
+
+    }
+
+    // Base update method: Calculates physics based on CURRENT state (x, y, vx, vy)
+    // Spawner calls this to calculate authoritative state.
+    // Non-spawners call this AFTER interpolateState to predict next visual frame.
     update(deltaTime, gameBounds, groundLevelY) {
         // Check removal flags at the start
         if (this.isMarkedForRemoval || this._destructionInProgress) return;
 
-        // Basic movement
+        // Basic physics update based on current velocity
         this.x += this.vx * deltaTime;
         this.y += this.vy * deltaTime;
-        this.rotation += this.rotationSpeed * deltaTime;
+        this.rotation += this.rotationSpeed * deltaTime; // Update rotation based on local speed
 
-        // Remove if off-screen left
-        // Use a buffer to ensure it's fully off screen
+        // Remove if off-screen left (applies to both spawner and non-spawner)
         const removalBuffer = 50;
         if (this.x + this.drawWidth + removalBuffer < 0) {
-            console.log(`Object ${this.id} marked for removal (off-screen left).`);
+            // Don't log removal here, let the manager handle it based on who owns it
             this.isMarkedForRemoval = true;
         }
-        // Optional: Remove if off-screen right/top/bottom?
-        // if (this.x - this.drawWidth > gameBounds.width) this.isMarkedForRemoval = true;
-        // if (this.y + this.drawHeight < 0) this.isMarkedForRemoval = true;
-        // if (this.y - this.drawHeight > gameBounds.height) this.isMarkedForRemoval = true;
     }
 
     // Base draw method
     draw(ctx, assets, renderScale) { // renderScale might not be needed if using internal visualScale
-        if (this.isMarkedForRemoval || !this.spriteFrame || !assets.space_objects || this._destructionInProgress) return;
+        // Use interpolated health for drawing, but authoritative health for logic
+        const displayHealth = this.health; // Use interpolated health for drawing
+
+        if (this.isMarkedForRemoval || !this.spriteFrame || !assets.space_objects || this._destructionInProgress || displayHealth <= 0) return;
 
         const spriteSheet = assets.space_objects;
         const frame = this.spriteFrame;
@@ -93,6 +136,19 @@ export class SpaceObject {
             ctx.rotate(this.rotation);
             ctx.translate(-this.x, -this.y);
 
+            // --- Health Bar (Optional, drawn before sprite) ---
+            // const barWidth = this.drawWidth * 0.8;
+            // const barHeight = 4;
+            // const barX = drawX + (this.drawWidth - barWidth) / 2;
+            // const barY = drawY - barHeight - 3; // Above sprite
+            // const healthRatio = Math.max(0, displayHealth / this.maxHealth);
+            // ctx.fillStyle = 'rgba(100, 100, 100, 0.7)';
+            // ctx.fillRect(barX, barY, barWidth, barHeight);
+            // ctx.fillStyle = 'rgba(200, 50, 50, 0.9)';
+            // ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
+            // --- End Health Bar ---
+
+
             ctx.drawImage(
                 spriteSheet,
                 frame.x, frame.y, frame.width, frame.height, // Source
@@ -103,30 +159,22 @@ export class SpaceObject {
         } finally {
             ctx.restore();
         }
-
-        // --- Debug Drawing (Optional) ---
-        // ctx.strokeStyle = 'cyan';
-        // ctx.lineWidth = 1;
-        // // Visual bounds
-        // ctx.strokeRect(drawX, drawY, this.drawWidth, this.drawHeight);
-        // // Hitbox bounds (centered)
-        // const hitboxDrawX = Math.round(this.x - this.hitboxOffsetX);
-        // const hitboxDrawY = Math.round(this.y - this.hitboxOffsetY);
-        // ctx.strokeStyle = 'lime';
-        // ctx.strokeRect(hitboxDrawX, hitboxDrawY, this.hitboxWidth, this.hitboxHeight);
-        // // Center point
-        // ctx.fillStyle = 'red';
-        // ctx.fillRect(this.x - 1, this.y - 1, 3, 3);
     }
 
-    // Base method for taking damage
+    // Base method for taking damage - updates authoritative health
     takeDamage(amount) {
-        if (this.isMarkedForRemoval || this._destructionInProgress) return false;
+        if (this.isMarkedForRemoval || this._destructionInProgress || this.health <= 0) return false;
 
-        this.health -= amount;
+        // Use authoritative health for damage calculation
+        const authoritativeHealth = this.serverHealth; // Or just this.health if spawner
+        const newHealth = authoritativeHealth - amount;
+
+        this.health = Math.max(0, newHealth); // Update local visual health immediately
+        this.serverHealth = this.health; // Keep serverHealth in sync for spawner
+
         // console.log(`Space object ${this.id} took ${amount} damage. Health: ${this.health}`);
         if (this.health <= 0) {
-            console.log(`Space object ${this.id} health <= 0. Marking for destruction.`);
+            // console.log(`Space object ${this.id} health <= 0. Marking for destruction.`);
             this.isMarkedForRemoval = true; // Mark it, the manager will handle full destruction
             return true; // Was destroyed (health depleted)
         }
@@ -143,6 +191,7 @@ export class SpaceObject {
     }
 
     getSyncData() {
+        // Send authoritative state
         return {
             type: this.type,
             x: this.x,
@@ -150,10 +199,10 @@ export class SpaceObject {
             vx: this.vx,
             vy: this.vy,
             rotation: this.rotation,
-            rotationSpeed: this.rotationSpeed,
+            // rotationSpeed: this.rotationSpeed, // Sync rotation speed if needed for consistency
             health: this.health,
             scoreValue: this.scoreValue, // Include score value in sync data
-            // Include any other state needed for subtypes
+            // Include any other state needed for subtypes (like lander's baseY?)
         };
     }
 }
