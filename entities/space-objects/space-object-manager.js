@@ -77,6 +77,7 @@ class SpaceObjectManager {
     // Syncs local objects with server data
     _syncObjects(objectData) {
         const currentIds = Object.keys(this.activeObjects);
+        const myClientId = this.networkManager.getClientId(); // Cache client ID
         const serverIds = Object.keys(objectData);
 
         // Remove local objects that are no longer in roomState
@@ -112,18 +113,18 @@ class SpaceObjectManager {
                     // console.log(`Skipping creation of ${id}, already destroyed in roomState.`);
                     continue;
                 }
-                console.log(`Creating new local space object instance ${id} of type ${data.type} from roomState data:`, data); // Log the data used
+                console.log(`[SpaceObjectManager ${myClientId}] Sync: Creating new local object ${id} type ${data.type}`); // Log creation attempt
                 // Pass the *entire* data object as initialState. The constructor should handle defaults.
                 this.activeObjects[id] = new ObjectClass(id, data.type, data.x, data.y, data, this.groundLevelY);
                  // Ensure constructor succeeded before proceeding
-                 if (!this.activeObjects[id]) {
-                    console.error(`Failed to create object ${id} of type ${data.type}.`);
+                 if (!this.activeObjects[id]?.id) { // Check if creation actually succeeded
+                    console.error(`[SpaceObjectManager ${myClientId}] Sync: FAILED to create local object ${id}`);
                     continue;
                  }
-                 // Log initial velocity after creation from sync data
-                 console.log(`  -> Initial position (${this.activeObjects[id].x.toFixed(0)}, ${this.activeObjects[id].y.toFixed(0)}), velocity (${this.activeObjects[id].vx.toFixed(1)}, ${this.activeObjects[id].vy.toFixed(1)})`);
+                 console.log(`[SpaceObjectManager ${myClientId}] Sync: Successfully created ${id}. Pos:(${this.activeObjects[id].x.toFixed(0)}, ${this.activeObjects[id].y.toFixed(0)}), Vel:(${this.activeObjects[id].vx.toFixed(1)}, ${this.activeObjects[id].vy.toFixed(1)})`);
 
             } else {
+                // console.log(`[SpaceObjectManager ${myClientId}] Sync: Updating existing object ${id}`); // Optional log
                 // Update existing local object
                 const localObj = this.activeObjects[id];
                 // If health is 0 or less from server, mark for removal locally too
@@ -138,6 +139,7 @@ class SpaceObjectManager {
                 // Update properties - Apply server state authoritatively
                 localObj.x = data.x;
                 localObj.y = data.y;
+                // Update local velocity state AFTER creating the object
                 localObj.vx = data.vx ?? localObj.vx; // Sync velocity if provided
                 localObj.vy = data.vy ?? localObj.vy;
                 localObj.rotation = data.rotation ?? localObj.rotation;
@@ -323,37 +325,42 @@ class SpaceObjectManager {
          const peerIds = Object.keys(peers).sort();
          const isSpawner = peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0];
 
-         for (const id in this.activeObjects) {
-             const obj = this.activeObjects[id];
-
-             if (obj.isMarkedForRemoval) { // Already marked (e.g., by sync or damage)
-                 delete this.activeObjects[id];
-                 continue;
-             }
-
-             obj.update(deltaTime, this.gameBounds, this.groundLevelY);
-
-             // Check if object marked itself for removal (e.g., off-screen)
-             if (obj.isMarkedForRemoval) {
-                 // console.log(`Object ${id} marked itself for removal locally.`); // Reduce noise
-                 // Only the spawner should send the removal update to roomState for off-screen cleanup
-                 if (isSpawner) {
-                     updates[id] = null; // Mark for removal in room state
-                     needsNetworkUpdate = true;
-                     console.log(`Spawner is removing object ${id} from roomState (off-screen).`);
-                 }
-                 // Remove locally regardless of being spawner
-                 delete this.activeObjects[id];
-             }
+         // Log active count periodically
+         if (Math.random() < 0.01) { // Log occasionally
+              console.log(`[SpaceObjectManager ${this.networkManager.getClientId()}] Update: Active Objects Count = ${Object.keys(this.activeObjects).length}`);
          }
 
-         // If spawner found objects to remove, send a single roomState update
-         if (needsNetworkUpdate && isSpawner) {
-             this.networkManager.updateRoomState({ spaceObjects: updates });
-         }
+          for (const id in this.activeObjects) {
+              const obj = this.activeObjects[id];
 
-         // Spawner attempts to spawn new objects
-         this.attemptSpawnObject(performance.now());
+              if (obj.isMarkedForRemoval) { // Already marked (e.g., by sync or damage)
+                  delete this.activeObjects[id];
+                  continue;
+              }
+
+              obj.update(deltaTime, this.gameBounds, this.groundLevelY);
+
+              // Check if object marked itself for removal (e.g., off-screen)
+              if (obj.isMarkedForRemoval) {
+                  // console.log(`Object ${id} marked itself for removal locally.`); // Reduce noise
+                  // Only the spawner should send the removal update to roomState for off-screen cleanup
+                  if (isSpawner) {
+                      updates[id] = null; // Mark for removal in room state
+                      needsNetworkUpdate = true;
+                      console.log(`Spawner is removing object ${id} from roomState (off-screen).`);
+                  }
+                  // Remove locally regardless of being spawner
+                  delete this.activeObjects[id];
+              }
+          }
+
+          // If spawner found objects to remove, send a single roomState update
+          if (needsNetworkUpdate && isSpawner) {
+             this.networkManager.updateRoomState({ spaceObjects: { ...updates } }); // Ensure update is a new object
+          }
+
+          // Spawner attempts to spawn new objects
+          this.attemptSpawnObject(performance.now());
      }
 
 

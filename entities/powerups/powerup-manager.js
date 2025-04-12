@@ -43,6 +43,7 @@ class PowerupManager {
 
     _syncPowerups(powerupData) {
         const currentIds = Object.keys(this.activePowerups);
+        const myClientId = this.networkManager.getClientId(); // Cache client ID
         const serverIds = Object.keys(powerupData);
 
         // Remove local powerups that are no longer in roomState
@@ -65,7 +66,7 @@ class PowerupManager {
             }
 
             if (!this.activePowerups[id]) {
-                console.log(`Creating new local powerup instance ${id} of type ${data.type}`);
+                console.log(`[PowerupManager ${myClientId}] Sync: Creating new local powerup ${id} type ${data.type}`); // Log creation attempt
                 this.activePowerups[id] = new Powerup(
                     id,
                     data.type,
@@ -73,13 +74,16 @@ class PowerupManager {
                     data.y,
                     POWERUP_SPAWN_CONFIG.RADIUS // Use configured radius
                 );
+                if (!this.activePowerups[id]?.id) {
+                    console.error(`[PowerupManager ${myClientId}] Sync: FAILED to create local powerup ${id}`);
+                }
             } else {
                 // Update existing (though position/type shouldn't change often)
                 const localPowerup = this.activePowerups[id];
                 localPowerup.x = data.x;
                 localPowerup.y = data.y;
                 if (localPowerup.type !== data.type) {
-                    console.warn(`Powerup ${id} changed type unexpectedly. Recreating.`);
+                    console.warn(`[PowerupManager ${myClientId}] Powerup ${id} changed type unexpectedly. Recreating.`);
                     delete this.activePowerups[id];
                     this.activePowerups[id] = new Powerup(
                         id, data.type, data.x, data.y, POWERUP_SPAWN_CONFIG.RADIUS
@@ -208,7 +212,7 @@ class PowerupManager {
 
         // Trigger removal from roomState (will propagate to others)
         this.networkManager.updateRoomState({
-            activePowerups: {
+            activePowerups: { // Ensure update is a new object for reactivity
                 [powerupId]: null // Set to null to remove key from state
             }
         });
@@ -228,7 +232,11 @@ class PowerupManager {
         for (const id in this.activePowerups) {
             this.activePowerups[id].update(deltaTime);
         }
-        // Moved the random spawn attempt call here, passing necessary parameters
+        // Log active count periodically
+        if (Math.random() < 0.01) {
+            console.log(`[PowerupManager ${this.networkManager.getClientId()}] Update: Active Powerups Count = ${Object.keys(this.activePowerups).length}`);
+        }
+        
         this.attemptRandomSpawn(currentTime, gameWidth, gameHeight, groundLevelY);
     }
 

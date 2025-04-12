@@ -31,6 +31,7 @@ class CollectibleManager {
 
     _syncCollectibles(collectibleData) {
         const currentIds = Object.keys(this.activeCollectibles);
+        const myClientId = this.networkManager.getClientId(); // Cache client ID
         const serverIds = Object.keys(collectibleData);
 
         // Remove local collectibles that are no longer in roomState
@@ -44,9 +45,14 @@ class CollectibleManager {
         for (const id of serverIds) {
             const data = collectibleData[id];
             if (!this.activeCollectibles[id]) {
+                if (!data || !data.type) { // Check for invalid data before proceeding
+                    console.warn(`[CollectibleManager ${myClientId}] Invalid data for collectible ${id}. Skipping.`);
+                    continue;
+                }
                 // Create new local instance
                 const config = getCollectibleConfig(data.type);
                 if (config) {
+                    console.log(`[CollectibleManager ${myClientId}] Sync: Creating new local collectible ${id} type ${data.type}`); // Log creation attempt
                     this.activeCollectibles[id] = new Collectible(
                         id, data.type, data.x, data.y, config.value
                     );
@@ -56,6 +62,9 @@ class CollectibleManager {
                     }
                 } else {
                     console.warn(`Unknown collectible type "${data.type}" for ID ${id}. Skipping.`);
+                }
+                if (!this.activeCollectibles[id]?.id) {
+                    console.error(`[CollectibleManager ${myClientId}] Sync: FAILED to create local collectible ${id}`);
                 }
             } else {
                 // Update existing (position might change slightly if physics added later)
@@ -117,7 +126,7 @@ class CollectibleManager {
 
         // Trigger removal from roomState
         this.networkManager.updateRoomState({
-            activeCollectibles: {
+            activeCollectibles: { // Ensure update is a new object for reactivity
                 [collectibleId]: null // Set to null to remove
             }
         });
@@ -134,42 +143,39 @@ class CollectibleManager {
 
     update(deltaTime) {
         let needsRoomStateUpdate = false;
+        const expiredIdsToRemove = []; // Track IDs to remove via network
+        // Log active count periodically
+        if (Math.random() < 0.01) {
+            console.log(`[CollectibleManager ${this.networkManager.getClientId()}] Update: Active Collectibles Count = ${Object.keys(this.activeCollectibles).length}`);
+        }
         for (const id in this.activeCollectibles) {
             const collectible = this.activeCollectibles[id];
             collectible.update(deltaTime);
 
             // Check if collectible marked itself for removal (e.g., lifespan expired)
             if (collectible.isMarkedForRemoval) {
-                 // Check if it still exists in the *current* room state before sending update
-                 // This prevents redundant removal requests if it was already removed by pickup/sync
-                 const currentRoomState = this.networkManager.getRoomState();
-                 if (currentRoomState?.activeCollectibles?.[id]) {
-                     needsRoomStateUpdate = true;
-                     // Remove directly from local cache
-                     delete this.activeCollectibles[id];
-                 } else {
-                      // Already gone from roomState, just remove locally
-                      delete this.activeCollectibles[id];
-                 }
+                const currentRoomState = this.networkManager.getRoomState();
+                if (currentRoomState?.activeCollectibles?.[id]) {
+                    needsRoomStateUpdate = true;
+                    expiredIdsToRemove.push(id); // Add to list for network removal
+                    // Remove directly from local cache
+                    delete this.activeCollectibles[id];
+                } else {
+                    // Already gone from roomState, just remove locally
+                    delete this.activeCollectibles[id];
+                }
             }
         }
 
-         // If any collectibles expired, send a single roomState update to remove them
-         if (needsRoomStateUpdate) {
-             const removalUpdate = {};
-             // We need to iterate through the original list again to find the expired IDs
-             // This is inefficient, ideally we'd track expired IDs separately.
-             // For now, reconstruct the update based on what's missing from activeCollectibles
-             // THIS IS FLAWED logic - relies on sync happening AFTER this update.
-             // A better approach is needed if many expire simultaneously.
-             // Simplified: Assume only one expires per frame for now for the update structure
-             // Let's refine this: Build the removal keys explicitly.
-             const expiredIds = [];
-             // Re-iterate based on initial list before deletion (not robust, but demonstrates concept)
-             // TODO: Improve tracking of expired items for batch removal
-             // For now, rely on individual removal or sync handling it over time.
-             // Let's just remove them locally and let sync handle discrepancies.
-         }
+        // If any collectibles expired, send a single roomState update to remove them
+        if (needsRoomStateUpdate) {
+            for (const idToRemove of expiredIdsToRemove) {
+                const removalUpdate = {};
+                removalUpdate[idToRemove] = null; // Mark for removal
+                console.log(`[CollectibleManager] Sending removal update for expired collectibles:`, expiredIdsToRemove);
+                this.networkManager.updateRoomState({ activeCollectibles: { ...removalUpdate } });
+            }
+        }
     }
 
     draw(ctx) {
