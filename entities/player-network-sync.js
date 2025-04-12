@@ -30,8 +30,17 @@ export function updatePlayerFromServer(state, serverData, timestamp) {
     state.serverLifecycleState = serverData.lifecycleState ?? state.serverLifecycleState;
     state.serverScore = serverData.score ?? state.serverScore; // Sync score
 
+    // --- Vehicle Type Sync ---
+    const newVehicleType = serverData.vehicleType ?? state.vehicleType;
+    if (state.vehicleType !== newVehicleType) {
+         console.log(`[Sync] Remote player ${state.id} vehicle changed from ${state.vehicleType} to ${newVehicleType}`);
+         state.vehicleType = newVehicleType;
+         state.updateVehicleProperties(); // CRITICAL: Update properties after type change
+    }
+    // --- End Vehicle Type Sync ---
+
     // Immediately sync non-interpolated state for remote players
-    state.vehicleType = serverData.vehicleType ?? state.vehicleType;
+    // state.vehicleType = serverData.vehicleType ?? state.vehicleType; // Handled above now
     state.score = state.serverScore; // Directly update score
 
     // If lifecycle state changes, handle transition immediately
