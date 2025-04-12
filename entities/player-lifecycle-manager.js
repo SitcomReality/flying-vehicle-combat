@@ -84,9 +84,12 @@ class PlayerLifecycleManager {
 
     handlePlayerDeath(playerId) {
        const player = this.playerManager.getPlayer(playerId);
+       // Prevent handling death multiple times or if not the local player
        if (!player || !player.isLocalPlayer || player.state.lifecycleState === PlayerLifecycleState.DEAD) {
            return;
        }
+
+       console.log(`Handling local player death for ${playerId}`);
 
        // --- Save Score ---
        // Get final score BEFORE resetting state
@@ -114,11 +117,12 @@ class PlayerLifecycleManager {
        const deathY = player.state.y + (player.state.height * this.renderScale / 2); // Center Y
 
 
-       // Transition to DEAD state (this also syncs presence)
+       // Transition to DEAD state FIRST (this also syncs presence)
+       // This prevents the player from being drawn in the frame the explosion starts
        if (player.transitionToState(PlayerLifecycleState.DEAD)) {
            console.log(`Local player ${player.id} officially DEAD.`);
 
-           // Trigger explosion particle effect at the player's last position
+           // Trigger explosion particle effect at the player's last position AFTER setting state
            // Use player-specific constants for a bigger explosion
            this.particleSystem?.emitExplosion(
                deathX,
@@ -128,10 +132,17 @@ class PlayerLifecycleManager {
                PLAYER_EXPLOSION_SPEED_MAX, // Use player-specific max speed
                EXPLOSION_COLORS_PLAYER // Use player-specific colors
            );
+            console.log(`Player explosion effect triggered for ${player.id} at (${deathX.toFixed(0)}, ${deathY.toFixed(0)})`);
 
            // Automatically trigger respawn selection after a short delay
            setTimeout(() => {
-                this.triggerLocalPlayerRespawn();
+                // Ensure player still exists and is dead before respawning
+                const currentPlayer = this.playerManager.getPlayer(playerId);
+                if(currentPlayer && currentPlayer.state.lifecycleState === PlayerLifecycleState.DEAD) {
+                    this.triggerLocalPlayerRespawn();
+                } else {
+                     console.log(`Skipping respawn trigger for ${playerId} as they are no longer in DEAD state.`);
+                }
            }, 1500); // 1.5 second delay before showing selector
        } else {
            console.error(`Failed to transition player ${playerId} to DEAD state.`);

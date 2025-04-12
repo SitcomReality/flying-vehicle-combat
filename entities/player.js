@@ -127,7 +127,8 @@ class Player {
     draw() {
         if (this.state.isMarkedForRemoval ||
             this.lifecycleState === PlayerLifecycleState.CONNECTING ||
-            this.state.lifecycleState === PlayerLifecycleState.SELECTING) {
+            this.state.lifecycleState === PlayerLifecycleState.SELECTING ||
+            this.state.lifecycleState === PlayerLifecycleState.DEAD) {
             return;
         }
 

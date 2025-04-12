@@ -14,13 +14,13 @@ const CHARGE_PARTICLE_SPAWN_RADIUS = 50; // How far from the center particles sp
 const CHARGE_PARTICLE_LIFESPAN = 0.3; // Short lifespan
 
 // --- Explosion Particle Constants ---
-const OBJ_EXPLOSION_PARTICLE_COUNT = 30;
-const PLAYER_EXPLOSION_PARTICLE_COUNT = 70; // More particles for player
+const OBJ_EXPLOSION_PARTICLE_COUNT = 40; // Increased slightly
+const PLAYER_EXPLOSION_PARTICLE_COUNT = 100; // Increased significantly for player
 const EXPLOSION_LIFESPAN_MIN = 0.4;
 const EXPLOSION_LIFESPAN_MAX = 1.2;
 const EXPLOSION_SPEED_MIN = 40;
 const EXPLOSION_SPEED_MAX = 250;
-const PLAYER_EXPLOSION_SPEED_MAX = 350; // Faster particles for player
+const PLAYER_EXPLOSION_SPEED_MAX = 450; // Increased significantly for player
 const EXPLOSION_COLORS_OBJ = ['rgba(255, 160, 80, 0.9)', 'rgba(200, 200, 200, 0.8)', 'rgba(100, 100, 100, 0.7)']; // Orange/grey
 const EXPLOSION_COLORS_PLAYER = ['rgba(255, 100, 50, 0.9)', 'rgba(255, 200, 50, 0.9)', 'rgba(255, 255, 255, 0.8)', 'rgba(200, 50, 50, 0.8)']; // More vibrant orange/red/white
 const EXPLOSION_GRAVITY = 150; // Gravity effect on explosion particles
@@ -121,7 +121,7 @@ class Particle {
 }
 
 class ParticleSystem {
-    constructor(maxParticles = 1000) { // Increased max particles for explosions
+    constructor(maxParticles = 1500) { // Increased max particles for bigger explosions
         this.particles = [];
         this.maxParticles = maxParticles;
         // Pre-parse colors if needed for performance, though likely negligible here
