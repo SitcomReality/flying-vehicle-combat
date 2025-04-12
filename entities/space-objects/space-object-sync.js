@@ -75,7 +75,7 @@ export function syncSpaceObjects(activeObjects, objectData, myClientId, groundLe
         if (data === null) continue; // Skip null entries (already handled removal)
 
         // Basic validation of network data
-        if (!data || !data.type || typeof data.x !== 'number' || typeof data.y !== 'number') {
+        if (!data || !data.type || typeof data.x !== 'number' || typeof data.y !== 'number' || typeof data.vx !== 'number' || typeof data.vy !== 'number') {
             console.warn(`[SpaceObjSync ${myClientId}] Invalid data for space object ${id}. Skipping. Data:`, data);
             if (activeObjects[id]) delete activeObjects[id]; // Remove potentially broken local instance
             changed = true;
@@ -105,6 +105,8 @@ export function syncSpaceObjects(activeObjects, objectData, myClientId, groundLe
                 // Initialize server state immediately on creation
                 newObj.serverX = data.x;
                 newObj.serverY = data.y;
+                newObj.serverVx = data.vx;
+                newObj.serverVy = data.vy;
                 newObj.serverRotation = data.rotation ?? 0;
                 newObj.serverHealth = data.health ?? newObj.health;
                 newObj.lastServerUpdateTime = now;
@@ -120,14 +122,12 @@ export function syncSpaceObjects(activeObjects, objectData, myClientId, groundLe
             // Update server state variables used for interpolation
             localObj.serverX = data.x;
             localObj.serverY = data.y;
+            localObj.serverVx = data.vx;
+            localObj.serverVy = data.vy;
             localObj.serverRotation = data.rotation ?? localObj.serverRotation;
             localObj.serverHealth = data.health ?? localObj.serverHealth; // Use server health
             localObj.scoreValue = data.scoreValue ?? localObj.scoreValue; // Sync score value
             localObj.lastServerUpdateTime = now;
-
-            // Sync velocities if needed for interpolation (currently commented out in object)
-            // localObj.serverVx = data.vx ?? localObj.serverVx;
-            // localObj.serverVy = data.vy ?? localObj.serverVy;
 
             // Check if health <= 0 from server, mark for removal locally (visuals will fade/stop)
             // The object will be fully deleted when the server sends 'null'
@@ -140,19 +140,6 @@ export function syncSpaceObjects(activeObjects, objectData, myClientId, groundLe
                  localObj.isMarkedForRemoval = false;
                  changed = true;
             }
-
-             // --- Snap Check ---
-             const dx = localObj.serverX - localObj.x;
-             const dy = localObj.serverY - localObj.y;
-             const distSq = dx*dx + dy*dy;
-             if (distSq > INTERPOLATION_SNAP_THRESHOLD_SQ) {
-                 // console.log(`Snapping object ${id} due to large distance.`);
-                 localObj.x = localObj.serverX;
-                 localObj.y = localObj.serverY;
-                 localObj.rotation = localObj.serverRotation;
-                 localObj.health = localObj.serverHealth; // Snap health too
-             }
-             // --- End Snap Check ---
 
             // Handle subtype-specific properties (example)
             if (localObj instanceof Lander && data.baseY !== undefined && localObj.baseY !== data.baseY) {

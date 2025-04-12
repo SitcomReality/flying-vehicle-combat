@@ -9,6 +9,7 @@ const DEFAULT_HITBOX_SCALE = 0.7; // Hitbox scale relative to visual size
 const DEFAULT_SCORE_VALUE = 5; // Default points awarded on destruction
 const INTERPOLATION_FACTOR = 0.15; // How quickly remote objects visually catch up
 const INTERPOLATION_SNAP_THRESHOLD_SQ = 150 * 150; // Squared distance threshold to snap position instantly
+const VELOCITY_INTERPOLATION_FACTOR = 0.5; // Separate factor for velocity (can be tuned)
 
 // --- Export the constant ---
 export { INTERPOLATION_SNAP_THRESHOLD_SQ };
@@ -74,7 +75,8 @@ export class SpaceObject {
     // Interpolates visual state towards server state (for non-spawners)
     interpolateState(factor = INTERPOLATION_FACTOR) {
         // Don't interpolate if marked for removal or recently updated
-        if (this.isMarkedForRemoval || performance.now() - this.lastServerUpdateTime < 10) {
+        // Allow interpolation even if recently updated, helps smoothness
+        if (this.isMarkedForRemoval) {
              return;
         }
 
@@ -84,9 +86,12 @@ export class SpaceObject {
 
         // Snap if too far apart
         if (distSq > INTERPOLATION_SNAP_THRESHOLD_SQ) {
+            // console.log(`Snapping object ${this.id} due to large distance ${Math.sqrt(distSq)}`);
             this.x = this.serverX;
             this.y = this.serverY;
             this.rotation = this.serverRotation; // Snap rotation too
+            this.vx = this.serverVx; // Snap velocity too
+            this.vy = this.serverVy;
         } else {
             // Interpolate position and rotation
             this.x += dx * factor;
@@ -96,15 +101,17 @@ export class SpaceObject {
             // Handle wrap-around for rotation interpolation (optional but smoother)
             const wrappedDelta = (deltaRotation + Math.PI * 3) % (Math.PI * 2) - Math.PI;
             this.rotation += wrappedDelta * factor;
+
+            // --- Interpolate velocity ---
+            // Use a potentially different factor for velocity to make it more responsive
+            this.vx += (this.serverVx - this.vx) * VELOCITY_INTERPOLATION_FACTOR;
+            this.vy += (this.serverVy - this.vy) * VELOCITY_INTERPOLATION_FACTOR;
+             // --- End Interpolate velocity ---
         }
-        // Optionally interpolate velocity for smoother visual updates between packets?
-        // this.vx += (this.serverVx - this.vx) * factor * 0.5; // Slower velocity interp
-        // this.vy += (this.serverVy - this.vy) * factor * 0.5;
 
         // Interpolate health for smoother visuals (less jumpy than snapping)
         this.health += (this.serverHealth - this.health) * factor * 0.5; // Slow interp
         this.health = Math.max(0, Math.min(this.health, this.maxHealth)); // Clamp interpolated health
-
     }
 
     // Base update method: Calculates physics based on CURRENT state (x, y, vx, vy)
@@ -115,6 +122,7 @@ export class SpaceObject {
         if (this.isMarkedForRemoval || this._destructionInProgress) return;
 
         // Basic physics update based on current velocity
+        // For non-spawners, vx/vy have just been interpolated towards the server state
         this.x += this.vx * deltaTime;
         this.y += this.vy * deltaTime;
         this.rotation += this.rotationSpeed * deltaTime; // Update rotation based on local speed
@@ -207,13 +215,12 @@ export class SpaceObject {
             type: this.type,
             x: this.x,
             y: this.y,
-            vx: this.vx,
-            vy: this.vy,
+            vx: this.vx, // Make sure vx is included
+            vy: this.vy, // Make sure vy is included
             rotation: this.rotation,
-            // rotationSpeed: this.rotationSpeed, // Sync rotation speed if needed for consistency
-            health: Math.max(0, this.health), // Ensure health sent is not negative
-            scoreValue: this.scoreValue, // Include score value in sync data
-            // Include any other state needed for subtypes (like lander's baseY?)
+            health: Math.max(0, this.health),
+            scoreValue: this.scoreValue,
+            // Include subtype-specific data if needed by the subtype override
         };
     }
 }
