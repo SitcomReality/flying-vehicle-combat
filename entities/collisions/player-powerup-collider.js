@@ -26,7 +26,9 @@ export function checkPlayerPowerupCollisions(localPlayer, activePowerups, render
     // If dimensions are invalid, skip check
     if (playerRect.width <= 0 || playerRect.height <= 0) return;
 
-    for (const powerup of activePowerups) {
+    // Iterate backwards for safe removal during iteration if needed (though manager handles removal)
+    for (let i = activePowerups.length - 1; i >= 0; i--) {
+        const powerup = activePowerups[i];
         if (!powerup || powerup.isMarkedForRemoval) continue;
 
         const powerupRect = {
@@ -39,19 +41,22 @@ export function checkPlayerPowerupCollisions(localPlayer, activePowerups, render
          if (powerupRect.width <= 0 || powerupRect.height <= 0) continue;
 
         if (checkAABBCollision(playerRect, powerupRect)) {
-            console.log(`Collision detected between local player ${localPlayer.id} and powerup ${powerup.id}`);
+            // console.log(`Collision detected between local player ${localPlayer.id} and powerup ${powerup.id}`);
 
             // Tell the powerup manager that the local player picked this up
-            // The manager handles removing it from the game state and returning its info
+            // The manager handles removing it from the game state and returns its info
             const pickedUpPowerup = powerupManager.pickupPowerup(powerup.id);
 
-            // If pickup was successful, apply the effect to the player
+            // If pickup was successful (manager returned the powerup), apply the effect locally
             if (pickedUpPowerup) {
                  applyPowerupEffect(localPlayer.state, pickedUpPowerup, currentTime);
                  // TODO: Play pickup sound effect here
+            } else {
+                 // Log if pickup failed (e.g., already picked up by someone else simultaneously)
+                 // console.log(`[Collision] Pickup failed for powerup ${powerup.id}, likely already taken.`);
             }
             // A player can only pick up one powerup per collision check loop frame
-            // (prevents multi-pickup from overlapping powerups instantly)
+            // Break ensures we don't process multiple overlapping powerups instantly
             break;
         }
     }

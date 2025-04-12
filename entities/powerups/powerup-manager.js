@@ -11,10 +11,22 @@ class PowerupManager {
         this.particleSystem = particleSystem; // Store particle system reference
         this.activePowerups = {}; // Stores local Powerup instances { id: Powerup }
         this.lastSpawnAttemptTime = 0;
+        this.isSpawner = false; // Flag to indicate if this client is the designated spawner
 
         this.networkManager.onPresenceUpdate(this._handlePresenceUpdate.bind(this));
         this.networkManager.onRoomStateUpdate(this._handleRoomStateUpdate.bind(this));
+        this._determineSpawner(); // Determine spawner initially
         this._initializeFromRoomState(); // Try to initialize immediately
+    }
+
+    _determineSpawner() {
+        const peers = this.networkManager.getPeers();
+        const peerIds = Object.keys(peers).sort();
+        const oldSpawnerStatus = this.isSpawner;
+        this.isSpawner = peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0];
+        if (this.isSpawner !== oldSpawnerStatus) {
+            // console.log(`[PowerupMgr] Spawner status changed to: ${this.isSpawner}`);
+        }
     }
 
     _initializeFromRoomState() {
@@ -29,7 +41,8 @@ class PowerupManager {
 
     // Track the current list of peers to determine the spawner
     _handlePresenceUpdate(presence) {
-        // The presence update implicitly updates networkManager.peers
+        // Re-determine spawner role on presence changes
+        this._determineSpawner();
     }
 
     _handleRoomStateUpdate(roomState) {
@@ -44,13 +57,15 @@ class PowerupManager {
         const currentIds = Object.keys(this.activePowerups);
         const myClientId = this.networkManager.getClientId(); // Cache client ID
         const serverIds = Object.keys(powerupData);
+        let changed = false;
 
-        // FIXED: Only remove powerups that are explicitly null, not those missing from update
+        // Remove powerups explicitly marked as null in the network data
         for (const id of currentIds) {
             if (powerupData[id] === null) {
                 if (this.activePowerups[id]) { // Ensure it exists before deleting
-                    console.log(`[PowerupMgr ${myClientId}] Removing powerup ${id} due to explicit null`);
+                    // console.log(`[PowerupMgr ${myClientId}] Removing powerup ${id} due to explicit null`);
                     delete this.activePowerups[id];
+                    changed = true;
                 }
             }
         }
@@ -60,24 +75,33 @@ class PowerupManager {
             const data = powerupData[id];
             // Skip null entries
             if (data === null) continue;
-            
-            if (!data || !data.type) {
+
+            if (!data || !data.type || typeof data.x !== 'number' || typeof data.y !== 'number') {
                 console.warn(`Invalid data for powerup ${id} in roomState. Skipping.`);
                 if(this.activePowerups[id]) delete this.activePowerups[id];
+                changed = true;
                 continue;
             }
 
             if (!this.activePowerups[id]) {
-                console.log(`[PowerupMgr ${myClientId}] Creating new powerup ${id} of type ${data.type} at (${data.x}, ${data.y})`);
-                this.activePowerups[id] = new Powerup(
-                    id,
-                    data.type,
-                    data.x,
-                    data.y,
-                    POWERUP_SPAWN_CONFIG.RADIUS // Use configured radius
-                );
-                if (!this.activePowerups[id]?.id) {
-                    console.error(`[PowerupManager ${myClientId}] Sync: FAILED to create local powerup ${id}`);
+                // console.log(`[PowerupMgr ${myClientId}] Creating new powerup ${id} of type ${data.type} at (${data.x}, ${data.y})`);
+                try {
+                    const newPowerup = new Powerup(
+                        id,
+                        data.type,
+                        data.x,
+                        data.y,
+                        POWERUP_SPAWN_CONFIG.RADIUS // Use configured radius
+                    );
+                    if (!newPowerup || !newPowerup.id) {
+                         console.error(`[PowerupManager ${myClientId}] Sync: FAILED to create local powerup ${id}`);
+                         continue;
+                    }
+                    this.activePowerups[id] = newPowerup;
+                    changed = true;
+                } catch (error) {
+                     console.error(`[PowerupMgr ${myClientId}] Sync: Error creating local powerup ${id} of type ${data.type}:`, error);
+                     continue;
                 }
             } else {
                 // Update existing (though position/type shouldn't change often)
@@ -90,22 +114,22 @@ class PowerupManager {
                     this.activePowerups[id] = new Powerup(
                         id, data.type, data.x, data.y, POWERUP_SPAWN_CONFIG.RADIUS
                     );
+                    changed = true;
                 }
             }
         }
-        
+
         // ADDED: Log active count after sync for debugging
-        if (Math.random() < 0.01) { // Occasional log
-            console.log(`[PowerupMgr ${myClientId}] Active powerups after sync: ${Object.keys(this.activePowerups).length}`);
+        if (changed || Math.random() < 0.01) { // Log on change or occasionally
+            // console.log(`[PowerupMgr ${myClientId}] Active powerups after sync: ${Object.keys(this.activePowerups).length}`);
         }
     }
 
     // Attempt to spawn a powerup periodically (only by designated spawner)
     attemptRandomSpawn(currentTime, gameWidth, gameHeight, groundLevelY) {
-        // --- Spawner Determination ---
-        const peers = this.networkManager.getPeers();
-        const peerIds = Object.keys(peers).sort();
-        if (!peerIds.length || this.networkManager.getClientId() !== peerIds[0]) {
+        // --- Spawner Check ---
+        // Use the isSpawner flag instead of calculating each time
+        if (!this.isSpawner) {
             return; // Not the designated spawner
         }
 
@@ -137,7 +161,7 @@ class PowerupManager {
             const y = Math.random() * spawnableHeight + padding;
 
             const newId = `powerup-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
-            console.log(`Spawner ${this.networkManager.getClientId()} attempting to spawn powerup ${newId} (${type}) at ${x.toFixed(0)},${y.toFixed(0)}`);
+            // console.log(`Spawner ${this.networkManager.getClientId()} attempting to spawn powerup ${newId} (${type}) at ${x.toFixed(0)},${y.toFixed(0)}`);
 
             // Use dynamic key for update
              const updatePayload = {};
@@ -147,16 +171,23 @@ class PowerupManager {
                   y: y
              };
 
-            // Update room state to add the new powerup
+            // Spawner updates room state to add the new powerup
             this.networkManager.updateRoomState({
                 activePowerups: updatePayload
             });
+
+            // Spawner also adds locally immediately for responsiveness
+            const newPowerup = new Powerup(
+                newId, type, x, y, POWERUP_SPAWN_CONFIG.RADIUS
+            );
+            this.activePowerups[newId] = newPowerup;
+            // console.log(`[PowerupMgr ${this.networkManager.getClientId()}] Locally added powerup ${newId} after spawning.`);
         }
     }
 
     // Spawns a powerup at a specific location (e.g., from object drop)
     spawnPowerupAt(x, y, type = null) {
-        // Apply max active limit check even for drops
+        // Check limit before determining spawner role
         const numActive = Object.keys(this.activePowerups).length;
         if (numActive >= POWERUP_SPAWN_CONFIG.MAX_ACTIVE) {
             console.log("Maximum powerup limit reached, cannot spawn from drop.");
@@ -171,16 +202,15 @@ class PowerupManager {
             return null; // Invalid type or weights
         }
 
-        // Determine who should actually add this to room state (designated spawner)
-        const peers = this.networkManager.getPeers();
-        const peerIds = Object.keys(peers).sort();
-        if (!peerIds.length || this.networkManager.getClientId() !== peerIds[0]) {
+        // Only the designated spawner adds this to room state
+        if (!this.isSpawner) {
+            // console.log(`[PowerupMgr] Non-spawner received spawnPowerupAt request for type ${type}. Ignoring state update.`);
             return `dropped-powerup-${type}`; // Placeholder ID
         }
 
         // If this *is* the designated spawner, add it to room state
         const newId = `powerup-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`;
-        console.log(`Spawner ${this.networkManager.getClientId()} spawning powerup ${newId} (${type}) from drop at ${x.toFixed(0)},${y.toFixed(0)}`);
+        // console.log(`Spawner ${this.networkManager.getClientId()} spawning powerup ${newId} (${type}) from drop at ${x.toFixed(0)},${y.toFixed(0)}`);
 
         // Use dynamic key for update
         const updatePayload = {};
@@ -194,12 +224,12 @@ class PowerupManager {
             activePowerups: updatePayload
         });
 
-        // ***** ADDED: Create and add locally immediately *****
+        // Spawner adds locally immediately
         const newPowerup = new Powerup(
             newId, type, x, y, POWERUP_SPAWN_CONFIG.RADIUS
         );
         this.activePowerups[newId] = newPowerup;
-        console.log(`[PowerupMgr ${this.networkManager.getClientId()}] Locally added powerup ${newId} after spawning.`);
+        // console.log(`[PowerupMgr ${this.networkManager.getClientId()}] Locally added powerup ${newId} after spawning from drop.`);
 
         return newId; // Return the actual ID created
     }
@@ -208,19 +238,21 @@ class PowerupManager {
         return this.spawnPowerupAt(x, y, type);
     }
 
-    // Called when a local player picks up a powerup
+    // Called when a local player picks up a powerup (via Collision Manager)
     pickupPowerup(powerupId) {
         if (!this.activePowerups[powerupId]) {
+            // This can happen if two clients collide in the same frame and both send removal
+            // console.warn(`[PowerupMgr] Attempted to pick up non-existent or already removed powerup ${powerupId}`);
             return null;
         }
 
         const powerup = this.activePowerups[powerupId];
-        console.log(`Local player picked up powerup ${powerup.id} (${powerup.type})`);
+        console.log(`[PowerupMgr ${this.networkManager.getClientId()}] Local player picked up powerup ${powerup.id} (${powerup.type})`);
 
         // Trigger pickup effect BEFORE removing
         this.particleSystem?.emitPowerupPickup(powerup.x, powerup.y);
 
-        // Mark for local removal immediately (visuals disappear)
+        // Remove locally immediately (visuals disappear)
         delete this.activePowerups[powerupId];
 
         // Use dynamic key for removal
@@ -228,11 +260,12 @@ class PowerupManager {
         removalPayload[powerupId] = null;
 
         // Trigger removal from roomState (will propagate to others)
+        console.log(`[PowerupMgr ${this.networkManager.getClientId()}] Sending removal update for powerup ${powerupId}`);
         this.networkManager.updateRoomState({
             activePowerups: removalPayload
         });
 
-        return powerup; // Return the picked-up powerup details
+        return powerup; // Return the picked-up powerup details for applying effect
     }
 
     getActivePowerups() {
@@ -247,12 +280,18 @@ class PowerupManager {
             this.activePowerups[id].update(deltaTime);
         }
 
-        this.attemptRandomSpawn(currentTime, gameWidth, gameHeight, groundLevelY);
+        // Only spawner attempts random spawns
+        if (this.isSpawner) {
+            this.attemptRandomSpawn(currentTime, gameWidth, gameHeight, groundLevelY);
+        }
     }
 
     draw(ctx) {
         for (const id in this.activePowerups) {
-            this.activePowerups[id].draw(ctx, this.assets, this.renderScale);
+            // Only draw if the powerup still exists locally
+             if (this.activePowerups[id]) {
+                this.activePowerups[id].draw(ctx, this.assets, this.renderScale);
+             }
         }
     }
 }
