@@ -4,13 +4,13 @@ import { PlayerLifecycleState } from './player-lifecycle.js';
 
 // --- Constants ---
 export const GLOBAL_PHYSICS = {
-    GRAVITY: 350,
-    MAX_VERTICAL_SPEED: 300,
-    VERTICAL_DRAG_FACTOR: 0.5,
-    MAX_TILT_ANGLE: Math.PI / 2.5,
-    TILT_SPEED: 6,
-    AIR_FRICTION_FACTOR: 0.3,
-    GROUND_FRICTION_FACTOR: 1.5,
+    GRAVITY: 280, // pixels/sec^2 - Reduced by 20% from 350
+    MAX_VERTICAL_SPEED: 300, // pixels/sec
+    VERTICAL_DRAG_FACTOR: 0.5, // Higher = more drag when airborne
+    MAX_TILT_ANGLE: Math.PI / 2.5, // ~72 degrees
+    TILT_SPEED: 6, // How quickly the sprite tilts
+    AIR_FRICTION_FACTOR: 0.3, // Factor for horizontal drag when airborne (lower = less drag)
+    GROUND_FRICTION_FACTOR: 1.5, // Factor for horizontal friction when grounded (higher = more friction)
     SPARK_EMIT_RATE: 5,
     SMOKE_EMIT_RATE: 1,
     PROJECTILE_SPEED_SCALE: 3,
@@ -62,7 +62,7 @@ export class PlayerState {
         this.maxFuel = 100;
 
         // --- Scoring ---
-        this.score = 0; 
+        this.score = 0;
 
         // --- Vehicle-specific physics properties ---
         this.fuelRegenRate = 0;
@@ -70,7 +70,7 @@ export class PlayerState {
         this.thrustForce = 0;
         this.horizontalAcceleration = 0;
         this.maxHorizontalSpeed = 0;
-        this.gravity = GLOBAL_PHYSICS.GRAVITY;
+        this.gravity = GLOBAL_PHYSICS.GRAVITY; // Read initial global gravity
         this.verticalDragFactor = GLOBAL_PHYSICS.VERTICAL_DRAG_FACTOR;
         this.airFrictionFactor = GLOBAL_PHYSICS.AIR_FRICTION_FACTOR;
         this.groundFrictionFactor = GLOBAL_PHYSICS.GROUND_FRICTION_FACTOR;
@@ -100,7 +100,7 @@ export class PlayerState {
         this.serverFuel = 100;
         this.serverIsInvulnerable = false;
         this.serverLifecycleState = PlayerLifecycleState.CONNECTING;
-        this.serverScore = 0; 
+        this.serverScore = 0;
         this.lastServerUpdateTime = 0;
 
         // Flags
@@ -113,7 +113,7 @@ export class PlayerState {
         this.drawOffsetY = 0;
         this.currentVehicle = null;
 
-        this.updateVehicleProperties(); 
+        this.updateVehicleProperties(); // Update with specific vehicle stats (may override gravity)
 
         const initialDirection = -1;
         this.facingDirection = initialDirection;
@@ -125,7 +125,7 @@ export class PlayerState {
         this.serverFuel = this.fuel;
         this.serverIsInvulnerable = this.isInvulnerable;
         this.serverLifecycleState = this.lifecycleState;
-        this.serverScore = this.score; 
+        this.serverScore = this.score;
     }
 
     updateVehicleProperties() {
@@ -155,6 +155,7 @@ export class PlayerState {
         this.thrustForce = vehicleStats.thrustForce;
         this.horizontalAcceleration = vehicleStats.horizontalAcceleration;
         this.maxHorizontalSpeed = vehicleStats.maxHorizontalSpeed;
+        // Read gravity from vehicle stats, falling back to updated GLOBAL_PHYSICS value
         this.gravity = vehicleStats.GRAVITY ?? GLOBAL_PHYSICS.GRAVITY;
         this.verticalDragFactor = vehicleStats.VERTICAL_DRAG_FACTOR ?? GLOBAL_PHYSICS.VERTICAL_DRAG_FACTOR;
         this.airFrictionFactor = vehicleStats.AIR_FRICTION_FACTOR ?? GLOBAL_PHYSICS.AIR_FRICTION_FACTOR;
@@ -189,7 +190,7 @@ export class PlayerState {
                  this.serverHealth = this.health;
                  this.serverFuel = this.fuel;
                  this.chargeLevel = 0;
-                 this.activePowerups = {}; 
+                 this.activePowerups = {};
             }
         } else {
             console.warn(`Invalid vehicleTypeIndex: ${vehicleTypeIndex} for player ${this.id}`);
@@ -208,7 +209,7 @@ export class PlayerState {
             fuel: this.fuel,
             isInvulnerable: this.isInvulnerable,
             lifecycleState: this.lifecycleState,
-            score: this.score, 
+            score: this.score,
         };
     }
 
@@ -227,7 +228,7 @@ export class PlayerState {
         this.isThrusting = false;
         this.isMovingLeft = false;
         this.isMovingRight = false;
-        this.isOnGround = false; 
+        this.isOnGround = false;
         this.isCharging = false;
         this.chargeLevel = 0;
         this.wantsToFire = false;
@@ -237,7 +238,7 @@ export class PlayerState {
 
         this.lastDamageTime = 0;
         this.isInvulnerable = false;
-        this.lastGroundDamageTime = 0; 
+        this.lastGroundDamageTime = 0;
 
         this.score = 0;
 
@@ -249,11 +250,11 @@ export class PlayerState {
         this.serverHealth = this.health;
         this.serverFuel = this.fuel;
         this.serverIsInvulnerable = this.isInvulnerable;
-        this.serverLifecycleState = PlayerLifecycleState.ACTIVE; 
-        this.serverScore = this.score; 
+        this.serverLifecycleState = PlayerLifecycleState.ACTIVE;
+        this.serverScore = this.score;
         this.lastServerUpdateTime = 0;
 
         this.isMarkedForRemoval = false;
-        this.lifecycleState = PlayerLifecycleState.ACTIVE; 
+        this.lifecycleState = PlayerLifecycleState.ACTIVE;
     }
 }
