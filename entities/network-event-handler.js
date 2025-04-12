@@ -32,10 +32,10 @@ class NetworkEventHandler {
                 // Check if peer info is delayed but presence exists
                 const latePeerInfo = this.networkManager.getPeer(clientId);
                  if (!latePeerInfo) {
-                     console.warn(`Presence received for unknown or not-yet-fully-connected peer ${clientId}. Waiting for peer info.`);
+                     // console.warn(`Presence received for unknown or not-yet-fully-connected peer ${clientId}. Waiting for peer info.`);
                      continue;
                  } else {
-                    console.log(`Received presence for peer ${clientId} before formal 'connected' event. Processing...`);
+                    // console.log(`Received presence for peer ${clientId} before formal 'connected' event. Processing...`);
                  }
             }
 
@@ -49,14 +49,14 @@ class NetworkEventHandler {
                     if (this.playerManager.getLocalPlayer().lifecycleState !== PlayerLifecycleState.CONNECTING) {
                          continue;
                     } else {
-                        console.log("Updating local player state from early presence data during CONNECTING phase.");
+                        // console.log("Updating local player state from early presence data during CONNECTING phase.");
                         // Update state but don't recreate
                         this.playerManager.getLocalPlayer().updateFromServer(presenceData, now);
                         continue;
                     }
                 }
 
-                console.log("New player detected from presence:", clientId, peerInfo?.username ?? this.networkManager.getPeer(clientId)?.username ?? 'Unknown');
+                // console.log("New player detected from presence:", clientId, peerInfo?.username ?? this.networkManager.getPeer(clientId)?.username ?? 'Unknown');
                 const initialState = {
                     x: presenceData.x ?? this.gameConfig.GAME_WIDTH / 2,
                     y: presenceData.y ?? this.gameConfig.GAME_HEIGHT / 2,
@@ -67,7 +67,8 @@ class NetworkEventHandler {
                      // Sync initial health/fuel/invuln state if available
                     health: presenceData.health,
                     fuel: presenceData.fuel,
-                    isInvulnerable: presenceData.isInvulnerable
+                    isInvulnerable: presenceData.isInvulnerable,
+                    score: presenceData.score, // Sync initial score
                 };
                  // Only create if not already present (double check, createPlayer has guards too)
                  if (!this.playerManager.getPlayer(clientId)) {
@@ -80,7 +81,7 @@ class NetworkEventHandler {
             } else if (isLocal && existingPlayer && existingPlayer.lifecycleState === PlayerLifecycleState.CONNECTING) {
                  // Handle the case where the local player was created but still in CONNECTING state
                  // and receives its own initial presence data. Update internal state.
-                 console.log("Local player received initial presence data while CONNECTING. Updating state.");
+                 // console.log("Local player received initial presence data while CONNECTING. Updating state.");
                  existingPlayer.updateFromServer(presenceData, now);
                  // If the server confirmed a different state (e.g., ACTIVE), update local state
                  if (presenceData.lifecycleState && presenceData.lifecycleState !== PlayerLifecycleState.CONNECTING) {
@@ -105,11 +106,11 @@ class NetworkEventHandler {
                  // Also, check if they are ACTUALLY gone from the room.peers list (final sanity check)
                 if (playerToRemove && !playerToRemove.isMarkedForRemoval && !currentPeers[existingPlayerId]) {
                     const lastKnownPeerInfo = this.networkManager.getPeer(existingPlayerId); // Might be undefined if already gone
-                    console.log("Player disconnected (removed from presence/peers):", existingPlayerId, lastKnownPeerInfo?.username ?? '(info gone)');
+                    // console.log("Player disconnected (removed from presence/peers):", existingPlayerId, lastKnownPeerInfo?.username ?? '(info gone)');
                     this.playerManager.removePlayer(existingPlayerId);
                 } else if (playerToRemove && !playerToRemove.isMarkedForRemoval && currentPeers[existingPlayerId]) {
                      // This case means presence is missing but peer info still exists - likely temporary desync or joining state
-                     console.warn(`Presence missing for ${existingPlayerId} but peer info still exists. Player not removed yet.`);
+                     // console.warn(`Presence missing for ${existingPlayerId} but peer info still exists. Player not removed yet.`);
                 }
             }
         }
@@ -120,7 +121,7 @@ class NetworkEventHandler {
     }
 
     _handlePresenceUpdateRequest(updateRequest, fromClientId) {
-        console.log("Received presence update request:", updateRequest, "from", fromClientId);
+        // console.log("Received presence update request:", updateRequest, "from", fromClientId);
         const localPlayer = this.playerManager.getLocalPlayer();
         if (!localPlayer || !localPlayer.state) return;
 
@@ -141,30 +142,79 @@ class NetworkEventHandler {
 
     _handleMessage(event) {
         const data = event; // data is the whole event object now
-        console.log(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received message:`, data);
+        const myClientId = this.networkManager?.getClientId(); // Use optional chaining
+
+        // Reduce logging frequency for non-essential messages
+        if (data.type !== 'connected' && data.type !== 'disconnected' && data.type !== 'fireProjectile') {
+            // console.log(`[NetworkEventHandler ${myClientId}] Received message:`, data);
+        }
 
         switch (data.type) {
             case 'connected':
             case 'disconnected':
                 // These are handled automatically by presence updates now
-                // console.log(`Network Event: ${data.type} - Client: ${data.clientId}, ${data.username}`);
+                // console.log(`[NetworkEventHandler ${myClientId}] Network Event: ${data.type} - Client: ${data.clientId}, ${data.username}`);
                 break;
             case 'fireProjectile':
-                console.log(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received 'fireProjectile' event from ${data.clientId || 'Unknown'}. Data:`, data.projectile);
-                if (data.projectile && this.projectileManager) {
-                    const p = data.projectile;
-                    // Retrieve gravityFactor from the event data, provide default if missing
-                    const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
-                    this.projectileManager.createProjectile(
-                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, p.color, p.damage, gravityFactor // Pass gravityFactor
-                    );
-                } else {
-                    console.warn(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received invalid fireProjectile event data or projectileManager not ready. Projectile data:`, data.projectile);
+                // --- START DETAILED LOGGING ---
+                console.log(`[NetEvt ${myClientId}] === Received 'fireProjectile' event from ${data.clientId || 'Unknown'} ===`);
+                console.log(`[NetEvt ${myClientId}] Event Data:`, JSON.stringify(data.projectile)); // Stringify for cleaner log
+
+                // Check 1: Projectile Manager existence
+                if (!this.projectileManager) {
+                     console.error(`[NetEvt ${myClientId}] ABORT: ProjectileManager not available!`);
+                     break; // Exit case
                 }
+                console.log(`[NetEvt ${myClientId}] Check 1 PASSED: ProjectileManager exists.`);
+
+                // Check 2: Projectile data presence
+                if (!data.projectile) {
+                    console.warn(`[NetEvt ${myClientId}] ABORT: 'projectile' data is missing.`);
+                    break; // Exit case
+                }
+                console.log(`[NetEvt ${myClientId}] Check 2 PASSED: Projectile data exists.`);
+
+                const p = data.projectile;
+
+                // Check 3: Basic data type validation
+                 if (typeof p.x !== 'number' || typeof p.y !== 'number' ||
+                     typeof p.vx !== 'number' || typeof p.vy !== 'number' ||
+                     typeof p.id !== 'string' || typeof p.ownerId !== 'string') {
+                      console.warn(`[NetEvt ${myClientId}] ABORT: Invalid data types in projectile data.`, p);
+                      break; // Exit case
+                 }
+                 console.log(`[NetEvt ${myClientId}] Check 3 PASSED: Basic data types valid.`);
+
+                // Check 4: Duplicate Check
+                if (this.projectileManager.projectiles[p.id]) {
+                    console.warn(`[NetEvt ${myClientId}] ABORT: Duplicate projectile ID ${p.id} detected. Skipping creation.`);
+                    break; // Exit case - prevent duplicate creation
+                }
+                 console.log(`[NetEvt ${myClientId}] Check 4 PASSED: Projectile ID ${p.id} is not a duplicate.`);
+                // --- END DUPLICATE CHECK ---
+
+                // Extract data, providing defaults if necessary
+                const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
+                const damage = p.damage ?? 10; // Default damage if missing
+                const color = p.color ?? 'yellow'; // Default color if missing
+                console.log(`[NetEvt ${myClientId}] Extracted projectile details - Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}, Color: ${color}`);
+
+                // Attempt Creation
+                console.log(`[NetEvt ${myClientId}] >>> Calling projectileManager.createProjectile for ID ${p.id}...`);
+                try {
+                    this.projectileManager.createProjectile(
+                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, color, damage, gravityFactor // Pass validated/defaulted data
+                    );
+                    console.log(`[NetEvt ${myClientId}] <<< projectileManager.createProjectile call completed for ID ${p.id}.`);
+                } catch (error) {
+                     console.error(`[NetEvt ${myClientId}] XXX Error during projectileManager.createProjectile call for ID ${p.id}:`, error);
+                }
+                // --- END DETAILED LOGGING ---
+
                 break;
             default:
                 if (data.type !== 'connected' && data.type !== 'disconnected') {
-                    // console.log("Received unhandled message:", data);
+                    // console.log(`[NetworkEventHandler ${myClientId}] Received unhandled message:`, data);
                 }
                 break;
         }

@@ -26,10 +26,10 @@ class Projectile {
         this.isMarkedForRemoval = false;
         this.damage = damage;
         this.gravityFactor = gravityFactor;
-        // --- isLocal flag is now set by ProjectileManager *after* instantiation ---
-        this.isLocal = false; // Default to false
+        this.isLocal = false; // Added flag, set by ProjectileManager
 
-        // DEBUG: Initial state log - REMOVED from constructor, manager logs this now
+        // DEBUG: Initial state log
+        // console.log(`[Projectile ${this.id}] CREATED by ${ownerId}. Pos: (${x.toFixed(1)}, ${y.toFixed(1)}), Vel: (${vx.toFixed(1)}, ${vy.toFixed(1)}), Dmg: ${damage}, GravFactor: ${gravityFactor.toFixed(3)}`);
         this.logCounter = 0;
     }
 
@@ -78,20 +78,24 @@ class Projectile {
              reasonForRemoval = 'bounds';
         }
 
-        // --- Updated Logging for Removal ---
-        // Log ONLY when a projectile is marked for removal
-        // Use the actual isLocal flag
-        if (this.isMarkedForRemoval && reasonForRemoval) {
+        // --- Added Logging ---
+        // Log ONLY when a REMOTE projectile is marked for removal
+        if (this.isMarkedForRemoval && reasonForRemoval && !this.isLocal) {
             const timeAlive = (now - this.creationTime) / 1000;
-            const localityString = this.isLocal ? 'LOCAL' : 'REMOTE'; // Use correct flag
-            console.log(`[Projectile ${this.id} ${localityString}] Marked for removal. Reason: ${reasonForRemoval}. Time alive: ${timeAlive.toFixed(2)}s. Pos: (${this.x.toFixed(1)}, ${this.y.toFixed(1)})`);
+            console.log(`[Projectile ${this.id} REMOTE] Marked for removal. Reason: ${reasonForRemoval}. Time alive: ${timeAlive.toFixed(2)}s. Pos: (${this.x.toFixed(1)}, ${this.y.toFixed(1)})`);
         }
         // --- End Logging ---
 
     }
 
     draw(ctx) {
-        // --- Logging moved to ProjectileManager.draw ---
+        // --- Added Logging ---
+        const localClientId = window.websim?.socket?.clientId || 'UnknownClient';
+        // Log only for remote projectiles, occasionally
+        if (!this.isLocal && Math.random() < 0.01) {
+             // console.log(`[Projectile ${this.id} REMOTE @ ${localClientId}] Draw call. Marked for removal: ${this.isMarkedForRemoval}. Pos: (${this.x.toFixed(1)}, ${this.y.toFixed(1)})`);
+        }
+        // --- End Logging ---
 
         if (this.isMarkedForRemoval) return;
 
