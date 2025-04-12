@@ -31,6 +31,7 @@ export function applyDamage(playerState, damageAmount, currentTime, playerManage
         // If it's the local player, notify the PlayerLifecycleManager via PlayerManager
         // Check if playerManager and its lifecycle manager exist
         if (playerState.isLocalPlayer && playerManager && playerManager.playerLifecycleManager) {
+            // Call the lifecycle manager's death handler VIA the player manager
             playerManager.playerLifecycleManager.handlePlayerDeath(playerState.id);
         } else if (playerState.isLocalPlayer) {
             console.error(`Cannot handle player death for ${playerState.id}. playerManager or playerLifecycleManager is missing.`);

@@ -104,8 +104,8 @@ class Player {
                  const contactX = (this.state.x - spriteDrawOffsetX + spriteDrawWidth / 2)
                                 + (this.state.visualFacingDirection === 1 ? -spriteDrawWidth * 0.3 : spriteDrawWidth * 0.3);
                  const contactY = groundLevelY - 2;
-                 particleSystem.emitSparks(contactX, contactY, 1, -80);
-                 particleSystem.emitSmoke(contactX, contactY, 1, -30);
+                 if (Math.random() < 0.5) particleSystem.emitSparks(contactX, contactY, 1, -80);
+                 if (Math.random() < 0.3) particleSystem.emitSmoke(contactX, contactY, 1, -30);
             }
         }
     }
