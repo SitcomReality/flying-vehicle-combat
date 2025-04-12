@@ -55,10 +55,11 @@ class PlayerLifecycleManager {
         const vehicleConfig = getVehicleConfig(selectedVehicleType);
         // Estimate vehicle height using known render scale and sprite data
         const vehicleHeight = (SPRITES.vehicles.hitboxHeight ?? SPRITES.vehicles.frameHeight) * this.renderScale;
-        const spawnX = this.gameWidth / 2;
-        // Estimate ground level (needs refinement if dynamic)
-        const groundY = this.gameHeight - 30; // Use consistent ground estimate
-        const spawnY = groundY - vehicleHeight - 10; // Spawn slightly above ground
+        const spawnX = this.gameWidth / 2; // Spawn horizontally centered
+
+        // --- CHANGE: Spawn near the top ---
+        const spawnY = vehicleHeight + 10; // Spawn slightly below the top edge
+        // --- END CHANGE ---
 
         // Reset state and set to ACTIVE
         localPlayer.resetStateForSpawn(spawnX, spawnY); // This should reset score
@@ -68,7 +69,7 @@ class PlayerLifecycleManager {
 
         // Send presence update
         this.networkManager?.updatePresence(localPlayer.getPresenceData());
-        console.log(`Player ${localPlayer.id} spawned and set to ACTIVE. Presence updated.`);
+        console.log(`Player ${localPlayer.id} spawned and set to ACTIVE at (${spawnX.toFixed(0)}, ${spawnY.toFixed(0)}). Presence updated.`);
     }
 
     killLocalPlayer() {
