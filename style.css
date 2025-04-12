@@ -54,7 +54,7 @@ canvas {
     top: 10px; /* Align with debug */
 }
 
-/* Apply Cabin Sketch to headings */
+/* Apply Cabin Sketch to panel headings */
 .ui-panel h2 {
     font-family: 'Cabin Sketch', cursive;
     font-weight: 700; /* Use bold variant */
@@ -199,106 +199,172 @@ canvas {
     margin-right: 3px;
 }
 
-/* Vehicle Selector Styles */
-.ui-overlay {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(255, 255, 255, 0.9);
-    padding: 25px; /* More padding */
-    border: 6px solid #444; /* Thicker border */
-    border-radius: 15px; /* More rounded */
-    text-align: center;
-    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4); /* Enhanced shadow */
-    z-index: 20; /* Ensure selector is above debug and canvas */
+/* New Vehicle Selector Styles */
+#vehicleSelector {
+    position: absolute; /* Position relative to the viewport */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 20; /* Ensure selector is above other UI */
+    pointer-events: none; /* Allow clicking through transparency by default */
 }
 
-/* Use Cabin Sketch for the overlay heading */
-#vehicleSelector h2 {
+#vehicleSelector .selector-title {
     font-family: 'Cabin Sketch', cursive;
     font-weight: 700;
-    margin-top: 0;
-    margin-bottom: 20px; /* More space */
-    color: #1a1a1a; /* Darker text */
-    font-size: 2.0em; /* Even larger */
-    border-bottom: none; /* Remove default panel border */
+    font-size: 3.5em; /* Larger title */
+    color: rgba(255, 255, 255, 0.9); /* White, slightly transparent */
+    text-shadow: 3px 3px 5px rgba(0, 0, 0, 0.5); /* Stronger shadow */
+    margin-bottom: 10px;
+    pointer-events: auto; /* Title can be interacted with if needed */
 }
 
-#vehicleOptions {
+.selector-carousel {
     display: flex;
-    justify-content: space-around;
-    gap: 20px; /* More gap */
-    margin-bottom: 25px; /* More space */
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+    width: 80%; /* Control overall width */
+    max-width: 600px;
+    pointer-events: auto; /* Enable interaction within carousel */
 }
 
-.vehicle-option {
-    border: 4px solid transparent; /* Thicker border for selection */
-    padding: 15px; /* More padding */
-    cursor: pointer;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
-    background-color: #f0f0f0; /* Lighter background */
-    border-radius: 10px; /* More rounded */
+.vehicle-display-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-grow: 1; /* Takes space between arrows */
+    gap: 20px; /* Spacing between slots */
+    min-height: 250px; /* Ensure space for scaling */
+}
+
+.vehicle-slot {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
 }
 
-.vehicle-option:hover {
-    background-color: #e0e0e0; /* Slightly darker hover */
-}
-
-.vehicle-option.selected {
-    border-color: #333;
-    background-color: #d0e0ff; /* Lighter blue highlight */
-}
-
-.vehicle-option canvas {
-    width: 110px; /* Larger preview */
-    height: 110px;
-    margin-bottom: 15px; /* More space */
-    background-color: #778; /* Medium grey background */
-    border: 2px solid #aaa;
-    border-radius: 6px;
+.vehicle-slot canvas {
+    width: 100%; /* Canvas width controlled by parent slot */
+    height: auto; /* Maintain aspect ratio */
+    display: block;
+    background-color: rgba(119, 136, 153, 0.5); /* Semi-transparent slate grey */
+    border: 3px solid rgba(170, 170, 170, 0.6);
+    border-radius: 8px;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
 }
 
-/* Use Irish Grover for option name/stats */
-.vehicle-option h3 {
-    margin: 8px 0 5px 0;
-    font-size: 1.2em;
-    color: #333;
+.vehicle-slot .vehicle-name {
+    margin: 10px 0 0 0;
+    font-size: 1.5em;
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
     font-family: 'Irish Grover', cursive;
+    text-align: center;
+    visibility: hidden; /* Hidden by default */
+    opacity: 0;
+    transition: visibility 0s linear 0.3s, opacity 0.3s ease-out; /* Fade in/out */
 }
-.vehicle-option p {
-    margin: 3px 0;
-    font-size: 0.9em;
-    color: #555;
-    white-space: nowrap; /* Prevent wrapping */
+
+.slot-center {
+    transform: scale(1.2); /* Make center slot bigger */
+    opacity: 1;
+    z-index: 1; /* Ensure center is on top */
+    width: 150px; /* Base width for center */
+}
+
+.slot-center .vehicle-name {
+    visibility: visible;
+    opacity: 1;
+    transition-delay: 0s;
+}
+
+.slot-side {
+    transform: scale(0.8); /* Make side slots smaller */
+    opacity: 0.6; /* Make side slots semi-transparent */
+    width: 100px; /* Base width for sides */
+}
+
+.cycle-button {
+    font-family: 'Cabin Sketch', cursive;
+    font-size: 3em; /* Large arrows */
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    text-shadow: 2px 2px 3px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    padding: 0 20px;
+    transition: color 0.2s ease, transform 0.1s ease;
+    user-select: none; /* Prevent text selection */
+}
+
+.cycle-button:hover {
+    color: rgba(255, 255, 255, 1);
+    transform: scale(1.1);
+}
+
+.cycle-button:active {
+    transform: scale(1.0);
+}
+
+.stats-display {
+    background-color: rgba(255, 255, 255, 0.9); /* Opaque background */
+    color: #333;
+    padding: 15px 20px;
+    border: 4px solid #555;
+    border-radius: 10px;
+    width: 250px; /* Fixed width */
+    text-align: center;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    pointer-events: auto; /* Enable interaction */
+}
+
+.stats-display h4 {
+    font-family: 'Cabin Sketch', cursive;
+    font-weight: 700;
+    margin: 0 0 10px 0;
+    font-size: 1.4em;
+    border-bottom: 2px dashed #aaa;
+    padding-bottom: 5px;
+}
+
+.stats-display p {
+    margin: 6px 0;
+    font-size: 1.1em;
     font-family: 'Irish Grover', cursive;
 }
 
-#confirmSelection {
-    padding: 12px 25px; /* Bigger button */
-    font-size: 1.3em; /* Larger font */
-    font-family: 'Irish Grover', cursive; /* Use Irish Grover */
+.confirm-button {
+    padding: 12px 25px;
+    font-size: 1.5em; /* Slightly larger font */
+    font-family: 'Irish Grover', cursive;
     background-color: #5cb85c;
     color: white;
-    border: 3px solid #4cae4c; /* Thicker border */
-    border-radius: 8px; /* More rounded */
+    border: 3px solid #4cae4c;
+    border-radius: 8px;
     cursor: pointer;
     transition: background-color 0.2s ease;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.3); /* Add subtle text shadow */
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    pointer-events: auto; /* Enable interaction */
 }
 
-#confirmSelection:hover {
-    background-color: #4aa04a; /* Slightly darker hover */
+.confirm-button:hover {
+    background-color: #4aa04a;
 }
 
-#confirmSelection:disabled {
+.confirm-button:disabled {
     background-color: #aaa;
     border-color: #999;
     cursor: not-allowed;
     text-shadow: none;
+    opacity: 0.7;
 }
