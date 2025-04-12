@@ -24,6 +24,7 @@ const GROUND_DAMAGE_AMOUNT = 5; // Damage per tick
  */
 export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderScale, groundLevelY, particleSystem, currentTime, playerManager) {
     // Physics calculations are only authoritative for the local player
+    // Also check lifecycleState is ACTIVE here as a final guard
     if (!playerState.isLocalPlayer || playerState.lifecycleState !== 'ACTIVE') return;
 
     const wasOnGround = playerState.isOnGround; // Store previous ground state
@@ -38,28 +39,39 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
 
     // --- Vertical Movement ---
     if (!playerState.isOnGround || playerState.isThrusting) {
-        playerState.ay = playerState.gravity; // Use gravity from playerState
+        playerState.ay = playerState.gravity; // Start with gravity
         // Apply thrust only if there's fuel
         if (playerState.isThrusting) {
+            // ADDED LOGGING HERE
+            //console.log(`Attempting thrust. Fuel: ${playerState.fuel.toFixed(1)}, ConsumeRate: ${playerState.fuelConsumeRate}`);
             // Consume Fuel via the Fuel System
-            // consumeFuel returns true if fuel was available and consumed
             if(consumeFuel(playerState, playerState.fuelConsumeRate * deltaTime)) {
-                 playerState.ay -= currentThrustForce; // Use modified thrustForce
+                 // ADDED LOGGING HERE
+                 //console.log(`  Applying thrust force: ${currentThrustForce}. Ay before: ${playerState.ay.toFixed(1)}`);
+                 playerState.ay -= currentThrustForce; // Apply thrust *against* gravity
+                 // ADDED LOGGING HERE
+                 //console.log(`  Ay after thrust: ${playerState.ay.toFixed(1)}`);
             } else {
                 // Optional: visual/audio cue for out of fuel?
+                // ADDED LOGGING HERE
+                //console.log(`  Thrust failed: Out of fuel.`);
                 playerState.isThrusting = false; // Force thrust off if out of fuel (prevents holding key)
             }
         }
         if (!playerState.isOnGround) {
             // Use verticalDragFactor from playerState
             const dragForce = -playerState.vy * playerState.verticalDragFactor;
+            // ADDED LOGGING HERE
+            //console.log(`  Applying vertical drag: ${dragForce.toFixed(1)}. Ay before: ${playerState.ay.toFixed(1)}`);
             playerState.ay += dragForce;
+            // ADDED LOGGING HERE
+            //console.log(`  Ay after drag: ${playerState.ay.toFixed(1)}`);
         }
         playerState.vy += playerState.ay * deltaTime;
         playerState.vy = Math.max(-GLOBAL_PHYSICS.MAX_VERTICAL_SPEED, Math.min(GLOBAL_PHYSICS.MAX_VERTICAL_SPEED, playerState.vy)); // Global cap remains for now
-    } else {
-        playerState.ay = 0;
-        playerState.vy = 0;
+    } else { // On ground and NOT thrusting
+        playerState.ay = 0; // No vertical acceleration
+        playerState.vy = 0; // Stop vertical velocity instantly
     }
 
     // --- Horizontal Movement (with Inertia) ---
@@ -71,6 +83,8 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
     if (playerState.isMovingRight) {
         playerState.ax += currentHorizontalAcceleration; // Use modified acceleration
     }
+    // ADDED LOGGING HERE
+    //console.log(`Horizontal Accel: Input Ax=${playerState.ax.toFixed(1)}`);
 
     // 2. Apply Friction/Drag opposing current velocity
     let frictionFactor = 0;
@@ -80,7 +94,12 @@ export function updatePlayerPhysics(playerState, deltaTime, gameBounds, renderSc
         frictionFactor = playerState.airFrictionFactor; // Use value from playerState
     }
     const frictionForce = -playerState.vx * frictionFactor;
+    // ADDED LOGGING HERE
+    //console.log(`  Friction: Force=${frictionForce.toFixed(1)}, Factor=${frictionFactor}`);
     playerState.ax += frictionForce;
+    // ADDED LOGGING HERE
+    //console.log(`  Final Ax=${playerState.ax.toFixed(1)}`);
+
 
     // 3. Update Horizontal Velocity
     playerState.vx += playerState.ax * deltaTime;

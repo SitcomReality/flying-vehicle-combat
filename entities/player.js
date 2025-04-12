@@ -169,6 +169,7 @@ class Player {
 
         // Exit early if DEAD or SELECTING (after effect updates)
         if (this.state.lifecycleState === PlayerLifecycleState.DEAD || this.state.lifecycleState === PlayerLifecycleState.SELECTING) {
+            // console.log(`Player ${this.id} update skipped due to state: ${this.state.lifecycleState}`); // Optional debug log
             return;
         }
 
@@ -188,9 +189,16 @@ class Player {
         if (this.isLocalPlayer) {
              // Only apply physics if ACTIVE
              if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
+                 // ADDED LOGGING HERE
+                 //console.log(`Updating physics for local player ${this.id}. Thrust: ${this.state.isThrusting}, Left: ${this.state.isMovingLeft}, Right: ${this.state.isMovingRight}`);
                 updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem, currentTime, playerManager); // Pass playerManager
                 // Update fuel state (regen only) using fuel-system
                 updateFuel(this.state, deltaTime);
+                 // ADDED LOGGING HERE
+                 //console.log(`  -> Pos: (${this.state.x.toFixed(1)}, ${this.state.y.toFixed(1)}), Vel: (${this.state.vx.toFixed(1)}, ${this.state.vy.toFixed(1)})`);
+             } else {
+                  // ADDED LOGGING HERE
+                  //console.log(`Skipping physics update for local player ${this.id} due to state: ${this.state.lifecycleState}`);
              }
         } else {
             interpolatePlayerState(this.state, REMOTE_PLAYER_INTERPOLATION_FACTOR);
@@ -292,11 +300,11 @@ class Player {
              // If local player, immediately sync presence on state change
              if (this.state.isLocalPlayer) {
                 this.networkManager?.updatePresence(this.getPresenceData());
-                console.log(`Local player ${this.id} updated due to state change: ${oldState} -> ${newState}`);
+                console.log(`Local player ${this.id} presence updated due to state change: ${oldState} -> ${newState}`);
              }
              return true; // Transition occurred
          }
-         return false; // No transition needed 
+         return false; // No transition needed
     }
 
     // Resets the player state for spawning
