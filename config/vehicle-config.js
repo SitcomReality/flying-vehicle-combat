@@ -6,17 +6,17 @@
 export const BASE_PLAYER_PHYSICS = {
     GRAVITY: 700, // pixels/sec^2
     MAX_VERTICAL_SPEED: 350, // pixels/sec
-    VERTICAL_DRAG_FACTOR: 0.6, // Higher = more drag when airborne
+    VERTICAL_DRAG_FACTOR: 0.6, // Higher = more drag when airborne (for players)
     MAX_TILT_ANGLE: Math.PI / 2.5, // ~72 degrees - Maximum angle the vehicle tilts
     TILT_SPEED: 6, // How quickly the sprite tilts towards the target angle
     AIR_FRICTION_FACTOR: 0.5, // Factor for horizontal drag when airborne (lower = less drag)
     GROUND_FRICTION_FACTOR: 1.5, // Factor for horizontal friction when grounded (higher = more friction)
     SPARK_EMIT_RATE: 5,
     SMOKE_EMIT_RATE: 1,
-    PROJECTILE_SPEED_SCALE: 1, // Multiplier for speed gained per charge unit
-    PROJECTILE_GRAVITY_FACTOR: 3, // Base multiplier for gravity effect on projectiles (0 charge = this * GRAVITY)
-    PROJECTILE_VERTICAL_DRAG_FACTOR: 0.4, // Drag applied to projectile vertical velocity
-    INVULNERABILITY_DURATION: 1.5, // seconds after taking damage
+    PROJECTILE_SPEED_SCALE: 1,
+    PROJECTILE_GRAVITY_FACTOR: 3,
+    PROJECTILE_VERTICAL_DRAG_FACTOR: 0.4, // Drag factor specifically for projectiles
+    INVULNERABILITY_DURATION: 1.5,
 };
 
 /**
