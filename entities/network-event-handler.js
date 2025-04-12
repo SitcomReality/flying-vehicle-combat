@@ -1,6 +1,6 @@
 import { SPRITES } from 'config/sprites.js';
 import { PlayerLifecycleState } from '../entities/player-lifecycle.js'; // Import lifecycle states
-import { GLOBAL_PHYSICS } from '../entities/player-state.js';
+import { GLOBAL_PHYSICS } from '../entities/player-state.js'; // Import for default gravity factor
 
 class NetworkEventHandler {
     constructor(networkManager, playerManager, projectileManager, gameConfig) {
@@ -139,9 +139,10 @@ class NetworkEventHandler {
         // }
     }
 
-
     _handleMessage(event) {
         const data = event; // data is the whole event object now
+        console.log(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received message:`, data);
+
         switch (data.type) {
             case 'connected':
             case 'disconnected':
@@ -149,16 +150,16 @@ class NetworkEventHandler {
                 // console.log(`Network Event: ${data.type} - Client: ${data.clientId}, ${data.username}`);
                 break;
             case 'fireProjectile':
+                console.log(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received 'fireProjectile' event from ${data.clientId || 'Unknown'}. Data:`, data.projectile);
                 if (data.projectile && this.projectileManager) {
                     const p = data.projectile;
                     // Retrieve gravityFactor from the event data, provide default if missing
                     const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
-                    // Pass damage value from the event data
                     this.projectileManager.createProjectile(
-                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, p.color, p.damage, gravityFactor // Pass gravityFactor here
+                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, p.color, p.damage, gravityFactor // Pass gravityFactor
                     );
                 } else {
-                    console.warn("Received invalid fireProjectile event data or projectileManager not ready.");
+                    console.warn(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received invalid fireProjectile event data or projectileManager not ready. Projectile data:`, data.projectile);
                 }
                 break;
             default:

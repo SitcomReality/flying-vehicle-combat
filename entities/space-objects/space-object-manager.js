@@ -71,29 +71,43 @@ class SpaceObjectManager {
         const oldSpawnerStatus = this.isSpawner;
         this.isSpawner = peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0];
         if (this.isSpawner !== oldSpawnerStatus) {
-            console.log(`[SpaceObjMgr] Spawner status changed to: ${this.isSpawner}`);
+            // --- Enhanced Logging ---
+            console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] Spawner status changed. I am ${this.isSpawner ? 'NOW' : 'NO LONGER'} the spawner. Peer IDs: [${peerIds.join(', ')}]`);
+            // --- End Logging ---
         }
     }
 
     _handlePresenceUpdate(presence) {
-        // Re-determine spawner role on presence changes
-        this._determineSpawner();
+        this._determineSpawner(); // Re-determine spawner role immediately
     }
 
     attemptSpawnObject(currentTime) {
-        // Use the isSpawner flag directly
-        if (!this.isSpawner) {
-            return;
-        }
+        // --- Added logging for spawn attempt ---
+        const now = performance.now();
+        if (now - this.lastSpawnAttemptTime > SPAWN_INTERVAL) {
+            if (!this.isSpawner) {
+                // Log only occasionally to prevent spam
+                if (Math.random() < 0.05) {
+                     console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] Not the spawner. Skipping spawn check.`);
+                }
+                this.lastSpawnAttemptTime = now; // Still update time to avoid immediate re-check if spawner changes
+                return;
+            }
+            // If isSpawner, continue with logic...
+             console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] SPAWNER checking spawn conditions.`); // Log spawner check
+        // --- End Logging ---
 
-        const numActive = Object.values(this.activeObjects).filter(o => o && !o.isMarkedForRemoval).length;
-        if (numActive >= MAX_ACTIVE_OBJECTS) {
-            return;
-        }
+            const numActive = Object.values(this.activeObjects).filter(o => o && !o.isMarkedForRemoval).length;
+            if (numActive >= MAX_ACTIVE_OBJECTS) {
+                 console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] SPAWNER: Max objects reached (${numActive}). Skipping spawn.`); // Log max reached
+                this.lastSpawnAttemptTime = now; // Update time even if max reached
+                return;
+            }
 
-        if (currentTime - this.lastSpawnAttemptTime > SPAWN_INTERVAL) {
-            this.lastSpawnAttemptTime = currentTime;
+             // If we passed the interval check and are the spawner...
+            this.lastSpawnAttemptTime = now;
             if (Math.random() > SPAWN_CHANCE_PER_INTERVAL) {
+                 console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] SPAWNER: Spawn chance failed.`); // Log chance fail
                 return;
             }
 
@@ -131,18 +145,15 @@ class SpaceObjectManager {
             tempInstanceForSync.serverHealth = tempInstanceForSync.health;
             tempInstanceForSync.lastServerUpdateTime = performance.now();
 
+            // --- Log the specific spawn ---
+            console.log(`[SpaceObjMgr ${this.networkManager?.getClientId()}] SPAWNER is spawning ${type} (${newId})`);
+            // --- End Log ---
+
             const syncData = tempInstanceForSync.getSyncData();
-
-            // console.log(`Spawner ${this.networkManager.getClientId()} attempting to spawn ${type} (${newId}) at (${syncData.x.toFixed(0)}, ${syncData.y.toFixed(0)}) with vx: ${syncData.vx.toFixed(1)}`); // Reduce log noise
-
             const updatePayload = {};
             updatePayload[newId] = syncData;
 
-            this.networkManager.updateRoomState({
-                spaceObjects: updatePayload
-            });
-
-            // Add the object to local state immediately for responsiveness
+            this.networkManager.updateRoomState({ spaceObjects: updatePayload });
             this.activeObjects[newId] = tempInstanceForSync;
         }
     }
@@ -210,10 +221,7 @@ class SpaceObjectManager {
         const updates = {};
         let needsNetworkUpdate = false;
         const now = performance.now();
-
         const objectIds = Object.keys(this.activeObjects);
-
-        // Create the context object ONCE for this update frame
         const managerContext = {
              activeObjects: this.activeObjects,
              networkManager: this.networkManager,
@@ -306,6 +314,7 @@ class SpaceObjectManager {
         }
 
         // Attempt spawning new objects (only spawner does this)
+        // Pass `now` instead of `performance.now()` to use consistent time
         this.attemptSpawnObject(now);
     }
 

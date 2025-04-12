@@ -12,12 +12,14 @@ class ProjectileManager {
     // Updated to accept damage and gravityFactor parameters
     createProjectile(id, ownerId, x, y, vx, vy, color, damage = 10, gravityFactor = 0.5) {
         if (this.projectiles[id]) {
-            console.warn(`Projectile with ID ${id} already exists.`);
-            return;
+            // console.warn(`[ProjectileMgr] Projectile with ID ${id} already exists. Ignoring creation.`);
+            return; // Prevent duplicates, especially if network echo isn't perfectly filtered
         }
+        // --- Added logging on creation ---
+        console.log(`[ProjectileMgr] Creating projectile ${id} (Owner: ${ownerId}) from network/local. Pos: (${x.toFixed(1)},${y.toFixed(1)}), Vel: (${vx.toFixed(1)},${vy.toFixed(1)}), Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}`);
+        // --- End logging ---
         const projectile = new Projectile(id, ownerId, x, y, vx, vy, color, damage, gravityFactor); // Pass gravityFactor
         this.projectiles[id] = projectile;
-        // console.log(`Projectile ${id} created by ${ownerId} with damage ${damage} and gravFactor ${gravityFactor.toFixed(2)}`);
     }
 
     // Creates a projectile and returns its data (for local firing before network broadcast)
