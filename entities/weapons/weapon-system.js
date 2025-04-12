@@ -5,7 +5,7 @@ import { PlayerLifecycleState } from '../player-lifecycle.js';
 
 // Configuration
 const CHARGE_PARTICLE_EMIT_RATE = 3; // Particles per frame while charging
-const TAP_FIRE_CHARGE_THRESHOLD = 5; // Minimal charge level considered a tap fire
+const TAP_FIRE_CHARGE_THRESHOLD = 5; // Minimal charge level considered a tap fire (for wantsToFire logic)
 
 /**
  * Manages the charging and firing logic for a player's weapon.
@@ -25,21 +25,9 @@ class WeaponSystem {
         this.isCharging = false;
         this.chargeLevel = 0;
         this.wantsToFire = false;
-        this.isTapFire = false; // New flag for tap-fire logic
+        this.isTapFire = false; // Not used for triggering anymore, but helps determine shot type
         this.lastFireTime = 0; // New property for fire rate cooldown
     }
-
-    // --- New Method: Flags that a tap-fire should occur ---
-    flagTapFire() {
-        // Can only tap fire if ACTIVE and not currently charging
-        if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE && !this.isCharging) {
-            this.isTapFire = true;
-            this.wantsToFire = true;
-            this.state.wantsToFire = true; // Sync to state
-        }
-    }
-    // --- End New Method ---
-
 
     /**
      * Starts the weapon charging process.
@@ -50,7 +38,7 @@ class WeaponSystem {
             // Only start charging if not already charging
             if (!this.isCharging) {
                 this.isCharging = true;
-                this.isTapFire = false; // Charging cancels tap fire intent
+                this.isTapFire = false; // Charging cancels tap fire intent (still relevant for damage/speed calcs if released early)
                 this.wantsToFire = false; // Charging cancels fire intent
                 this.chargeLevel = 0; // Reset
                 // Sync to state
@@ -63,16 +51,19 @@ class WeaponSystem {
 
     /**
      * Stops the weapon charging process and flags that a shot should be fired.
+     * This is now the primary way to initiate a shot (via key release).
      */
     stopCharging() {
         if (this.isCharging) {
             this.isCharging = false;
-            // Only flag to fire if actually charged somewhat (prevents firing on release if charge never started)
+            // Set wantsToFire flag if charge is above minimum threshold (prevents accidental firing on immediate release)
             this.wantsToFire = this.chargeLevel > TAP_FIRE_CHARGE_THRESHOLD;
-            this.isTapFire = false; // Releasing is never a tap fire
+            // Determine if it was effectively a tap fire based on final charge level
+            this.isTapFire = this.chargeLevel <= TAP_FIRE_CHARGE_THRESHOLD;
             // Sync to state
             this.state.isCharging = false;
             this.state.wantsToFire = this.wantsToFire;
+            // Note: isTapFire flag isn't strictly needed in state, but keeping internal flag consistent.
         }
     }
 
@@ -112,7 +103,7 @@ class WeaponSystem {
 
         } else if (!this.wantsToFire) { // Reset/decay only if not actively trying to fire
             if (this.chargeLevel > 0) {
-                // Optional: Decay charge slowly if not firing? For now, just reset.
+                // Reset charge if charging stops AND we don't want to fire (e.g. key released but charge was minimal)
                 this.chargeLevel = 0;
             }
         }
@@ -120,18 +111,19 @@ class WeaponSystem {
 
         // Sync back internal state changes to player state
         this.state.chargeLevel = this.chargeLevel;
-        // isCharging and wantsToFire are primarily set by input/attemptFire
+        // isCharging and wantsToFire are primarily set by input/stopCharging/attemptFire
     }
 
     /**
      * Attempts to fire a projectile if the wantsToFire flag is set.
+     * Calculates gravity factor based on charge level.
      */
     attemptFire(currentTime) { // Pass current time
         if (!this.wantsToFire || this.state.lifecycleState !== PlayerLifecycleState.ACTIVE) {
             // Clear flags if conditions not met (e.g., player died while wanting to fire)
             this.wantsToFire = false;
             this.state.wantsToFire = false;
-            this.isTapFire = false;
+            this.isTapFire = false; // Reset this internal flag too
             return;
         }
 
@@ -141,13 +133,10 @@ class WeaponSystem {
         const fireCooldown = 1000 / effectiveFireRate; // ms per shot
 
         if (currentTime - this.lastFireTime < fireCooldown) {
-            // Still on cooldown, clear tap fire flag if it was set
-            if (this.isTapFire) {
-                this.isTapFire = false;
-                this.wantsToFire = false; // Cancel the tap fire request
-                this.state.wantsToFire = false;
-            }
-            // Don't clear wantsToFire if it's a charged shot release, just wait
+            // Still on cooldown. Since fire is on release, we just cancel the shot intent.
+            this.wantsToFire = false;
+            this.state.wantsToFire = false;
+            this.isTapFire = false;
             return; // Exit if on cooldown
         }
         // --- End Fire Rate Check ---
@@ -166,24 +155,28 @@ class WeaponSystem {
         let chargeRatio = 0;
         let projectileDamage = this.state.projectileDamage; // Base damage
 
-        // Determine if tap fire or charged shot based on flag and charge level
-        const isActualTap = this.isTapFire || (!this.isCharging && this.chargeLevel <= TAP_FIRE_CHARGE_THRESHOLD);
+        // Check the charge level at the moment of firing
+        const currentCharge = this.chargeLevel;
+        const maxCharge = this.state.maxChargeLevel;
+        chargeRatio = Math.max(0, Math.min(1, currentCharge / maxCharge)); // Clamp ratio 0-1
 
-        if (isActualTap) {
+        // Determine shot type for potential scaling (use internal isTapFire flag set during stopCharging)
+        if (this.isTapFire) {
             // Tap Fire: Use base speed, base damage
             speed = this.state.projectileSpeed;
-            // console.log(`Player ${this.state.id} Tap Firing`);
         } else {
             // Charged Shot: Scale speed and damage by charge level
-            // Use vehicle's maxChargeLevel for ratio
-            chargeRatio = this.chargeLevel / this.state.maxChargeLevel;
             // Use vehicle's projectileSpeed as base, scale with charge level using global scale factor
-            speed = this.state.projectileSpeed + (GLOBAL_PHYSICS.PROJECTILE_SPEED_SCALE * this.chargeLevel);
+            speed = this.state.projectileSpeed + (GLOBAL_PHYSICS.PROJECTILE_SPEED_SCALE * currentCharge);
             // Charged shots might deal slightly more base damage? Or just scale purely?
             // Let's scale damage slightly with charge too for impact (e.g., 1x to 1.5x base)
             projectileDamage = this.state.projectileDamage * (1 + chargeRatio * 0.5);
-            // console.log(`Player ${this.state.id} Charged Firing (Ratio: ${chargeRatio.toFixed(2)})`);
         }
+
+        // --- Calculate Gravity Factor based on Charge Ratio ---
+        // Inverse relationship: Full charge = 0 gravity factor, No charge = full gravity factor
+        const gravityFactor = GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR * (1 - chargeRatio);
+        // --- End Gravity Factor Calculation ---
 
 
         // Calculate firing angle based on sprite rotation and visual direction
@@ -208,26 +201,27 @@ class WeaponSystem {
         const finalDamage = Math.round(projectileDamage * damageMultiplier);
 
         // Create projectile locally AND get data to broadcast
-        // Use vehicle's projectileColor and modified damage from state
+        // Pass the calculated gravityFactor
         const projectileData = this.projectileManager.createAndGetData(
             this.state.id,
             startX, startY,
             vx, vy,
             this.state.projectileColor,
-            finalDamage // Pass final damage value
+            finalDamage, // Pass final damage value
+            gravityFactor // Pass gravity factor
         );
 
         // Broadcast the fire event to other clients
         this.networkManager.sendEvent({
             type: 'fireProjectile',
-            projectile: projectileData, // Includes final damage
+            projectile: projectileData, // Includes final damage AND gravityFactor
             echo: false // Don't send back to self
         });
 
         // Reset state AFTER firing
         this.lastFireTime = currentTime; // Update last fire time
-        this.chargeLevel = 0;
-        this.wantsToFire = false;
+        this.chargeLevel = 0; // Reset charge level AFTER using it for calculations
+        this.wantsToFire = false; // Reset fire intent flag
         this.isCharging = false; // Ensure charging stops after firing
         this.isTapFire = false; // Reset tap fire flag
 

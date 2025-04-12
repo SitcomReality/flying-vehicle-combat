@@ -28,16 +28,14 @@ export function handlePlayerInput(state, inputState, inputManager, weaponSystem)
     // If neither or both are pressed, keep the current target direction
 
     // --- Firing ---
-    // Use wasKeyJustPressed for tap firing
-    if (inputManager.wasKeyJustPressed(' ')) {
-        weaponSystem.flagTapFire(); // Signal a tap fire attempt
-    }
     // Use isKeyPressed for charging
-    else if (inputManager.isKeyPressed(' ')) {
+    // Checks if space is currently held down
+    if (inputManager.isKeyPressed(' ')) {
         weaponSystem.startCharging();
     }
-    // Check if the key was released (no longer pressed)
+    // Check if the key was released (no longer pressed) WHILE it was previously charging
     else if (!inputManager.isKeyPressed(' ') && state.isCharging) {
+        // Stop charging automatically triggers the wantsToFire flag if charge > threshold
         weaponSystem.stopCharging();
     }
 }

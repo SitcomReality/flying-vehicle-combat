@@ -6,8 +6,8 @@ const PROJECTILE_RADIUS = 4;
 const PROJECTILE_LIFESPAN = 3; // seconds
 
 class Projectile {
-    // Added damage parameter to constructor
-    constructor(id, ownerId, x, y, vx, vy, color = 'yellow', damage = 10) {
+    // Added damage and gravityFactor parameters to constructor
+    constructor(id, ownerId, x, y, vx, vy, color = 'yellow', damage = 10, gravityFactor = 0.5) {
         this.id = id;
         this.ownerId = ownerId;
         this.x = x;
@@ -20,6 +20,7 @@ class Projectile {
         this.lifespan = PROJECTILE_LIFESPAN * 1000; // milliseconds
         this.isMarkedForRemoval = false;
         this.damage = damage; // Store damage value
+        this.gravityFactor = gravityFactor; // Store gravity factor for this projectile
     }
 
     update(deltaTime, groundLevelY) {
@@ -31,8 +32,8 @@ class Projectile {
             return;
         }
 
-        // Apply gravity (scaled)
-        this.vy += GLOBAL_PHYSICS.GRAVITY * GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR * deltaTime;
+        // Apply gravity using the stored gravityFactor for this projectile
+        this.vy += GLOBAL_PHYSICS.GRAVITY * this.gravityFactor * deltaTime;
 
         // Update position
         this.x += this.vx * deltaTime;

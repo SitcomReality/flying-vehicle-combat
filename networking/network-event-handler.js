@@ -2,6 +2,7 @@
 
 import { SPRITES } from 'config/sprites.js';
 import { PlayerLifecycleState } from '../entities/player-lifecycle.js'; // Import lifecycle states
+import { GLOBAL_PHYSICS } from '../entities/player-state.js'; // Import for default gravity factor
 
 class NetworkEventHandler {
     constructor(networkManager, playerManager, projectileManager, gameConfig) {
@@ -30,9 +31,16 @@ class NetworkEventHandler {
             const isLocal = clientId === localPlayerId;
 
             if (!isLocal && !peerInfo) {
-                console.warn(`Presence received for unknown or not-yet-fully-connected peer ${clientId}. Waiting for peer info.`);
-                continue;
+                // Check if peer info is delayed but presence exists
+                const latePeerInfo = this.networkManager.getPeer(clientId);
+                 if (!latePeerInfo) {
+                     console.warn(`Presence received for unknown or not-yet-fully-connected peer ${clientId}. Waiting for peer info.`);
+                     continue;
+                 } else {
+                    console.log(`Received presence for peer ${clientId} before formal 'connected' event. Processing...`);
+                 }
             }
+
 
             const presenceData = presence[clientId];
             const existingPlayer = this.playerManager.getPlayer(clientId);
@@ -50,7 +58,7 @@ class NetworkEventHandler {
                     }
                 }
 
-                console.log("New player detected from presence:", clientId, peerInfo?.username);
+                console.log("New player detected from presence:", clientId, peerInfo?.username ?? this.networkManager.getPeer(clientId)?.username ?? 'Unknown');
                 const initialState = {
                     x: presenceData.x ?? this.gameConfig.GAME_WIDTH / 2,
                     y: presenceData.y ?? this.gameConfig.GAME_HEIGHT / 2,
@@ -58,6 +66,10 @@ class NetworkEventHandler {
                     facingDirection: presenceData.facingDirection ?? -1,
                     rotation: presenceData.rotation ?? 0,
                     lifecycleState: presenceData.lifecycleState ?? PlayerLifecycleState.ACTIVE, // Default remote players to ACTIVE if state missing initially
+                     // Sync initial health/fuel/invuln state if available
+                    health: presenceData.health,
+                    fuel: presenceData.fuel,
+                    isInvulnerable: presenceData.isInvulnerable
                 };
                  // Only create if not already present (double check, createPlayer has guards too)
                  if (!this.playerManager.getPlayer(clientId)) {
@@ -88,12 +100,18 @@ class NetworkEventHandler {
         for (const existingPlayerId of managedPlayerIds) {
             if (existingPlayerId === localPlayerId) continue;
 
-            if (!currentPeers[existingPlayerId]) {
+             // Use the presence keys as the source of truth for connected peers for player removal
+            if (!presence[existingPlayerId]) {
                 const playerToRemove = this.playerManager.getPlayer(existingPlayerId);
-                if (playerToRemove && !playerToRemove.isMarkedForRemoval) {
-                    const lastKnownPeerInfo = this.networkManager.getPeer(existingPlayerId);
-                    console.log("Player disconnected (removed from peers):", existingPlayerId, lastKnownPeerInfo?.username ?? '(info gone)');
+                 // Check if the player exists and isn't already marked for removal
+                 // Also, check if they are ACTUALLY gone from the room.peers list (final sanity check)
+                if (playerToRemove && !playerToRemove.isMarkedForRemoval && !currentPeers[existingPlayerId]) {
+                    const lastKnownPeerInfo = this.networkManager.getPeer(existingPlayerId); // Might be undefined if already gone
+                    console.log("Player disconnected (removed from presence/peers):", existingPlayerId, lastKnownPeerInfo?.username ?? '(info gone)');
                     this.playerManager.removePlayer(existingPlayerId);
+                } else if (playerToRemove && !playerToRemove.isMarkedForRemoval && currentPeers[existingPlayerId]) {
+                     // This case means presence is missing but peer info still exists - likely temporary desync or joining state
+                     console.warn(`Presence missing for ${existingPlayerId} but peer info still exists. Player not removed yet.`);
                 }
             }
         }
@@ -109,26 +127,36 @@ class NetworkEventHandler {
         if (!localPlayer || !localPlayer.state) return;
 
         if (updateRequest.type === 'changeVehicle') {
-            const currentVehicle = localPlayer.vehicleType;
+            const currentVehicle = localPlayer.state.vehicleType; // Access state property
             const totalVehicles = SPRITES.vehicles.frames.length;
             const nextVehicle = (currentVehicle + 1) % totalVehicles;
             localPlayer.setVehicle(nextVehicle);
             console.log(`Changed vehicle to ${nextVehicle} via request from ${fromClientId}`);
         }
+        // Handle potential damage requests here (low priority example)
+        // else if (updateRequest.type === 'applyDamage' && localPlayer.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
+        //     const damageAmount = updateRequest.amount || 0;
+        //     console.log(`Received damage request from ${fromClientId} for ${damageAmount}`);
+        //     localPlayer.takeDamage(damageAmount, performance.now());
+        // }
     }
 
+
     _handleMessage(event) {
-        const data = event;
+        const data = event; // data is the whole event object now
         switch (data.type) {
             case 'connected':
             case 'disconnected':
-                console.log(`Network Event: ${data.type} - Client: ${data.clientId}, ${data.username}`);
+                // These are handled automatically by presence updates now
+                // console.log(`Network Event: ${data.type} - Client: ${data.clientId}, ${data.username}`);
                 break;
             case 'fireProjectile':
                 if (data.projectile && this.projectileManager) {
                     const p = data.projectile;
+                    // Retrieve gravityFactor from the event data, provide default if missing
+                    const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
                     this.projectileManager.createProjectile(
-                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, p.color
+                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, p.color, p.damage, gravityFactor // Pass gravityFactor
                     );
                 } else {
                     console.warn("Received invalid fireProjectile event data or projectileManager not ready.");
@@ -136,7 +164,7 @@ class NetworkEventHandler {
                 break;
             default:
                 if (data.type !== 'connected' && data.type !== 'disconnected') {
-                    console.log("Received unhandled message:", data);
+                    // console.log("Received unhandled message:", data);
                 }
                 break;
         }
