@@ -1,5 +1,3 @@
-// New file: Handles incoming network events and updates game state accordingly
-
 import { SPRITES } from 'config/sprites.js';
 import { PlayerLifecycleState } from '../entities/player-lifecycle.js'; // Import lifecycle states
 import { GLOBAL_PHYSICS } from '../entities/player-state.js'; // Import for default gravity factor
