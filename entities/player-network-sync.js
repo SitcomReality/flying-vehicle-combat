@@ -1,3 +1,6 @@
+import { INTERPOLATION_SNAP_THRESHOLD } from './player-state.js'; // Import the constant
+import { PlayerLifecycleState } from './player-lifecycle.js'; // Import lifecycle states
+
 /**
  * Updates the player's server state based on received presence data.
  * @param {PlayerState} state - The player's state object.
