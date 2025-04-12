@@ -23,6 +23,8 @@ export class SpaceObject {
         this.creationTime = performance.now();
         this.isMarkedForRemoval = false;
         this.scoreValue = initialState.scoreValue ?? DEFAULT_SCORE_VALUE; // Points awarded
+        // *** Added flag to track if first update ran ***
+        this._firstUpdateRan = false;
 
         // Get sprite frame based on type
         this.spriteFrame = this._getSpriteFrame(type);
@@ -54,6 +56,11 @@ export class SpaceObject {
 
     // Base update method (can be overridden by subtypes)
     update(deltaTime, gameBounds, groundLevelY) {
+        // *** Log initial position on first update ***
+        if (!this._firstUpdateRan) {
+            console.log(`SpaceObject ${this.id} (${this.type}) first update. Initial pos: (${this.x.toFixed(0)}, ${this.y.toFixed(0)})`);
+            this._firstUpdateRan = true;
+        }
         if (this.isMarkedForRemoval) return;
 
         // Basic movement
@@ -63,6 +70,18 @@ export class SpaceObject {
 
         // Remove if off-screen left
         if (this.x + this.drawWidth < 0) {
+            // *** Added log for off-screen removal ***
+            console.log(`SpaceObject ${this.id} (${this.type}) removed off-screen left at x=${this.x.toFixed(0)}`);
+            this.isMarkedForRemoval = true;
+        }
+        // *** Added log for off-screen right (should not happen with current vx) ***
+        else if (this.x - this.drawWidth > gameBounds.width) {
+            console.log(`SpaceObject ${this.id} (${this.type}) removed off-screen right at x=${this.x.toFixed(0)}`);
+            this.isMarkedForRemoval = true;
+        }
+        // *** Added log for off-screen top/bottom ***
+        else if (this.y + this.drawHeight < 0 || this.y - this.drawHeight > gameBounds.height) {
+            console.log(`SpaceObject ${this.id} (${this.type}) removed off-screen vertically at y=${this.y.toFixed(0)}`);
             this.isMarkedForRemoval = true;
         }
     }
@@ -134,19 +153,19 @@ export class SpaceObject {
         };
     }
 
-     // Data for roomState synchronization
-     getSyncData() {
-         return {
-             type: this.type,
-             x: this.x,
-             y: this.y,
-             vx: this.vx,
-             vy: this.vy,
-             rotation: this.rotation,
-             rotationSpeed: this.rotationSpeed,
-             health: this.health,
-             scoreValue: this.scoreValue, // Include score value in sync data
-             // Include any other state needed for subtypes
-         };
-     }
+    // Data for roomState synchronization
+    getSyncData() {
+        return {
+            type: this.type,
+            x: this.x,
+            y: this.y,
+            vx: this.vx,
+            vy: this.vy,
+            rotation: this.rotation,
+            rotationSpeed: this.rotationSpeed,
+            health: this.health,
+            scoreValue: this.scoreValue, // Include score value in sync data
+            // Include any other state needed for subtypes
+        };
+    }
 }

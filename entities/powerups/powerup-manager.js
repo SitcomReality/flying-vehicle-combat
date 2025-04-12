@@ -12,6 +12,8 @@ class PowerupManager {
         this.particleSystem = particleSystem; // Store particle system reference
         this.activePowerups = {}; // Stores local Powerup instances { id: Powerup }
         this.lastSpawnAttemptTime = 0;
+        // Add a flag to log draw calls only once per object type for less spam
+        this.loggedDrawTypes = new Set();
 
         // Listen for room state changes to sync powerups
         this.networkManager.onRoomStateUpdate(this._handleRoomStateUpdate.bind(this));
@@ -27,6 +29,8 @@ class PowerupManager {
 
     _handleRoomStateUpdate(roomState) {
         const powerupData = roomState.activePowerups || {};
+        // Added log to check if this handler is called and with what data
+        console.log("PowerupManager received room state update for activePowerups:", powerupData);
         this._syncPowerups(powerupData);
     }
 
@@ -47,6 +51,7 @@ class PowerupManager {
             const data = powerupData[id];
             if (!this.activePowerups[id]) {
                 // Create new local instance
+                // *** Added log for new instance creation ***
                 console.log(`Creating new local powerup instance ${id} of type ${data.type}`);
                 this.activePowerups[id] = new Powerup(
                     id,
@@ -63,6 +68,8 @@ class PowerupManager {
                 // Type change would require recreating, but assume it doesn't happen
             }
         }
+        // Log current active powerups after sync
+        console.log("PowerupManager active powerups after sync:", Object.keys(this.activePowerups));
     }
 
     // Only one client should ideally be responsible for spawning.
@@ -177,6 +184,9 @@ class PowerupManager {
     }
 
     update(deltaTime) {
+        // *** Added log to show update is running ***
+        // console.log(`PowerupManager updating ${Object.keys(this.activePowerups).length} powerups`); // Can be noisy
+
         // Update local animations (like bobbing)
         for (const id in this.activePowerups) {
             this.activePowerups[id].update(deltaTime);
@@ -184,9 +194,21 @@ class PowerupManager {
     }
 
     draw(ctx) {
+         // *** Added log to show draw is running ***
+         const activeCount = Object.keys(this.activePowerups).length;
+         // console.log(`PowerupManager drawing ${activeCount} powerups`); // Can be noisy
+
         for (const id in this.activePowerups) {
-            this.activePowerups[id].draw(ctx, this.assets, this.renderScale);
+            const powerup = this.activePowerups[id];
+            // Log draw coords once per type for debugging visibility
+            if (!this.loggedDrawTypes.has(powerup.type)) {
+                 console.log(`Attempting to draw ${powerup.type} (${id}) at screen coords (approx): (${Math.round(powerup.x - (powerup.spriteFrame.width * this.renderScale * 1.5 / 2))}, ${Math.round(powerup.y - (powerup.spriteFrame.height * this.renderScale * 1.5 / 2))})`);
+                 this.loggedDrawTypes.add(powerup.type);
+            }
+            powerup.draw(ctx, this.assets, this.renderScale);
         }
+        // Reset logged types occasionally if needed
+        if (activeCount === 0) this.loggedDrawTypes.clear();
     }
 }
 

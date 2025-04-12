@@ -36,7 +36,8 @@ class SpaceObjectManager {
         this.activeObjects = {};
         // Initialize nextSpawnTime instead of lastSpawnAttemptTime
         this.nextSpawnTime = performance.now() + Math.random() * (MAX_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL) + MIN_SPAWN_INTERVAL;
-
+        // Add a flag to log draw calls only once per object type for less spam
+        this.loggedDrawTypes = new Set();
 
         if (!this.collectibleManager) {
             console.error("SpaceObjectManager requires a CollectibleManager instance for drops!");
@@ -62,6 +63,8 @@ class SpaceObjectManager {
 
     _handleRoomStateUpdate(roomState) {
         const objectData = roomState.spaceObjects || {};
+        // Added log to check if this handler is called and with what data
+        console.log("SpaceObjectManager received room state update for spaceObjects:", objectData);
         this._syncObjects(objectData);
     }
 
@@ -92,6 +95,8 @@ class SpaceObjectManager {
 
             if (!this.activeObjects[id]) {
                 // Added groundLevelY to constructor call
+                // *** Added log for new instance creation ***
+                console.log(`Creating new local space object instance ${id} of type ${data.type}`);
                 this.activeObjects[id] = new ObjectClass(id, data.type, data.x, data.y, data, this.groundLevelY);
             } else {
                 // Update existing state from synced data
@@ -112,8 +117,9 @@ class SpaceObjectManager {
                 }
             }
         }
+        // Log current active objects after sync
+        console.log("SpaceObjectManager active objects after sync:", Object.keys(this.activeObjects));
     }
-
 
     attemptSpawnObject(currentTime) {
         // Only the "first" client attempts to spawn to avoid duplicates
@@ -135,7 +141,6 @@ class SpaceObjectManager {
         if (currentTime >= this.nextSpawnTime) {
              // Schedule the *next* attempt time immediately after deciding to spawn
             this.nextSpawnTime = currentTime + Math.random() * (MAX_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL) + MIN_SPAWN_INTERVAL;
-
 
             if (OBJECT_TYPES_TO_SPAWN.length === 0) return; // No types defined to spawn
 
@@ -182,9 +187,10 @@ class SpaceObjectManager {
                     [newId]: syncData
                 }
             });
+            // *** Added log after sending room state update ***
+            console.log(`Spawner ${this.networkManager.getClientId()} sent updateRoomState for new object ${newId}`);
         }
     }
-
 
     getObject(id) {
         return this.activeObjects[id];
@@ -256,9 +262,13 @@ class SpaceObjectManager {
     update(deltaTime) {
         let needsRoomStateUpdate = false;
         const updatePayload = {};
+        // *** Added log to show update is running ***
+        // console.log(`SpaceObjectManager updating ${Object.keys(this.activeObjects).length} objects`); // Can be noisy
 
         for (const id in this.activeObjects) {
             const obj = this.activeObjects[id];
+             // *** Added log before calling object update ***
+             // console.log(`Updating object ${id} (${obj.type}) at (${obj.x.toFixed(0)}, ${obj.y.toFixed(0)})`); // Can be noisy
             obj.update(deltaTime, this.gameBounds, this.groundLevelY);
 
             // Check if object removed itself (e.g., went off-screen)
@@ -280,19 +290,32 @@ class SpaceObjectManager {
              this.networkManager.updateRoomState({ spaceObjects: updatePayload });
         }
 
-
         // Only the designated client attempts to spawn new objects
         this.attemptSpawnObject(performance.now());
     }
 
-
     draw(ctx) {
+         // *** Added log to show draw is running ***
+         const activeCount = Object.keys(this.activeObjects).length;
+         // console.log(`SpaceObjectManager drawing ${activeCount} objects`); // Can be noisy
+
         for (const id in this.activeObjects) {
+            const obj = this.activeObjects[id];
             // Ensure assets are loaded before drawing
              if (this.assets.space_objects) {
-                 this.activeObjects[id].draw(ctx, this.assets, 1.0); // Assuming renderScale=1 for space objects base draw
+                 // Log draw coords once per type for debugging visibility
+                 if (!this.loggedDrawTypes.has(obj.type)) {
+                     console.log(`Attempting to draw ${obj.type} (${id}) at screen coords (approx): (${Math.round(obj.x - obj.drawOffsetX)}, ${Math.round(obj.y - obj.drawOffsetY)})`);
+                     this.loggedDrawTypes.add(obj.type);
+                 }
+                 obj.draw(ctx, this.assets, 1.0); // Assuming renderScale=1 for space objects base draw
+             } else {
+                 // Log if assets are missing during draw call
+                 console.warn(`Space objects asset not ready for drawing object ${id}`);
              }
         }
+        // Reset logged types occasionally if needed, or keep logging only the first time
+        if (activeCount === 0) this.loggedDrawTypes.clear();
     }
 }
 

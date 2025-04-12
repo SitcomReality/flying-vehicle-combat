@@ -211,11 +211,13 @@ function update(deltaTime, currentTime) {
     backgroundRenderer.update(deltaTime);
     particleSystem.update(deltaTime);
     projectileManager.update(deltaTime, groundLevelY);
+    // Ensure managers that might spawn things are updated before collision checks
     powerupManager.update(deltaTime);
-    spaceObjectManager.update(deltaTime);
+    spaceObjectManager.update(deltaTime); // Make sure this runs
     collectibleManager.update(deltaTime);
     scoreboard.update(currentTime);
 
+    // Attempt random powerup spawn (might be better handled by designated client)
     powerupManager.attemptSpawnPowerup(currentTime, GAME_WIDTH, GAME_HEIGHT, groundLevelY);
 
     const localPlayer = playerManager.getLocalPlayer();
@@ -261,9 +263,9 @@ function update(deltaTime, currentTime) {
 function draw() {
     renderer.clear();
     backgroundRenderer.draw();
-    spaceObjectManager.draw(renderer.getContext());
+    spaceObjectManager.draw(renderer.getContext()); // Make sure this runs
     collectibleManager.draw(renderer.getContext());
-    powerupManager.draw(renderer.getContext());
+    powerupManager.draw(renderer.getContext()); // Make sure this runs
     particleSystem.draw(renderer.getContext());
     projectileManager.draw(renderer.getContext());
     playerManager.drawPlayers(renderer);
@@ -286,7 +288,7 @@ function gameLoop(currentTime) {
 
     try {
         update(deltaTime, currentTime);
-        draw();
+        draw(); // Ensure draw is called after update
 
     } catch (error) {
         console.error("Error in game loop:", error);
