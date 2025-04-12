@@ -18,6 +18,7 @@ export function checkProjectileSpaceObjectCollisions(activeProjectiles, activeSp
 
     for (const projId of projectileIds) {
         const projectile = activeProjectiles[projId];
+        // Skip if projectile is already gone or marked
         if (!projectile || projectile.isMarkedForRemoval) continue;
 
         const projRect = {
@@ -26,37 +27,45 @@ export function checkProjectileSpaceObjectCollisions(activeProjectiles, activeSp
             width: projectile.radius * 2,
             height: projectile.radius * 2,
         };
+        // Skip if projectile hitbox is invalid
         if (projRect.width <= 0 || projRect.height <= 0) continue;
 
         for (const objectId of spaceObjectIds) {
              const spaceObject = activeSpaceObjects[objectId];
-             if (!spaceObject || spaceObject.isMarkedForRemoval) continue;
+             // Skip if object is already gone, marked, or in destruction process
+             if (!spaceObject || spaceObject.isMarkedForRemoval || spaceObject._destructionInProgress) continue;
 
              const objectRect = spaceObject.getHitbox();
+             // Skip if object hitbox is invalid
              if (!objectRect || objectRect.width <= 0 || objectRect.height <= 0) continue;
 
+             // --- Check for AABB Collision ---
              if (checkAABBCollision(projRect, objectRect)) {
-                 // Collision detected!
                  console.log(`Collision detected between projectile ${projId} (owner: ${projectile.ownerId}) and space object ${objectId}`);
 
-                 // Calculate damage to the space object
+                 // Calculate damage the projectile deals to the space object
                  const damage = calculateDamageFunc('projectile-spaceobject', spaceObject, projectile, currentTime);
 
                  // Apply damage to the space object via the manager
+                 // This now delegates to the damage handler, respecting spawner authority
                  if (damage > 0) {
                      console.log(`Applying ${damage} projectile damage to space object ${objectId}`);
                      // Pass projectile owner ID to know who caused the potential drop and add score
-                     const destroyed = spaceObjectManager.applyDamageToObject(objectId, damage, projectile.ownerId);
-                     // applyDamageToObject returns true if destroyed
+                     // The manager's method will now use the damage handler internally.
+                     spaceObjectManager.applyDamageToObject(objectId, damage, projectile.ownerId);
+                     // applyDamageToObject handles the logic for spawner vs non-spawner
                  }
 
-                 // Emit impact effect
-                 particleSystem?.emitSparks(projectile.x, projectile.y, 10, projectile.vx * 0.05, projectile.vy * 0.05);
+                 // Emit impact particle effect locally
+                 if (particleSystem) {
+                    particleSystem.emitSparks(projectile.x, projectile.y, 10, projectile.vx * 0.05, projectile.vy * 0.05);
+                 }
 
-                 // Mark the projectile for removal
+                 // Mark the projectile for removal locally. It has hit something.
                  projectile.isMarkedForRemoval = true;
 
-                 // A projectile hits only one thing
+                 // A projectile can only hit one target per frame/check.
+                 // Break the inner loop to move to the next projectile.
                  break;
              }
         }

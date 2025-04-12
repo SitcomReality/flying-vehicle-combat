@@ -4,9 +4,8 @@ import { SpaceObject } from './space-object.js';
 import { Asteroid } from './space-object-types/asteroid.js';
 import { Lander } from './space-object-types/lander.js';
 import { Rover } from './space-object-types/rover.js';
-// --- Updated Powerup Drop Import ---
-import { handleObjectDestructionPowerupDrop } from '../drop-system.js'; // Corrected path
-import { createObjectExplosionEffect } from './space-object-explosion-handler.js';
+// --- Import the damage and destruction handlers ---
+import { handleDamage, handleDestruction } from './space-object-damage-handler.js';
 // Import the new sync module
 import { initializeSpaceObjectsFromRoomState, handleSpaceObjectRoomStateUpdate } from './space-object-sync.js';
 
@@ -153,111 +152,44 @@ class SpaceObjectManager {
     }
 
     /**
-     * Destroys a space object, handles drops, particles, and removal.
-     * Only the spawner sends the network removal message.
+     * Applies damage to a space object. This method now delegates the core logic
+     * to the handleDamage function in space-object-damage-handler.js.
+     * @param {string} id - The ID of the space object to damage.
+     * @param {number} amount - The amount of damage to apply.
+     * @param {string | null} playerDestroyerId - The ID of the player causing the damage (optional).
+     * @returns {boolean} - True if the damage resulted in the object being destroyed, false otherwise.
+     */
+    applyDamageToObject(id, amount, playerDestroyerId = null) {
+        // Create the context object needed by the handler functions
+        const managerContext = {
+            activeObjects: this.activeObjects,
+            networkManager: this.networkManager,
+            isSpawner: this.isSpawner,
+            playerManager: this.playerManager,
+            powerupManager: this.powerupManager,
+            particleSystem: this.particleSystem,
+            gameWidth: this.gameWidth,
+            gameHeight: this.gameHeight,
+            groundLevelY: this.groundLevelY,
+            // Pass the method that should be called for destruction
+            // Bind 'this' to ensure it runs in the context of the manager instance
+            destroyObject: this._destroyObjectInternal.bind(this)
+        };
+        // Call the external handler function
+        return handleDamage(id, amount, playerDestroyerId, managerContext);
+    }
+
+    /**
+     * Internal method to handle the actual destruction logic.
+     * This is passed to the damage handler as the `destroyObject` callback.
      * @param {string} id - The ID of the object to destroy.
      * @param {string | null} playerDestroyerId - ID of the player who dealt the final blow, if any.
      * @param {string} reason - Why the object is being destroyed ('damage', 'offscreen', 'cleanup', etc.).
+     * @param {object} managerContext - The context object passed from applyDamageToObject or update loop.
      */
-    destroyObject(id, playerDestroyerId = null, reason = 'unknown') {
-        const obj = this.getObject(id);
-        if (obj && !obj._destructionInProgress) {
-            obj._destructionInProgress = true; // Mark destruction start
-
-            console.log(`[SpaceObjMgr] Destroying object ${id}. Player: ${playerDestroyerId || 'None'}. Reason: ${reason}`);
-
-            // --- EXPLOSION HANDLING (Only if destroyed by damage) ---
-            if (reason === 'damage' && this.particleSystem) {
-                createObjectExplosionEffect(obj, this.particleSystem);
-            } else if (reason === 'damage') {
-                console.warn("[SpaceObjMgr] ParticleSystem is missing, cannot create explosion effect for object", id);
-            }
-            // --- END EXPLOSION HANDLING ---
-
-            // Score awarding only happens if destroyed by a player via damage
-            if (reason === 'damage' && playerDestroyerId && obj.scoreValue > 0) {
-                const player = this.playerManager?.getPlayer(playerDestroyerId);
-                if (player && player.lifecycleState === 'ACTIVE') {
-                    player.addScore(obj.scoreValue);
-                    console.log(`Player ${playerDestroyerId} awarded ${obj.scoreValue} points for destroying ${id}`);
-                }
-            }
-
-            // --- Drop Handling (Only if destroyed by damage) ---
-            if (reason === 'damage') {
-                handleObjectDestructionPowerupDrop(
-                    obj,
-                    playerDestroyerId,
-                    this.powerupManager,
-                    this.gameWidth,
-                    this.gameHeight,
-                    this.groundLevelY
-                );
-            }
-
-            // --- Network Removal (Only by Spawner) ---
-            if (this.isSpawner) {
-                const removalPayload = {};
-                removalPayload[id] = null; // Signal removal
-                this.networkManager.updateRoomState({
-                    spaceObjects: removalPayload
-                });
-                console.log(`[SpaceObjMgr] Spawner ${this.networkManager.getClientId()} sent removal signal for object ${id}`);
-            } else {
-                // console.log(`[SpaceObjMgr] Non-spawner ${this.networkManager.getClientId()} detected destruction for object ${id}, removal will come from network.`);
-            }
-
-            // Mark for removal locally *after* handling drops/explosions
-            obj.isMarkedForRemoval = true;
-
-            // Remove locally immediately *after* signalling removal (if spawner) or just locally (if not)
-            // This stops rendering/processing immediately
-            delete this.activeObjects[id];
-
-        } else if (obj && obj._destructionInProgress) {
-            // console.log(`[SpaceObjMgr] Destruction for object ${id} already in progress. Skipping.`);
-        } else {
-            // console.log(`[SpaceObjMgr] Could not find object ${id} to destroy or already removed.`);
-        }
-    }
-
-    handleDamageToObject(id, amount, playerDestroyerId = null) {
-        const obj = this.getObject(id);
-        if (!obj || obj.isMarkedForRemoval || obj._destructionInProgress) return false; // Check destruction flag
-
-        // --- Damage Application & Destruction Check (Spawner Authority) ---
-        let wasDestroyed = false;
-        if (this.isSpawner) {
-            wasDestroyed = obj.takeDamage(amount); // Directly modifies obj.health and obj.serverHealth
-
-            if (wasDestroyed) {
-                // Trigger full destruction logic (drops, network removal etc.)
-                this.destroyObject(id, playerDestroyerId, 'damage');
-                return true; // Return true as it was destroyed
-            } else {
-                // Object took damage but wasn't destroyed. Sync its new state.
-                const updatePayload = {};
-                updatePayload[id] = obj.getSyncData(); // Get current state data (including new health)
-                this.networkManager.updateRoomState({
-                    spaceObjects: updatePayload // Send updated health etc.
-                });
-                return false; // Return false as it survived
-            }
-        } else {
-            // --- Non-Spawner Behavior ---
-            // Do *not* call obj.takeDamage() as it modifies authoritative state.
-            // Non-spawners just wait for the spawner's update via roomState.
-            // We can visually predict the hit (e.g., particle effect) but not change health.
-            console.log(`[SpaceObjMgr] Non-spawner detected damage to ${id}. Waiting for spawner update.`);
-            // Optionally trigger a local particle effect for immediate feedback
-            // this.particleSystem?.emitSparks(obj.x, obj.y, 5);
-            return false; // Assume not destroyed until confirmed by network
-        }
-    }
-
-    applyDamageToObject(id, amount, playerDestroyerId = null) {
-        // Ensure applyDamageToObject is the one called by colliders
-        return this.handleDamageToObject(id, amount, playerDestroyerId);
+    _destroyObjectInternal(id, playerDestroyerId, reason, managerContext) {
+        // Call the external handler function, passing the already created context
+        handleDestruction(id, playerDestroyerId, reason, managerContext);
     }
 
     getActiveObjects() {
@@ -281,6 +213,21 @@ class SpaceObjectManager {
 
         const objectIds = Object.keys(this.activeObjects);
 
+        // Create the context object ONCE for this update frame
+        const managerContext = {
+             activeObjects: this.activeObjects,
+             networkManager: this.networkManager,
+             isSpawner: this.isSpawner,
+             playerManager: this.playerManager,
+             powerupManager: this.powerupManager,
+             particleSystem: this.particleSystem,
+             gameWidth: this.gameWidth,
+             gameHeight: this.gameHeight,
+             groundLevelY: this.groundLevelY,
+             // Pass the internal destruction method
+             destroyObject: this._destroyObjectInternal.bind(this)
+         };
+
         for (const id of objectIds) {
             const obj = this.activeObjects[id];
             if (!obj) continue; // Object might have been removed mid-iteration by destroyObject
@@ -294,7 +241,8 @@ class SpaceObjectManager {
             if (obj.isMarkedForRemoval) {
                 if (!obj._destructionInProgress) {
                     // console.log(`[SpaceObjMgr Update] Object ${id} found marked for removal (pre-update). Triggering destroy...`);
-                    this.destroyObject(id, null, 'cleanup'); // Trigger full destruction logic
+                     // Use the context object when calling the internal destruction method
+                    this._destroyObjectInternal(id, null, 'cleanup', managerContext);
                 }
                 continue; // Move to the next object
             }
@@ -312,7 +260,7 @@ class SpaceObjectManager {
                 // Check again if update marked it for removal
                 if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
                     // console.log(`[SpaceObjMgr Update] Object ${id} marked for removal during spawner update. Triggering destroy...`);
-                    this.destroyObject(id, null, 'offscreen');
+                    this._destroyObjectInternal(id, null, 'offscreen', managerContext);
                 }
                 // Check for significant state changes *if* it wasn't destroyed
                 else if (this.activeObjects[id]) { // Check object still exists locally
