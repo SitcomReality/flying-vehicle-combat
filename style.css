@@ -33,6 +33,84 @@ canvas {
     z-index: 10; /* Ensure debug is above canvas */
 }
 
+/* General UI Panel Styling */
+.ui-panel {
+    position: absolute;
+    top: 10px; /* Align with debug */
+    background-color: rgba(255, 255, 255, 0.85); /* Slightly less transparent */
+    color: #333;
+    padding: 10px 15px;
+    border: 3px solid #555;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+    max-height: calc(100vh - 40px); /* Prevent vertical overflow */
+    overflow-y: auto;
+    font-family: 'Comic Sans MS', 'Chalkduster', cursive;
+}
+
+#scoreboard {
+    left: 10px; /* Position on the left */
+    width: 180px; /* Fixed width */
+}
+
+#scoreboard h2 {
+    margin: 0 0 10px 0;
+    font-size: 1.2em;
+    text-align: center;
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 5px;
+}
+
+#scoreboard ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#scoreboard li {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9em;
+}
+
+#scoreboard li:last-child {
+    border-bottom: none;
+}
+
+.score-name {
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px; /* Limit name width */
+    margin-right: 10px;
+}
+
+.score-value {
+    font-weight: normal;
+    color: #0056b3; /* Distinct color for score */
+}
+
+/* Media Query for smaller screens */
+@media (max-width: 1100px) { /* Adjust breakpoint as needed */
+    #scoreboard {
+        position: relative; /* Change positioning */
+        top: auto;
+        left: auto;
+        width: 90%; /* Make it wider */
+        max-width: 400px;
+        margin-top: 10px; /* Add space below canvas */
+        order: 3; /* Place below canvas */
+    }
+    /* Adjust body flex direction for vertical layout */
+    body {
+        flex-direction: column;
+    }
+}
+
 /* Style for player names/avatars (example - integrate later) */
 .player-info {
     position: absolute;
@@ -125,7 +203,6 @@ canvas {
     color: #666;
     white-space: nowrap; /* Prevent wrapping */
 }
-
 
 #confirmSelection {
     padding: 10px 20px;

@@ -26,28 +26,23 @@ We'll implement features incrementally, adding tests as we go. Each system will 
 
 ### Scoring System
 
-1.  **Create `core/score-system.js`**
-    *   Track player scores locally.
-    *   Handle score events (e.g., from destroying objects).
-2.  **Create `ui/scoreboard.js`**
-    *   Display current player scores (names and scores).
-    *   Position to the left side of the canvas on wide screens, or beneath it on smaller devices (using CSS media queries).
-    *   Update dynamically as scores change (sync with `PlayerManager` or `ScoreSystem`).
-3.  **Create `ui/leaderboard.js`**
-    *   Display all-time high scores persisted via `WebsimSocket`.
-    *   Position to the right side of the canvas on wide screens, or beneath it on smaller devices.
-    *   Fetch data using `WebsimSocket` records.
-    *   Update when new high score records are set.
+*   The scoring system is handled by `Player.state.score` and `Player.addScore`.
+*   `ui/scoreboard.js` has been created to display current player scores (names and scores).
+    *   It is positioned to the left side of the canvas (moves below on smaller screens via CSS).
+    *   It updates dynamically based on `PlayerManager` data.
 
 ### Persistence
 
 1.  **Create `networking/score-persistence.js`**
     *   Function to save a new score record using `WebsimSocket` (e.g., `saveScore(username, score)`).
     *   Function to retrieve the top N high scores using `WebsimSocket` (e.g., `getHighScores(limit)`).
-2.  **Update `network-manager.js` (or integrate directly)**
-    *   Consider if `NetworkManager` needs specific wrappers for score persistence, or if UI/ScoreSystem can call `score-persistence.js` directly. For simplicity, direct calls might be easier initially.
+2.  **Create `ui/leaderboard.js`**
+    *   Display all-time high scores persisted via `WebsimSocket`.
+    *   Position to the right side of the canvas on wide screens, or beneath it on smaller devices.
+    *   Fetch data using `score-persistence.js`.
+    *   Update when new high score records are set (using `subscribe`?).
 3.  **Integrate Persistence**
-    *   Call `saveScore` when a local player's game ends (e.g., after death, before respawn selection, or maybe a dedicated 'game over' state).
+    *   Call `saveScore` when a local player's game ends (likely in `PlayerLifecycleManager.handlePlayerDeath` or similar).
     *   Call `getHighScores` when the leaderboard UI needs to be populated or updated.
 
 ## Future Features
@@ -95,4 +90,3 @@ We'll implement features incrementally, adding tests as we go. Each system will 
 3.  Adjust powerup effectiveness, duration, and spawn rates.
 4.  Fine-tune collectible values and drop rates.
 5.  Balance space object health, speed, and spawn frequency.
-

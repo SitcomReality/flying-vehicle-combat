@@ -17,6 +17,7 @@ import CollisionManager from 'entities/combat/collision-manager.js';
 import PlayerLifecycleManager from 'entities/player-lifecycle-manager.js';
 import SpaceObjectManager from 'entities/space-objects/space-object-manager.js';
 import CollectibleManager from 'entities/collectibles/collectible-manager.js';
+import Scoreboard from 'ui/scoreboard.js';
 
 console.log("Game starting...");
 
@@ -35,6 +36,7 @@ const PRESENCE_UPDATE_THROTTLE = 50; // Milliseconds between sending presence up
 const canvas = document.getElementById('gameCanvas');
 const debugEl = document.getElementById('debug');
 const vehicleSelectorEl = document.getElementById('vehicleSelector');
+const scoreboardEl = document.getElementById('scoreboard');
 
 // --- Core Modules ---
 const renderer = new Renderer(canvas, GAME_WIDTH, GAME_HEIGHT);
@@ -63,6 +65,7 @@ let vehicleSelector = null;
 let statusBarRenderer = null;
 let collisionManager = null;
 let playerLifecycleManager = null;
+let scoreboard = null;
 
 // --- Initialization ---
 async function initializeGame() {
@@ -88,7 +91,6 @@ async function initializeGame() {
         backgroundRenderer = new BackgroundRenderer(renderer.getContext(), GAME_WIDTH, GAME_HEIGHT);
         groundLevelY = backgroundRenderer.getGroundLevel();
 
-        // Pass collectibleManager and playerManager to SpaceObjectManager
         spaceObjectManager = new SpaceObjectManager(
             networkManager,
             assets,
@@ -96,7 +98,7 @@ async function initializeGame() {
             GAME_HEIGHT,
             groundLevelY,
             collectibleManager,
-            playerManager // Pass playerManager here
+            playerManager
         );
 
         particleSystem = new ParticleSystem();
@@ -129,6 +131,8 @@ async function initializeGame() {
             particleSystem,
             RENDER_SCALE
         );
+
+        scoreboard = new Scoreboard(scoreboardEl, playerManager, networkManager);
 
         playerManager.setManagers(projectileManager, networkManager, playerLifecycleManager, particleSystem, powerupManager);
 
@@ -184,6 +188,7 @@ function update(deltaTime, currentTime) {
     powerupManager.update(deltaTime);
     spaceObjectManager.update(deltaTime);
     collectibleManager.update(deltaTime);
+    scoreboard.update(currentTime);
 
     powerupManager.attemptSpawnPowerup(currentTime, GAME_WIDTH, GAME_HEIGHT, groundLevelY);
 
@@ -205,9 +210,7 @@ function update(deltaTime, currentTime) {
         }
         if (inputManager.wasKeyJustPressed(DEBUG_SPAWN_ASTEROID_KEY)) {
             console.log("Debug key pressed: Spawn Asteroid Manually");
-            // Use the attemptSpawnObject method, which now handles network sync
-            // It might not spawn immediately if rate limited or max objects reached
-            spaceObjectManager.attemptSpawnObject(currentTime - 2000); // Force attempt by making it seem like interval passed
+            spaceObjectManager.attemptSpawnObject(currentTime - 2000); 
         }
     }
 
@@ -248,7 +251,7 @@ function gameLoop(currentTime) {
     const deltaTime = Math.min(rawDeltaTime, MAX_DELTA_TIME);
     lastUpdateTime = currentTime;
 
-    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager || !spaceObjectManager || !collectibleManager) {
+    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager || !spaceObjectManager || !collectibleManager || !scoreboard) { 
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
         return;
