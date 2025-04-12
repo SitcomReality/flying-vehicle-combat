@@ -46,7 +46,7 @@ class Player {
                 this.state,
                 this.projectileManager,
                 this.networkManager,
-                boundGetVisualNosePos 
+                boundGetVisualNosePos
             );
             console.log(`WeaponSystem initialized for local player ${this.id}`);
         } else if (this.state.isLocalPlayer && !this.inputManager) {
@@ -67,7 +67,11 @@ class Player {
     }
 
     handleInput(inputState) {
-        handlePlayerInput(this.state, inputState, this.inputManager, this.weaponSystem);
+        if (this.inputManager && this.weaponSystem) {
+            handlePlayerInput(this.state, inputState, this.inputManager, this.weaponSystem);
+        } else {
+            console.warn(`Skipping handleInput for player ${this.id}: missing InputManager or WeaponSystem.`);
+        }
     }
 
     update(deltaTime, groundLevelY, particleSystem, currentTime, playerManager) {
@@ -90,8 +94,8 @@ class Player {
 
         if (this.state.isLocalPlayer) {
             if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE && this.inputManager) {
-                 const inputState = this.inputManager.getInputState(); 
-                 handlePlayerInput(this.state, inputState, this.inputManager, this.weaponSystem); 
+                 const currentInputState = this.inputManager.getInputState(); 
+                 this.handleInput(currentInputState);
             }
 
              if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE && this.weaponSystem) {
@@ -193,7 +197,12 @@ class Player {
     }
 
     takeDamage(amount, currentTime) {
-        applyDamage(this.state, amount, currentTime, this.playerManager);
+        if (this.playerManager) {
+             applyDamage(this.state, amount, currentTime, this.playerManager);
+        } else {
+             console.error(`Cannot apply damage to player ${this.id}: PlayerManager reference is missing.`);
+             applyDamage(this.state, amount, currentTime, null);
+        }
     }
 
     addScore(amount) {
