@@ -6,13 +6,22 @@ class ProjectileManager {
     constructor() {
         this.projectiles = {}; // Store projectiles by ID
         this.nextProjectileId = 0; // Simple local ID generation for client-side effects
+        // Fetch and store the local client ID once
+        this.localClientId = window.websim?.socket?.clientId || null;
+        if (!this.localClientId) {
+            console.warn("[ProjectileMgr] Could not determine local client ID during construction!");
+        }
     }
 
     // Creates a projectile locally (e.g., from network event or local fire)
     // Accepts damage and gravityFactor parameters
     createProjectile(id, ownerId, x, y, vx, vy, color, damage = 10, gravityFactor = 0.5) {
-        // Get local client ID for logging context
-        const localClientId = window.websim?.socket?.clientId || 'UnknownClient'; // Safer way to get ID
+        // Use the stored local client ID
+        const localClientId = this.localClientId;
+        if (!localClientId) {
+            console.error(`[ProjectileMgr] Cannot create projectile - local client ID is unknown.`);
+            return; // Cannot determine locality
+        }
 
         // Check if this projectile ID already exists in the local manager
         if (this.projectiles[id]) {
@@ -20,17 +29,23 @@ class ProjectileManager {
             return; // Prevent duplicates
         }
 
-        // Determine if this creation is for the local player's own shot or a remote player's shot
+        // --- Correctly determine if this projectile belongs to the local player ---
         const isLocal = ownerId === localClientId;
-        console.log(`[ProjectileMgr ${localClientId}] Creating ${isLocal ? 'LOCAL' : 'REMOTE'} projectile ${id} (Owner: ${ownerId}) Pos: (${x.toFixed(1)},${y.toFixed(1)}), Vel: (${vx.toFixed(1)},${vy.toFixed(1)}), Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}`);
+        const localityString = isLocal ? 'LOCAL' : 'REMOTE'; // Determine string based on flag
+
+        // --- Log with corrected locality string ---
+        console.log(`[ProjectileMgr ${localClientId}] Creating ${localityString} projectile ${id} (Owner: ${ownerId}) Pos: (${x.toFixed(1)},${y.toFixed(1)}), Vel: (${vx.toFixed(1)},${vy.toFixed(1)}), Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}`);
 
         try {
             const projectile = new Projectile(id, ownerId, x, y, vx, vy, color, damage, gravityFactor); // Pass gravityFactor
-            // Add isLocal flag for easier debugging/logging
+            // --- Set the isLocal flag correctly ---
             projectile.isLocal = isLocal;
             this.projectiles[id] = projectile;
+             // --- Add log CONFIRMING storage ---
+             console.log(`[ProjectileMgr ${localClientId}] Successfully CREATED and STORED ${localityString} projectile ${id}. Active count: ${Object.keys(this.projectiles).length}`);
+
         } catch (error) {
-             console.error(`[ProjectileMgr ${localClientId}] Error creating projectile instance for ID ${id}:`, error);
+             console.error(`[ProjectileMgr ${localClientId}] Error during projectile instance creation or storage for ID ${id}:`, error);
         }
     }
 
@@ -47,10 +62,12 @@ class ProjectileManager {
     }
 
     update(deltaTime, groundLevelY) {
+        const localClientId = this.localClientId || 'UnknownClient';
         for (const id in this.projectiles) {
             const projectile = this.projectiles[id];
              // Add null/undefined check before accessing properties
             if (!projectile) {
+                 // console.warn(`[ProjectileMgr ${localClientId}] Found invalid entry in projectiles map with ID ${id}. Cleaning up.`);
                  delete this.projectiles[id]; // Clean up invalid entries
                  continue;
             }
@@ -59,22 +76,22 @@ class ProjectileManager {
 
             if (projectile.isMarkedForRemoval) {
                 // Log removal *before* deleting
-                // console.log(`[ProjectileMgr] Removing projectile ${id} (Owner: ${projectile.ownerId}, Local: ${projectile.isLocal})`);
+                // console.log(`[ProjectileMgr ${localClientId}] Removing projectile ${id} (Owner: ${projectile.ownerId}, Local: ${projectile.isLocal})`);
                 delete this.projectiles[id];
             }
         }
     }
 
     draw(ctx) {
-        const localClientId = window.websim?.socket?.clientId || 'UnknownClient';
+        const localClientId = this.localClientId || 'UnknownClient';
         for (const id in this.projectiles) {
              // Add null/undefined check before drawing
              const projectile = this.projectiles[id];
              if (projectile) {
                  // --- Added Logging ---
                  // Occasionally log drawing attempt for remote projectiles
-                 if (!projectile.isLocal && Math.random() < 0.01) {
-                     // console.log(`[ProjectileMgr ${localClientId}] Attempting to draw REMOTE projectile ${id}. Marked for removal: ${projectile.isMarkedForRemoval}`);
+                 if (!projectile.isLocal && Math.random() < 0.01) { // Check the actual projectile.isLocal flag
+                     console.log(`[ProjectileMgr ${localClientId}] DRAW: Attempting to draw REMOTE projectile ${id}. Pos: (${projectile.x.toFixed(1)}, ${projectile.y.toFixed(1)}), Marked for removal: ${projectile.isMarkedForRemoval}`);
                  }
                  // --- End Logging ---
                 projectile.draw(ctx);
