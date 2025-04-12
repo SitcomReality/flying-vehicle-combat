@@ -5,16 +5,21 @@ import { SPRITES } from 'config/sprites.js';
 import { getVehicleConfig } from './vehicles/vehicle-types.js';
 
 class PlayerLifecycleManager {
-    constructor(playerManager, networkManager, vehicleSelector, gameWidth, gameHeight, renderScale) {
+    // Added scorePersistence parameter
+    constructor(playerManager, networkManager, vehicleSelector, scorePersistence, gameWidth, gameHeight, renderScale) {
         this.playerManager = playerManager;
         this.networkManager = networkManager;
         this.vehicleSelector = vehicleSelector;
+        this.scorePersistence = scorePersistence; // Store reference
         this.gameWidth = gameWidth;
         this.gameHeight = gameHeight;
         this.renderScale = renderScale;
 
         if (!this.playerManager || !this.networkManager || !this.vehicleSelector) {
             console.error("PlayerLifecycleManager is missing required manager references!");
+        }
+        if (!this.scorePersistence) {
+             console.warn("PlayerLifecycleManager initialized without ScorePersistence. High scores will not be saved.");
         }
     }
 
@@ -73,9 +78,31 @@ class PlayerLifecycleManager {
     handlePlayerDeath(playerId) {
        const player = this.playerManager.getPlayer(playerId);
        if (!player || !player.isLocalPlayer || player.state.lifecycleState === PlayerLifecycleState.DEAD) {
-           console.warn(`handlePlayerDeath called for invalid player: ${playerId} or player already dead.`);
+           // console.warn(`handlePlayerDeath called for invalid player: ${playerId} or player already dead.`); // Reduce noise
            return;
        }
+
+       // --- Save Score ---
+       // Get final score BEFORE resetting state
+       const finalScore = player.state.score || 0;
+       // Get username from network manager's peers list
+       const localPeer = this.networkManager?.getPeer(playerId);
+       const username = localPeer?.username;
+
+       if (username && finalScore > 0 && this.scorePersistence) {
+           console.log(`Player ${username} died with score ${finalScore}. Saving score...`);
+           this.scorePersistence.saveScore(finalScore).catch(err => {
+               console.error("Failed to save score asynchronously:", err);
+           });
+       } else if (finalScore <= 0) {
+           console.log(`Player ${username || playerId} died with score ${finalScore}. Not saving score.`);
+       } else if (!this.scorePersistence) {
+            console.warn("ScorePersistence not available, cannot save score.");
+       } else if (!username) {
+            console.warn(`Could not get username for player ${playerId}, cannot save score.`);
+       }
+       // --- End Save Score ---
+
 
        // Transition to DEAD state (this also syncs presence)
        if (player.transitionToState(PlayerLifecycleState.DEAD)) {

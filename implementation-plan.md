@@ -22,28 +22,18 @@ We'll implement features incrementally, adding tests as we go. Each system will 
 3.  Easily extend the system with new vehicles, powerups, weapons, etc.
 4.  Simplify debugging and maintenance.
 
-## Current Focus: User Interface and Persistence
+## Completed: User Interface and Persistence
 
-### Scoring System
+### Scoring System & Leaderboard
 
 *   The scoring system is handled by `Player.state.score` and `Player.addScore`.
-*   `ui/scoreboard.js` has been created to display current player scores (names and scores).
-    *   It is positioned to the left side of the canvas (moves below on smaller screens via CSS).
-    *   It updates dynamically based on `PlayerManager` data.
-
-### Persistence
-
-1.  **Create `networking/score-persistence.js`**
-    *   Function to save a new score record using `WebsimSocket` (e.g., `saveScore(username, score)`).
-    *   Function to retrieve the top N high scores using `WebsimSocket` (e.g., `getHighScores(limit)`).
-2.  **Create `ui/leaderboard.js`**
-    *   Display all-time high scores persisted via `WebsimSocket`.
-    *   Position to the right side of the canvas on wide screens, or beneath it on smaller devices.
-    *   Fetch data using `score-persistence.js`.
-    *   Update when new high score records are set (using `subscribe`?).
-3.  **Integrate Persistence**
-    *   Call `saveScore` when a local player's game ends (likely in `PlayerLifecycleManager.handlePlayerDeath` or similar).
-    *   Call `getHighScores` when the leaderboard UI needs to be populated or updated.
+*   `ui/scoreboard.js` displays current player scores.
+*   **Completed:**
+    *   `networking/score-persistence.js` created to save/retrieve high scores using `WebsimSocket` records.
+    *   `ui/leaderboard.js` created to display persisted high scores with avatars, updating automatically via subscriptions.
+    *   Leaderboard UI added to `index.html` and styled in `style.css` (positioned right, responsive).
+    *   Score saving integrated into `PlayerLifecycleManager` upon local player death.
+    *   Leaderboard initialized and managed in `game.js`.
 
 ## Future Features
 
@@ -90,3 +80,4 @@ We'll implement features incrementally, adding tests as we go. Each system will 
 3.  Adjust powerup effectiveness, duration, and spawn rates.
 4.  Fine-tune collectible values and drop rates.
 5.  Balance space object health, speed, and spawn frequency.
+

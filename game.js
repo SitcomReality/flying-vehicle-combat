@@ -18,6 +18,8 @@ import PlayerLifecycleManager from 'entities/player-lifecycle-manager.js';
 import SpaceObjectManager from 'entities/space-objects/space-object-manager.js';
 import CollectibleManager from 'entities/collectibles/collectible-manager.js';
 import Scoreboard from 'ui/scoreboard.js';
+import ScorePersistence from 'networking/score-persistence.js';
+import Leaderboard from 'ui/leaderboard.js';
 
 console.log("Game starting...");
 
@@ -37,6 +39,7 @@ const canvas = document.getElementById('gameCanvas');
 const debugEl = document.getElementById('debug');
 const vehicleSelectorEl = document.getElementById('vehicleSelector');
 const scoreboardEl = document.getElementById('scoreboard');
+const leaderboardEl = document.getElementById('leaderboard');
 
 // --- Core Modules ---
 const renderer = new Renderer(canvas, GAME_WIDTH, GAME_HEIGHT);
@@ -44,6 +47,7 @@ const inputManager = new InputManager();
 const networkManager = new NetworkManager();
 const assetLoader = new AssetLoader();
 const projectileManager = new ProjectileManager();
+const scorePersistence = new ScorePersistence(networkManager);
 
 // --- Game State ---
 let assets = {};
@@ -66,6 +70,7 @@ let statusBarRenderer = null;
 let collisionManager = null;
 let playerLifecycleManager = null;
 let scoreboard = null;
+let leaderboard = null;
 
 // --- Initialization ---
 async function initializeGame() {
@@ -115,6 +120,7 @@ async function initializeGame() {
             playerManager,
             networkManager,
             vehicleSelector,
+            scorePersistence,
             GAME_WIDTH,
             GAME_HEIGHT,
             RENDER_SCALE
@@ -133,6 +139,7 @@ async function initializeGame() {
         );
 
         scoreboard = new Scoreboard(scoreboardEl, playerManager, networkManager);
+        leaderboard = new Leaderboard(leaderboardEl, scorePersistence, networkManager);
 
         playerManager.setManagers(projectileManager, networkManager, playerLifecycleManager, particleSystem, powerupManager);
 
@@ -251,7 +258,7 @@ function gameLoop(currentTime) {
     const deltaTime = Math.min(rawDeltaTime, MAX_DELTA_TIME);
     lastUpdateTime = currentTime;
 
-    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager || !spaceObjectManager || !collectibleManager || !scoreboard) { 
+    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager || !spaceObjectManager || !collectibleManager || !scoreboard || !leaderboard) {
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
         return;

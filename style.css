@@ -52,6 +52,7 @@ canvas {
 #scoreboard {
     left: 10px; /* Position on the left */
     width: 180px; /* Fixed width */
+    top: 10px; /* Align with debug */
 }
 
 #scoreboard h2 {
@@ -94,21 +95,93 @@ canvas {
     color: #0056b3; /* Distinct color for score */
 }
 
+#leaderboard {
+    right: 10px; /* Position on the right */
+    width: 220px; /* Slightly wider for avatars */
+    top: 10px; /* Align with debug */
+}
+
+#leaderboard h2 {
+    margin: 0 0 10px 0;
+    font-size: 1.2em;
+    text-align: center;
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 5px;
+}
+
+#leaderboard ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#leaderboard li {
+    display: flex;
+    align-items: center; /* Align items vertically */
+    padding: 5px 0; /* Increased padding */
+    border-bottom: 1px solid #eee;
+    font-size: 0.9em;
+}
+
+#leaderboard li:last-child {
+    border-bottom: none;
+}
+
+#leaderboard li.local-player-score {
+    background-color: #e0f0ff; /* Light blue highlight */
+    font-weight: bold;
+}
+
+#leaderboard .rank {
+    flex: 0 0 25px; /* Fixed width for rank */
+    text-align: right;
+    margin-right: 8px;
+    color: #666;
+}
+
+#leaderboard .leader-name {
+    flex-grow: 1; /* Allow name to take remaining space */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 10px;
+    display: flex; /* Use flex for avatar alignment */
+    align-items: center;
+}
+
+#leaderboard .leader-avatar {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    margin-right: 5px;
+    border: 1px solid #ccc;
+    vertical-align: middle; /* Although flex alignment is primary now */
+}
+
+#leaderboard .leader-score {
+    flex-shrink: 0; /* Prevent score from shrinking */
+    font-weight: bold;
+    color: #0056b3; /* Distinct color for score */
+    margin-left: auto; /* Push score to the right */
+}
+
 /* Media Query for smaller screens */
 @media (max-width: 1100px) { /* Adjust breakpoint as needed */
-    #scoreboard {
+    #scoreboard, #leaderboard { /* Apply to both */
         position: relative; /* Change positioning */
         top: auto;
         left: auto;
+        right: auto; /* Reset side positioning */
         width: 90%; /* Make it wider */
         max-width: 400px;
         margin-top: 10px; /* Add space below canvas */
-        order: 3; /* Place below canvas */
     }
     /* Adjust body flex direction for vertical layout */
     body {
         flex-direction: column;
     }
+    #scoreboard { order: 3; } /* Place below canvas */
+    #leaderboard { order: 4; } /* Place below scoreboard */
 }
 
 /* Style for player names/avatars (example - integrate later) */
