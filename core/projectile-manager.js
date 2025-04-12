@@ -26,6 +26,8 @@ class ProjectileManager {
 
         try {
             const projectile = new Projectile(id, ownerId, x, y, vx, vy, color, damage, gravityFactor); // Pass gravityFactor
+            // Add isLocal flag for easier debugging/logging
+            projectile.isLocal = isLocal;
             this.projectiles[id] = projectile;
         } catch (error) {
              console.error(`[ProjectileMgr ${localClientId}] Error creating projectile instance for ID ${id}:`, error);
@@ -56,17 +58,26 @@ class ProjectileManager {
             projectile.update(deltaTime, groundLevelY);
 
             if (projectile.isMarkedForRemoval) {
+                // Log removal *before* deleting
+                // console.log(`[ProjectileMgr] Removing projectile ${id} (Owner: ${projectile.ownerId}, Local: ${projectile.isLocal})`);
                 delete this.projectiles[id];
-                // console.log(`Projectile ${id} removed.`);
             }
         }
     }
 
     draw(ctx) {
+        const localClientId = window.websim?.socket?.clientId || 'UnknownClient';
         for (const id in this.projectiles) {
              // Add null/undefined check before drawing
-             if (this.projectiles[id]) {
-                this.projectiles[id].draw(ctx);
+             const projectile = this.projectiles[id];
+             if (projectile) {
+                 // --- Added Logging ---
+                 // Occasionally log drawing attempt for remote projectiles
+                 if (!projectile.isLocal && Math.random() < 0.01) {
+                     // console.log(`[ProjectileMgr ${localClientId}] Attempting to draw REMOTE projectile ${id}. Marked for removal: ${projectile.isMarkedForRemoval}`);
+                 }
+                 // --- End Logging ---
+                projectile.draw(ctx);
              }
         }
     }
