@@ -3,6 +3,9 @@
 import { PlayerLifecycleState } from './player-lifecycle.js';
 import { SPRITES } from 'config/sprites.js';
 import { getVehicleConfig } from './vehicles/vehicle-types.js';
+// Import particle constants for explosions
+import { PLAYER_EXPLOSION_PARTICLE_COUNT, EXPLOSION_SPEED_MIN, PLAYER_EXPLOSION_SPEED_MAX, EXPLOSION_COLORS_PLAYER } from '../rendering/particle-system.js';
+
 
 class PlayerLifecycleManager {
     // Added scorePersistence and particleSystem parameters
@@ -116,7 +119,15 @@ class PlayerLifecycleManager {
            console.log(`Local player ${player.id} officially DEAD.`);
 
            // Trigger explosion particle effect at the player's last position
-           this.particleSystem?.emitExplosion(deathX, deathY);
+           // Use player-specific constants for a bigger explosion
+           this.particleSystem?.emitExplosion(
+               deathX,
+               deathY,
+               PLAYER_EXPLOSION_PARTICLE_COUNT, // Use player-specific count
+               EXPLOSION_SPEED_MIN, // Use standard min speed
+               PLAYER_EXPLOSION_SPEED_MAX, // Use player-specific max speed
+               EXPLOSION_COLORS_PLAYER // Use player-specific colors
+           );
 
            // Automatically trigger respawn selection after a short delay
            setTimeout(() => {

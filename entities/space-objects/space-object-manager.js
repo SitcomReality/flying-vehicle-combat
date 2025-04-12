@@ -5,6 +5,9 @@ import { Asteroid } from './space-object-types/asteroid.js';
 import { Lander } from './space-object-types/lander.js';
 import { Rover } from './space-object-types/rover.js';
 import { handleObjectDestructionDrop, handleObjectDestructionPowerupDrop } from '../collectibles/drop-system.js';
+// Import particle constants for explosions
+import { OBJ_EXPLOSION_PARTICLE_COUNT, EXPLOSION_SPEED_MIN, EXPLOSION_SPEED_MAX, EXPLOSION_COLORS_OBJ } from '../../rendering/particle-system.js';
+
 
 // Map types to classes for easy instantiation
 const SPACE_OBJECT_CLASSES = {
@@ -230,7 +233,15 @@ class SpaceObjectManager {
         if (obj) {
             // console.log(`[SpaceObjMgr] Destroying object ${id}.`); // Reduce log noise
             // Trigger explosion BEFORE removing from manager
-            this.particleSystem?.emitExplosion(obj.x, obj.y, 30); // Object explosion (smaller)
+            // Use object-specific explosion constants
+            this.particleSystem?.emitExplosion(
+                obj.x,
+                obj.y,
+                OBJ_EXPLOSION_PARTICLE_COUNT, // Use object-specific count
+                EXPLOSION_SPEED_MIN, // Use standard min speed
+                EXPLOSION_SPEED_MAX, // Use object-specific max speed
+                EXPLOSION_COLORS_OBJ // Use object-specific colors
+            );
 
             if (playerDestroyerId && obj.scoreValue > 0) {
                 const player = this.playerManager?.getPlayer(playerDestroyerId);
