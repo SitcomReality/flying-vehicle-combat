@@ -10,6 +10,9 @@ const DEFAULT_SCORE_VALUE = 5; // Default points awarded on destruction
 const INTERPOLATION_FACTOR = 0.15; // How quickly remote objects visually catch up
 const INTERPOLATION_SNAP_THRESHOLD_SQ = 150 * 150; // Squared distance threshold to snap position instantly
 
+// --- Export the constant ---
+export { INTERPOLATION_SNAP_THRESHOLD_SQ };
+
 export class SpaceObject {
     constructor(id, type, x, y, initialState = {}) {
         this.id = id;
@@ -70,6 +73,11 @@ export class SpaceObject {
 
     // Interpolates visual state towards server state (for non-spawners)
     interpolateState(factor = INTERPOLATION_FACTOR) {
+        // Don't interpolate if marked for removal or recently updated
+        if (this.isMarkedForRemoval || performance.now() - this.lastServerUpdateTime < 10) {
+             return;
+        }
+
         const dx = this.serverX - this.x;
         const dy = this.serverY - this.y;
         const distSq = dx*dx + dy*dy;
@@ -84,7 +92,10 @@ export class SpaceObject {
             this.x += dx * factor;
             this.y += dy * factor;
             // Interpolate rotation (simple lerp, handle wrap-around if needed)
-            this.rotation += (this.serverRotation - this.rotation) * factor;
+            const deltaRotation = this.serverRotation - this.rotation;
+            // Handle wrap-around for rotation interpolation (optional but smoother)
+            const wrappedDelta = (deltaRotation + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+            this.rotation += wrappedDelta * factor;
         }
         // Optionally interpolate velocity for smoother visual updates between packets?
         // this.vx += (this.serverVx - this.vx) * factor * 0.5; // Slower velocity interp
@@ -200,7 +211,7 @@ export class SpaceObject {
             vy: this.vy,
             rotation: this.rotation,
             // rotationSpeed: this.rotationSpeed, // Sync rotation speed if needed for consistency
-            health: this.health,
+            health: Math.max(0, this.health), // Ensure health sent is not negative
             scoreValue: this.scoreValue, // Include score value in sync data
             // Include any other state needed for subtypes (like lander's baseY?)
         };

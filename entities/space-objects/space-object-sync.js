@@ -4,7 +4,7 @@ import { SpaceObject } from './space-object.js';
 import { Asteroid } from './space-object-types/asteroid.js';
 import { Lander } from './space-object-types/lander.js';
 import { Rover } from './space-object-types/rover.js';
-// Import snap threshold constant
+// --- Import the named export ---
 import { INTERPOLATION_SNAP_THRESHOLD_SQ } from './space-object.js';
 
 // Map types to classes for easy instantiation (kept local to this module)
@@ -43,7 +43,6 @@ export function handleSpaceObjectRoomStateUpdate(activeObjects, roomState, myCli
         syncSpaceObjects(activeObjects, objectData, myClientId, groundLevelY);
     }
 }
-
 
 /**
  * Synchronizes the local activeObjects map with the data received from the network.
@@ -169,8 +168,3 @@ export function syncSpaceObjects(activeObjects, objectData, myClientId, groundLe
     //     console.log(`[SpaceObjSync ${myClientId}] Active objects after sync: ${Object.keys(activeObjects).length}`);
     // }
 }
-
-// --- Code removed from space-object-manager.js and adapted for this module ---
-// _handleRoomStateUpdate -> handleSpaceObjectRoomStateUpdate
-// _syncObjects -> syncSpaceObjects
-// _initializeFromRoomState -> initializeSpaceObjectsFromRoomState
