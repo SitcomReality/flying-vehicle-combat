@@ -13,21 +13,24 @@
 
 ### Changes Implemented:
 1.  **Modified `PowerupManager` to enforce spawner authority**
-    *   Only the designated spawner client creates powerups and updates `roomState.activePowerups`.
-    *   Spawner determined reliably based on sorted client IDs.
 2.  **Improved synchronization logic (`_syncPowerups`)**
-    *   Robustly handles additions, updates (position interpolation), and removals based on `roomState`.
-    *   Correctly initializes state for late-joining clients.
-3.  **Refactored pickup mechanism**
-    *   Local player collision triggers `initiatePickup`.
-    *   Non-spawners send a `requestPowerupPickup` event to the spawner.
-    *   Spawner validates request and removes the powerup from `roomState` via `_performPickup`.
-    *   All clients rely on `roomState` updates (null entry) for removal.
-    *   Local player applies effect immediately upon initiating pickup for responsiveness.
+3.  **Refactored pickup mechanism using events (`requestPowerupPickup`)**
 
-### Next Steps:
-1.  **Projectile System Refactor**
-    *   Implement event-based projectile broadcasting.
-    *   Ensure projectiles are visible to all clients.
-    *   Fix gravity factor and damage synchronization.
+## Step 3 Completed: Projectile System Refactor
+
+### Changes Implemented:
+1.  **Modified `WeaponSystem.attemptFire` to broadcast a `fireProjectile` event instead of using Room State.**
+2.  **Ensured the event payload (`projectileData`) contains all necessary projectile information (ID, owner, position, velocity, color, damage, gravityFactor).**
+3.  **Set `echo: false` on the broadcasted event to prevent the sender from receiving their own event.**
+4.  **Modified `NetworkEventHandler._handleMessage` to listen for `fireProjectile` events.**
+5.  **Updated `ProjectileManager.createProjectile` to correctly handle the creation of projectiles based on the received event data.**
+6.  **Confirmed `ProjectileManager.createAndGetData` returns all necessary data for the event.**
+7.  **Removed any dependencies on Room State for projectile synchronization.** Projectiles are now simulated entirely locally after the initial firing event.
+
+## Next Steps:
+1.  **Collision Management Refactor**
+    *   Review client-side authority for damage assessment.
+    *   Implement network requests for applying damage/effects to other players/entities owned by others (if needed - might be handled by presence requests).
+    *   Ensure particle effects related to collisions are handled consistently (likely local effects based on collision detection).
+
 

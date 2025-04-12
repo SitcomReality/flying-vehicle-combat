@@ -32,10 +32,8 @@ class NetworkEventHandler {
                 // Check if peer info is delayed but presence exists
                 const latePeerInfo = this.networkManager.getPeer(clientId);
                  if (!latePeerInfo) {
-                     console.warn(`Presence received for unknown or not-yet-fully-connected peer ${clientId}. Waiting for peer info.`);
                      continue;
                  } else {
-                    console.log(`Received presence for peer ${clientId} before formal 'connected' event. Processing...`);
                  }
             }
 
@@ -49,14 +47,11 @@ class NetworkEventHandler {
                     if (this.playerManager.getLocalPlayer().lifecycleState !== PlayerLifecycleState.CONNECTING) {
                          continue;
                     } else {
-                        console.log("Updating local player state from early presence data during CONNECTING phase.");
-                        // Update state but don't recreate
                         this.playerManager.getLocalPlayer().updateFromServer(presenceData, now);
                         continue;
                     }
                 }
 
-                console.log("New player detected from presence:", clientId, peerInfo?.username ?? this.networkManager.getPeer(clientId)?.username ?? 'Unknown');
                 const initialState = {
                     x: presenceData.x ?? this.gameConfig.GAME_WIDTH / 2,
                     y: presenceData.y ?? this.gameConfig.GAME_HEIGHT / 2,
@@ -67,7 +62,8 @@ class NetworkEventHandler {
                      // Sync initial health/fuel/invuln state if available
                     health: presenceData.health,
                     fuel: presenceData.fuel,
-                    isInvulnerable: presenceData.isInvulnerable
+                    isInvulnerable: presenceData.isInvulnerable,
+                    score: presenceData.score, // Sync initial score
                 };
                  // Only create if not already present (double check, createPlayer has guards too)
                  if (!this.playerManager.getPlayer(clientId)) {
@@ -80,7 +76,6 @@ class NetworkEventHandler {
             } else if (isLocal && existingPlayer && existingPlayer.lifecycleState === PlayerLifecycleState.CONNECTING) {
                  // Handle the case where the local player was created but still in CONNECTING state
                  // and receives its own initial presence data. Update internal state.
-                 console.log("Local player received initial presence data while CONNECTING. Updating state.");
                  existingPlayer.updateFromServer(presenceData, now);
                  // If the server confirmed a different state (e.g., ACTIVE), update local state
                  if (presenceData.lifecycleState && presenceData.lifecycleState !== PlayerLifecycleState.CONNECTING) {
@@ -108,7 +103,6 @@ class NetworkEventHandler {
                     console.log("Player disconnected (removed from presence/peers):", existingPlayerId, lastKnownPeerInfo?.username ?? '(info gone)');
                     this.playerManager.removePlayer(existingPlayerId);
                 } else if (playerToRemove && !playerToRemove.isMarkedForRemoval && currentPeers[existingPlayerId]) {
-                     // This case means presence is missing but peer info still exists - likely temporary desync or joining state
                      console.warn(`Presence missing for ${existingPlayerId} but peer info still exists. Player not removed yet.`);
                 }
             }
@@ -116,11 +110,12 @@ class NetworkEventHandler {
     }
 
     _handleRoomStateUpdate(roomState) {
-        // Handle room state updates (e.g., world items) if needed
+        // Delegate handling to specialized managers if needed (e.g., SpaceObjectManager, PowerupManager)
+        // SpaceObjectManager and PowerupManager handle their own room state updates via subscriptions.
+        // This central handler might be less necessary now.
     }
 
     _handlePresenceUpdateRequest(updateRequest, fromClientId) {
-        console.log("Received presence update request:", updateRequest, "from", fromClientId);
         const localPlayer = this.playerManager.getLocalPlayer();
         if (!localPlayer || !localPlayer.state) return;
 
@@ -131,47 +126,45 @@ class NetworkEventHandler {
             localPlayer.setVehicle(nextVehicle);
             console.log(`Changed vehicle to ${nextVehicle} via request from ${fromClientId}`);
         }
-        // Handle potential damage requests here (low priority example)
-        // else if (updateRequest.type === 'applyDamage' && localPlayer.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
-        //     const damageAmount = updateRequest.amount || 0;
-        //     console.log(`Received damage request from ${fromClientId} for ${damageAmount}`);
-        //     localPlayer.takeDamage(damageAmount, performance.now());
-        // }
+        // Handle other request types if needed
     }
 
     _handleMessage(event) {
         const data = event; // data is the whole event object now
-        
+        if (data.type !== 'connected' && data.type !== 'disconnected') {
+            console.log(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received message:`, data);
+        }
+
         switch (data.type) {
             case 'connected':
             case 'disconnected':
                 // These are handled automatically by presence updates now
                 break;
             case 'fireProjectile':
-                // FIX: Improved projectile handling with better error logging
+                console.log(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received 'fireProjectile' event from ${data.clientId || 'Unknown'}. Data:`, data.projectile);
                 if (data.projectile && this.projectileManager) {
                     const p = data.projectile;
-                    
-                    // Log when a projectile event is received for debugging
-                    console.log(`Received projectile from ${p.ownerId}, ID: ${p.id}`);
-                    
-                    // Retrieve gravityFactor from the event data, provide default if missing
+                    // Extract all necessary data from the event payload
                     const gravityFactor = p.gravityFactor ?? GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR;
-                    
-                    // FIX: Use create method to ensure all clients receive this projectile
+                    const damage = p.damage ?? 10; // Provide default damage
+                    const color = p.color ?? 'yellow'; // Provide default color
+
+                    // Check if this projectile already exists locally (should not happen with echo: false)
+                    if (this.projectileManager.getProjectiles()[p.id]) {
+                        console.warn(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received 'fireProjectile' event for existing projectile ${p.id}. Ignoring.`);
+                        break;
+                    }
+
                     this.projectileManager.createProjectile(
-                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, p.color, p.damage, gravityFactor
+                        p.id, p.ownerId, p.x, p.y, p.vx, p.vy, color, damage, gravityFactor // Pass all data
                     );
                 } else {
-                    console.warn("Received invalid fireProjectile event or projectileManager not ready:", 
-                        data.projectile ? "projectile data present" : "missing projectile data", 
-                        this.projectileManager ? "manager ready" : "manager not ready");
+                    console.warn(`[NetworkEventHandler ${this.networkManager?.getClientId()}] Received invalid fireProjectile event data or projectileManager not ready. Projectile data:`, data.projectile);
                 }
                 break;
             default:
-                // Skip logging for common events
                 if (data.type !== 'connected' && data.type !== 'disconnected') {
-                    console.log(`Received message of type: ${data.type}`);
+                    console.log("Received unhandled message:", data);
                 }
                 break;
         }

@@ -69,7 +69,7 @@ class WeaponSystem {
             // Note: isTapFire flag isn't strictly needed in state, but keeping internal flag consistent.
 
             // DEBUG: Log when charging stops and the resulting intent
-            console.log(`[WeaponSystem ${this.state.id}] stopCharging. Final Charge: ${this.chargeLevel.toFixed(1)}. WantsToFire: ${this.wantsToFire}. IsTapFire: ${this.isTapFire}`);
+            // console.log(`[WeaponSystem ${this.state.id}] stopCharging. Final Charge: ${this.chargeLevel.toFixed(1)}. WantsToFire: ${this.wantsToFire}. IsTapFire: ${this.isTapFire}`);
         }
     }
 
@@ -138,8 +138,10 @@ class WeaponSystem {
     /**
      * Attempts to fire a projectile if the wantsToFire flag is set.
      * Calculates gravity factor based on charge level.
+     * Creates the projectile locally and broadcasts an event for others.
+     * @param {number} currentTime - Current game time (performance.now()).
      */
-    attemptFire(currentTime) { // Pass current time
+    attemptFire(currentTime) {
         if (!this.wantsToFire || this.state.lifecycleState !== PlayerLifecycleState.ACTIVE) {
             // Clear flags if conditions not met (e.g., player died while wanting to fire)
             if (this.wantsToFire) { // Only clear if it was set
@@ -160,6 +162,7 @@ class WeaponSystem {
             this.wantsToFire = false;
             this.state.wantsToFire = false;
             this.isTapFire = false;
+             console.log(`[WeaponSystem ${this.state.id}] Fire canceled due to cooldown. WantsToFire reset.`);
             return; // Exit if on cooldown
         }
         // --- End Fire Rate Check ---
@@ -210,7 +213,7 @@ class WeaponSystem {
         // --- End Gravity Factor Calculation ---
 
         // DEBUG: Log calculated values before firing
-        console.log(`[WeaponSystem ${this.state.id}] Attempting Fire. Charge: ${currentCharge.toFixed(1)}/${maxCharge}, Ratio: ${chargeRatio.toFixed(3)}, Speed: ${speed.toFixed(1)}, Damage: ${projectileDamage.toFixed(1)}, GravityFactor: ${gravityFactor.toFixed(3)}`);
+        // console.log(`[WeaponSystem ${this.state.id}] Attempting Fire. Charge: ${currentCharge.toFixed(1)}/${maxCharge}, Ratio: ${chargeRatio.toFixed(3)}, Speed: ${speed.toFixed(1)}, Damage: ${projectileDamage.toFixed(1)}, GravityFactor: ${gravityFactor.toFixed(3)}`);
 
 
         // Calculate firing angle based on sprite rotation and visual direction
@@ -234,7 +237,7 @@ class WeaponSystem {
         // Calculate final damage including powerup multiplier
         const finalDamage = Math.round(projectileDamage * damageMultiplier);
 
-        // Create projectile locally AND get data to broadcast
+        // --- Create projectile locally AND get data to broadcast ---
         // Pass the calculated gravityFactor
         const projectileData = this.projectileManager.createAndGetData(
             this.state.id,
@@ -244,14 +247,20 @@ class WeaponSystem {
             finalDamage, // Pass final damage value
             gravityFactor // Pass gravity factor
         );
+        // --- End Local Creation ---
 
-        // Broadcast the fire event to other clients
+        // --- Broadcast the fire event to other clients ---
+        console.log(`[WeaponSystem ${this.state.id}] Broadcasting 'fireProjectile' event. ID: ${projectileData.id}`);
         this.networkManager.sendEvent({
             type: 'fireProjectile',
-            projectile: projectileData, // Contains all needed data
-            clientId: this.state.id, // Explicitly include sender ID
-            echo: false // Don't send back to self, this is important!
+            projectile: projectileData, // Contains all needed data (incl. id, ownerId, x, y, vx, vy, color, damage, gravityFactor)
+            // Explicitly including clientId and username for potential easier debugging on receiver side
+            clientId: this.state.id,
+            username: this.networkManager.getPeer(this.state.id)?.username || 'Unknown',
+            // Echo false is CRITICAL - we already created it locally
+            echo: false
         });
+        // --- End Event Broadcast ---
 
         // Reset state AFTER firing
         this.lastFireTime = currentTime; // Update last fire time

@@ -8,27 +8,28 @@ class ProjectileManager {
         this.nextProjectileId = 0; // Simple local ID generation for client-side effects
     }
 
-    // Creates a projectile locally (e.g., from network event)
-    // Updated to accept damage and gravityFactor parameters
+    // Creates a projectile locally (e.g., from network event or local fire)
+    // Accepts damage and gravityFactor parameters
     createProjectile(id, ownerId, x, y, vx, vy, color, damage = 10, gravityFactor = 0.5) {
         if (this.projectiles[id]) {
             // console.warn(`[ProjectileMgr] Projectile with ID ${id} already exists. Ignoring creation.`);
-            return; // Prevent duplicates, especially if network echo isn't perfectly filtered
+            return; // Prevent duplicates, crucial with event-based system
         }
         // --- Added logging on creation ---
-        console.log(`[ProjectileMgr] Creating projectile ${id} (Owner: ${ownerId}) from network/local. Pos: (${x.toFixed(1)},${y.toFixed(1)}), Vel: (${vx.toFixed(1)},${vy.toFixed(1)}), Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}`);
+        // console.log(`[ProjectileMgr] Creating projectile ${id} (Owner: ${ownerId}) Pos: (${x.toFixed(1)},${y.toFixed(1)}), Vel: (${vx.toFixed(1)},${vy.toFixed(1)}), Dmg: ${damage}, Grav: ${gravityFactor.toFixed(2)}`);
         // --- End logging ---
         const projectile = new Projectile(id, ownerId, x, y, vx, vy, color, damage, gravityFactor); // Pass gravityFactor
         this.projectiles[id] = projectile;
     }
 
-    // Creates a projectile and returns its data (for local firing before network broadcast)
-    // Updated to accept damage and gravityFactor parameters and include them in returned data
+    // Creates a projectile locally AND returns its data for broadcasting via event
+    // Accepts damage and gravityFactor, includes them in returned data
     createAndGetData(ownerId, x, y, vx, vy, color, damage, gravityFactor) {
-         const id = `${ownerId}-${this.nextProjectileId++}`; // Generate a unique-enough ID locally
-         // Pass gravityFactor to the local creation
+         // Generate a unique ID including owner and a local counter
+         const id = `${ownerId}-${Date.now()}-${this.nextProjectileId++}`;
+         // Create the projectile locally first
          this.createProjectile(id, ownerId, x, y, vx, vy, color, damage, gravityFactor);
-         // Include damage and gravityFactor in the data to broadcast
+         // Return all necessary data for the event payload
          return { id, ownerId, x, y, vx, vy, color, damage, gravityFactor };
     }
 
