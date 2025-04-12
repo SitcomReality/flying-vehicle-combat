@@ -1,6 +1,7 @@
 // New file: Handles network synchronization logic for player state
 
-import { INTERPOLATION_SNAP_THRESHOLD, PlayerLifecycleState } from './player-state.js';
+import { INTERPOLATION_SNAP_THRESHOLD } from './player-state.js';
+import { PlayerLifecycleState } from './player-lifecycle.js';
 
 /**
  * Updates the player's server state based on received presence data.
