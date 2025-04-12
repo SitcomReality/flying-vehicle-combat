@@ -4,35 +4,36 @@ import { PlayerLifecycleState } from './player-lifecycle.js';
 import { BASE_PLAYER_PHYSICS } from 'config/vehicle-config.js';
 
 // --- Constants ---
-export const GLOBAL_PHYSICS = BASE_PLAYER_PHYSICS; 
+export const GLOBAL_PHYSICS = BASE_PLAYER_PHYSICS;
 
-export const INTERPOLATION_SNAP_THRESHOLD = 0.5;
-export const FLIP_ANIMATION_DURATION = 250;
+// Increase snap threshold slightly - player needs to be quite far off before snapping
+export const INTERPOLATION_SNAP_THRESHOLD = 150; // pixels (was 0.5, then 100)
+export const FLIP_ANIMATION_DURATION = 250; // ms
 
 export class PlayerState {
     constructor(id, x, y, vehicleType, isLocalPlayer) {
         this.id = id;
         this.isLocalPlayer = isLocalPlayer;
 
-        // Core Position & Movement
-        this.x = x;
-        this.y = y;
-        this.vx = 0;
-        this.vy = 0;
-        this.ax = 0;
-        this.ay = 0;
-        this.rotation = 0;
+        // Core Position & Movement (Local/Visual State)
+        this.x = x; // Visual X position (interpolated for remotes)
+        this.y = y; // Visual Y position (interpolated for remotes)
+        this.vx = 0; // Current velocity X (local player only for physics)
+        this.vy = 0; // Current velocity Y (local player only for physics)
+        this.ax = 0; // Current acceleration X (local player only)
+        this.ay = 0; // Current acceleration Y (local player only)
+        this.rotation = 0; // Visual rotation (interpolated for remotes)
 
         // Appearance & Input Status
         this.vehicleType = vehicleType;
-        this.facingDirection = -1;
-        this.targetFacingDirection = -1;
-        this.visualFacingDirection = -1;
-        this.flipAnimationStart = 0;
+        this.facingDirection = -1; // Logical facing direction (-1 left, 1 right)
+        this.targetFacingDirection = -1; // Target direction based on input
+        this.visualFacingDirection = -1; // Current visual direction (during flip animation)
+        this.flipAnimationStart = 0; // Timestamp when flip started
         this.isThrusting = false;
         this.isMovingLeft = false;
         this.isMovingRight = false;
-        this.isOnGround = false;
+        this.isOnGround = false; // Updated by physics (local) or server state (remote)
         this.lastGroundDamageTime = 0;
 
         // Lifecycle State
@@ -44,13 +45,13 @@ export class PlayerState {
         this.wantsToFire = false;
 
         // --- Health & Fuel ---
-        this.health = 100;
+        this.health = 100; // Visual health (interpolated for remotes)
         this.maxHealth = 100;
-        this.fuel = 100;
+        this.fuel = 100; // Visual fuel (interpolated for remotes)
         this.maxFuel = 100;
 
         // --- Scoring ---
-        this.score = 0; // Initialize score to 0
+        this.score = 0; // Authoritative score (synced directly)
 
         // --- Vehicle-specific physics properties ---
         // Initialize with base physics values from the config
@@ -59,15 +60,12 @@ export class PlayerState {
         this.thrustForce = 0;
         this.horizontalAcceleration = 0;
         this.maxHorizontalSpeed = 0;
-        this.gravity = BASE_PLAYER_PHYSICS.GRAVITY; 
+        this.gravity = BASE_PLAYER_PHYSICS.GRAVITY;
         this.verticalDragFactor = BASE_PLAYER_PHYSICS.VERTICAL_DRAG_FACTOR;
         this.airFrictionFactor = BASE_PLAYER_PHYSICS.AIR_FRICTION_FACTOR;
         this.groundFrictionFactor = BASE_PLAYER_PHYSICS.GROUND_FRICTION_FACTOR;
-        // --- ADDED TILT PROPERTIES ---
         this.maxTiltAngle = BASE_PLAYER_PHYSICS.MAX_TILT_ANGLE;
         this.tiltSpeed = BASE_PLAYER_PHYSICS.TILT_SPEED;
-        // --- END ADDED ---
-
 
         // --- Vehicle-specific WEAPON properties ---
         this.projectileDamage = 10;
@@ -79,23 +77,23 @@ export class PlayerState {
 
         // --- Health System State ---
         this.lastDamageTime = 0;
-        this.isInvulnerable = false;
+        this.isInvulnerable = false; // Updated by health system (local) or server state (remote)
 
         // --- Powerup State ---
         this.activePowerups = {};
 
-        // Network Synchronization
-        this.serverX = x;
-        this.serverY = y;
-        this.serverRotation = 0;
-        this.serverFacingDirection = -1;
-        this.serverIsOnGround = false;
-        this.serverHealth = 100;
-        this.serverFuel = 100;
-        this.serverIsInvulnerable = false;
-        this.serverLifecycleState = PlayerLifecycleState.CONNECTING;
-        this.serverScore = 0;
-        this.lastServerUpdateTime = 0;
+        // --- Network Synchronization State (for remote players) ---
+        this.serverX = x; // Last known authoritative X from server
+        this.serverY = y; // Last known authoritative Y from server
+        this.serverRotation = 0; // Last known authoritative rotation
+        this.serverFacingDirection = -1; // Last known authoritative facing direction
+        this.serverIsOnGround = false; // Last known authoritative ground state
+        this.serverHealth = 100; // Last known authoritative health
+        this.serverFuel = 100; // Last known authoritative fuel
+        this.serverIsInvulnerable = false; // Last known authoritative invulnerability
+        this.serverLifecycleState = PlayerLifecycleState.CONNECTING; // Last known authoritative state
+        this.serverScore = 0; // Last known authoritative score
+        this.lastServerUpdateTime = 0; // Timestamp of last server update
 
         // Flags
         this.isMarkedForRemoval = false;
@@ -105,8 +103,9 @@ export class PlayerState {
         this.height = 0;
         this.drawOffsetX = 0;
         this.drawOffsetY = 0;
-        this.currentVehicle = null;
+        this.currentVehicle = null; // Cached sprite frame data
 
+        // Initial setup
         this.updateVehicleProperties();
 
         const initialDirection = -1;
@@ -115,11 +114,12 @@ export class PlayerState {
         this.visualFacingDirection = initialDirection;
         this.serverFacingDirection = initialDirection;
 
+        // Initialize server state to match initial local state
         this.serverHealth = this.health;
         this.serverFuel = this.fuel;
         this.serverIsInvulnerable = this.isInvulnerable;
         this.serverLifecycleState = this.lifecycleState;
-        this.serverScore = this.score; // Initialize server score
+        this.serverScore = this.score;
     }
 
     updateVehicleProperties() {
@@ -135,10 +135,14 @@ export class PlayerState {
             this.currentVehicle = spriteConfig.frames[0];
         }
 
+        // Use specific hitbox dimensions if defined, otherwise fall back to frame dimensions
         this.width = this.currentVehicle.hitbox?.width ?? this.currentVehicle.width;
         this.height = this.currentVehicle.hitbox?.height ?? this.currentVehicle.height;
-        this.drawOffsetX = this.currentVehicle.hitbox?.offsetX ?? 0;
-        this.drawOffsetY = this.currentVehicle.hitbox?.offsetY ?? 0;
+        // Use specific draw offsets if defined, otherwise assume centered based on hitbox/frame diff
+        const frameWidth = this.currentVehicle.width;
+        const frameHeight = this.currentVehicle.height;
+        this.drawOffsetX = this.currentVehicle.hitbox?.offsetX ?? (frameWidth - this.width) / 2;
+        this.drawOffsetY = this.currentVehicle.hitbox?.offsetY ?? (frameHeight - this.height) / 2;
 
         const vehicleStats = getVehicleConfig(this.vehicleType);
 
@@ -169,15 +173,10 @@ export class PlayerState {
         this.chargeRate = vehicleStats.chargeRate;
         this.maxChargeLevel = vehicleStats.maxChargeLevel;
 
-        // Clamp health/fuel after potentially changing max values
-        if (this.health > this.maxHealth || this.health <= 0 || isNaN(this.health)) {
-             this.health = this.maxHealth;
-        }
-        if (this.fuel > this.maxFuel || this.fuel < 0 || isNaN(this.fuel)) {
-             this.fuel = this.maxFuel;
-        }
-         this.health = Math.min(this.health, this.maxHealth);
-         this.fuel = Math.min(this.fuel, this.maxFuel);
+        // Clamp VISUAL health/fuel after potentially changing max values
+        // Don't reset health/fuel here automatically, let setVehicle handle resets.
+        this.health = Math.min(this.health, this.maxHealth);
+        this.fuel = Math.min(this.fuel, this.maxFuel);
     }
 
     setVehicle(vehicleTypeIndex) {
@@ -185,15 +184,24 @@ export class PlayerState {
             const oldType = this.vehicleType;
             if (oldType !== vehicleTypeIndex) {
                  this.vehicleType = vehicleTypeIndex;
-                 this.updateVehicleProperties();
-                 this.health = this.maxHealth; // Reset health on vehicle change
-                 this.fuel = this.maxFuel; // Reset fuel on vehicle change
-                 console.log(`Player ${this.id} vehicle state changed from type ${oldType} to ${this.vehicleType}. Health/Fuel reset.`);
-                 // Update server-side representations immediately
-                 this.serverHealth = this.health;
-                 this.serverFuel = this.fuel;
-                 this.chargeLevel = 0; // Reset weapon charge
-                 this.activePowerups = {}; // Clear active powerups
+                 this.updateVehicleProperties(); // Update maxHealth/maxFuel etc. first
+                 // --- Reset Health/Fuel/State on Vehicle Change ---
+                 this.health = this.maxHealth;
+                 this.fuel = this.maxFuel;
+                 this.chargeLevel = 0;
+                 this.activePowerups = {};
+                 this.isInvulnerable = false; // Reset invulnerability
+                 this.lastDamageTime = 0;
+                 console.log(`Player ${this.id} vehicle state changed from type ${oldType} to ${this.vehicleType}. Health/Fuel/Charge/Powerups reset.`);
+                 // --- End Reset ---
+
+                 // Update server-side representations immediately if local player
+                 if (this.isLocalPlayer) {
+                     this.serverHealth = this.health;
+                     this.serverFuel = this.fuel;
+                     this.serverScore = this.score; // Score persists through vehicle change
+                     // Other server state reflects local state after reset
+                 }
             }
         } else {
             console.warn(`Invalid vehicleTypeIndex: ${vehicleTypeIndex} for player ${this.id}`);
@@ -201,23 +209,25 @@ export class PlayerState {
     }
 
     getPresenceData() {
+        // Send the authoritative state for the local player
         return {
             x: this.x,
             y: this.y,
             vehicleType: this.vehicleType,
-            facingDirection: this.facingDirection,
+            facingDirection: this.facingDirection, // Send logical direction
             rotation: this.rotation,
             isOnGround: this.isOnGround,
-            health: Math.round(this.health), // Send rounded health
-            fuel: Math.round(this.fuel), // Send rounded fuel
+            health: Math.round(this.health), // Send current authoritative health
+            fuel: Math.round(this.fuel), // Send current authoritative fuel
             isInvulnerable: this.isInvulnerable,
             lifecycleState: this.lifecycleState,
             score: this.score,
-            // Removed redundant vx, vy - these are derived or handled by interpolation
+            // vx/vy are not synced, derived locally or interpolated on remotes
         };
     }
 
     resetForSpawn(x, y) {
+        // Reset Core Position & Movement
         this.x = x;
         this.y = y;
         this.vx = 0;
@@ -225,6 +235,9 @@ export class PlayerState {
         this.ax = 0;
         this.ay = 0;
         this.rotation = 0;
+
+        // Reset Appearance & Input Status
+        // Keep current vehicleType
         this.facingDirection = -1;
         this.targetFacingDirection = -1;
         this.visualFacingDirection = -1;
@@ -233,26 +246,32 @@ export class PlayerState {
         this.isMovingLeft = false;
         this.isMovingRight = false;
         this.isOnGround = false;
+        this.lastGroundDamageTime = 0;
+
+        // Reset Lifecycle State (will be set to ACTIVE by Player)
+        this.lifecycleState = PlayerLifecycleState.ACTIVE; // Prepare for transition
+
+        // Reset Firing Mechanics
         this.isCharging = false;
         this.chargeLevel = 0;
         this.wantsToFire = false;
 
-        // Reset health/fuel to current vehicle's max
-        this.updateVehicleProperties(); // Ensure max values are correct first
+        // Reset Health/Fuel to current vehicle's max
+        // updateVehicleProperties called first to ensure max values are correct
+        this.updateVehicleProperties();
         this.health = this.maxHealth;
         this.fuel = this.maxFuel;
-
-        // Reset timers/flags
-        this.lastDamageTime = 0;
-        this.isInvulnerable = false;
-        this.lastGroundDamageTime = 0;
-        this.activePowerups = {}; // Clear powerups on spawn
 
         // --- RESET SCORE ON SPAWN ---
         this.score = 0;
         // --- END RESET SCORE ---
 
-        // Reset server state representations
+        // Reset Timers/Flags
+        this.lastDamageTime = 0;
+        this.isInvulnerable = false; // Start vulnerable
+        this.activePowerups = {}; // Clear powerups
+
+        // Reset Network Synchronization State
         this.serverX = x;
         this.serverY = y;
         this.serverRotation = 0;
@@ -262,7 +281,7 @@ export class PlayerState {
         this.serverFuel = this.fuel;
         this.serverIsInvulnerable = this.isInvulnerable;
         this.serverLifecycleState = PlayerLifecycleState.ACTIVE; // Set to active on spawn
-        this.serverScore = this.score; // Reflect reset score
+        this.serverScore = this.score; 
         this.lastServerUpdateTime = 0;
 
         // Ensure flags are correct

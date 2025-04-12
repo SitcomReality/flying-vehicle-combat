@@ -11,7 +11,8 @@ import { updateFuel } from './vehicles/fuel-system.js';
 import { updateHealth, applyDamage } from './vehicles/health-system.js';
 import { updatePowerupEffects } from './powerups/powerup-effects.js';
 
-const REMOTE_PLAYER_INTERPOLATION_FACTOR = 0.15;
+// Define interpolation factor here for easy tuning
+const REMOTE_PLAYER_INTERPOLATION_FACTOR = 0.15; // Adjust this value (0.1 - 0.3 is common)
 
 class Player {
     constructor(id, x, y, vehicleType, isLocalPlayer, assets, ctx, renderScale, gameWidth, gameHeight) {
@@ -24,7 +25,7 @@ class Player {
 
         this.projectileManager = null;
         this.networkManager = null;
-        this.playerManager = null;
+        this.playerManager = null; // Reference to PlayerManager, needed for death handling context
         this.particleSystem = null;
         this.powerupManager = null;
         this.inputManager = null;
@@ -35,7 +36,7 @@ class Player {
     setManagers(projectileManager, networkManager, playerManager, particleSystem, powerupManager, inputManager) {
         this.projectileManager = projectileManager;
         this.networkManager = networkManager;
-        this.playerManager = playerManager;
+        this.playerManager = playerManager; // Store the PlayerManager reference
         this.particleSystem = particleSystem;
         this.powerupManager = powerupManager;
         this.inputManager = inputManager;
@@ -70,57 +71,72 @@ class Player {
         if (this.inputManager && this.weaponSystem) {
             handlePlayerInput(this.state, inputState, this.inputManager, this.weaponSystem);
         } else {
-            console.warn(`Skipping handleInput for player ${this.id}: missing InputManager or WeaponSystem.`);
+            // console.warn(`Skipping handleInput for player ${this.id}: missing InputManager or WeaponSystem.`);
         }
     }
 
     update(deltaTime, groundLevelY, particleSystem, currentTime, playerManager) {
+        // --- Early Exit Checks ---
         if (this.state.isMarkedForRemoval || this.state.lifecycleState === PlayerLifecycleState.CONNECTING) {
+            // Even if connecting, update health timers etc. to ensure invulnerability ends correctly
             updateHealth(this.state, deltaTime, currentTime);
             updatePowerupEffects(this.state, currentTime);
             return;
         }
 
+        // --- Update Health, Powerups, Animation (Always run if not connecting/removed) ---
         updateHealth(this.state, deltaTime, currentTime);
         updatePowerupEffects(this.state, currentTime);
 
+        // Don't update animation if dead/selecting, just apply health/powerup logic
         if (this.state.lifecycleState === PlayerLifecycleState.DEAD || this.state.lifecycleState === PlayerLifecycleState.SELECTING) {
-            return; 
+            return;
         }
 
-        if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
-             updatePlayerAnimation(this.state, currentTime);
-        }
+        // Update animation state if active
+        updatePlayerAnimation(this.state, currentTime);
 
+
+        // --- Local Player Logic ---
         if (this.state.isLocalPlayer) {
-            if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE && this.inputManager) {
-                 const currentInputState = this.inputManager.getInputState(); 
+            // Handle Input
+            if (this.inputManager) {
+                 const currentInputState = this.inputManager.getInputState();
                  this.handleInput(currentInputState);
             }
 
-             if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE && this.weaponSystem) {
+            // Update Weapon System (charging, etc.)
+            if (this.weaponSystem) {
                 const boundGetVisualCenter = () => getVisualCenter(this.state, this.renderScale);
                 this.weaponSystem.update(deltaTime, particleSystem, boundGetVisualCenter);
+                // Attempt to fire if wantsToFire flag is set
                 this.weaponSystem.attemptFire(currentTime);
             }
 
-             if (this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
-                updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem, currentTime, playerManager);
-                updateFuel(this.state, deltaTime);
-             }
-        } else { 
+            // Update Physics and Fuel
+            updatePlayerPhysics(this.state, deltaTime, this.gameBounds, this.renderScale, groundLevelY, particleSystem, currentTime, playerManager);
+            updateFuel(this.state, deltaTime);
+
+        }
+        // --- Remote Player Logic ---
+        else {
+            // Interpolate towards server state for smooth visuals
             interpolatePlayerState(this.state, REMOTE_PLAYER_INTERPOLATION_FACTOR);
 
-            if (this.state.serverIsOnGround && particleSystem && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
+            // Apply particle effects based on interpolated state (e.g., ground sparks)
+            if (this.state.isOnGround && particleSystem && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
                 const visualCenter = getVisualCenter(this.state, this.renderScale);
                 if (this.state.currentVehicle) {
                     const spriteDrawWidth = this.state.currentVehicle.width * this.renderScale;
+                    // Use visual direction for effect placement
                     const contactX = visualCenter.x + (this.state.visualFacingDirection === 1 ? -spriteDrawWidth * 0.3 : spriteDrawWidth * 0.3);
                     const contactY = groundLevelY - 2;
-                    if (Math.random() < 0.3) particleSystem.emitSparks(contactX, contactY, 1, -80);
-                    if (Math.random() < 0.2) particleSystem.emitSmoke(contactX, contactY, 1, -30);
+                    // Reduce particle emission probability slightly for remotes if needed
+                    if (Math.random() < 0.2) particleSystem.emitSparks(contactX, contactY, 1, -80);
+                    if (Math.random() < 0.1) particleSystem.emitSmoke(contactX, contactY, 1, -30);
                 }
             }
+            // Remote players don't run full physics simulation; they just interpolate.
         }
     }
 
@@ -132,9 +148,10 @@ class Player {
             return;
         }
 
+        // Flash when invulnerable (works for both local and remote based on state)
         const isVisuallyInvulnerable = this.state.isInvulnerable && Math.floor(performance.now() / 150) % 2 === 0;
         if (isVisuallyInvulnerable) {
-            this.ctx.globalAlpha = 0.6; 
+            this.ctx.globalAlpha = 0.6;
         }
 
         drawPlayer(this.ctx, this.state, this.assets, this.renderScale);
@@ -147,10 +164,12 @@ class Player {
     setVehicle(vehicleTypeIndex) {
         this.state.setVehicle(vehicleTypeIndex);
          if (this.weaponSystem) {
+             // Reset weapon system state on vehicle change
              this.weaponSystem.chargeLevel = 0;
              this.weaponSystem.isCharging = false;
              this.weaponSystem.wantsToFire = false;
              this.weaponSystem.isTapFire = false;
+             this.weaponSystem.lastFireTime = 0; // Reset fire cooldown
          }
     }
 
@@ -160,48 +179,60 @@ class Player {
 
     transitionToState(newState) {
          if (this.state.lifecycleState === newState) {
-              return false; 
+              return false; // No change
          }
 
          console.log(`Player ${this.id} transitioning state: ${this.state.lifecycleState} -> ${newState}`);
          const oldState = this.state.lifecycleState;
          this.state.lifecycleState = newState;
 
-         if (newState === PlayerLifecycleState.DEAD) {
+         // Reset physics/input states when going to non-active states
+         if (newState === PlayerLifecycleState.DEAD || newState === PlayerLifecycleState.SELECTING || newState === PlayerLifecycleState.CONNECTING) {
              this.state.vx = 0; this.state.vy = 0; this.state.ax = 0; this.state.ay = 0;
+             this.state.rotation = 0; // Reset rotation visually
              this.state.isThrusting = false; this.state.isMovingLeft = false; this.state.isMovingRight = false;
-             this.state.isCharging = false; this.state.wantsToFire = false; this.state.isOnGround = false; 
-             this.state.health = 0;
-             this.state.activePowerups = {};
+             this.state.isCharging = false; this.state.wantsToFire = false; this.state.isOnGround = false;
+             this.state.activePowerups = {}; // Clear powerups
+
              if (this.weaponSystem) {
-                 this.weaponSystem.chargeLevel = 0; this.weaponSystem.isCharging = false; this.weaponSystem.wantsToFire = false; this.weaponSystem.isTapFire = false;
+                 this.weaponSystem.chargeLevel = 0; this.weaponSystem.isCharging = false; this.weaponSystem.wantsToFire = false; this.weaponSystem.isTapFire = false; this.weaponSystem.lastFireTime = 0;
+             }
+             if (newState === PlayerLifecycleState.DEAD) {
+                 this.state.health = 0; // Ensure health is zero visually
              }
          }
 
+         // Send presence update if it's the local player and network is available
          if (this.state.isLocalPlayer && this.networkManager) {
             this.networkManager.updatePresence(this.getPresenceData());
             console.log(`Local player ${this.id} presence updated due to state change: ${oldState} -> ${newState}`);
          }
-         return true; 
+         return true; // Transition successful
     }
 
     resetStateForSpawn(x, y) {
+        // Resets internal state values (health, fuel, score, position, velocity, etc.)
         this.state.resetForSpawn(x, y);
         console.log(`Player ${this.id} state reset for spawn at (${x.toFixed(0)}, ${y.toFixed(0)}). State: ${this.state.lifecycleState}`);
+        // Reset weapon system internal state
         if (this.weaponSystem) {
             this.weaponSystem.chargeLevel = 0;
             this.weaponSystem.isCharging = false;
             this.weaponSystem.wantsToFire = false;
             this.weaponSystem.isTapFire = false;
+            this.weaponSystem.lastFireTime = 0;
         }
+        // Transition to ACTIVE state (this also sends presence update)
         this.transitionToState(PlayerLifecycleState.ACTIVE);
     }
 
     takeDamage(amount, currentTime) {
-        if (this.playerManager) {
+        // Apply damage via the health system, passing the playerManager for death handling context
+        if (this.playerManager) { // Check if playerManager reference exists
              applyDamage(this.state, amount, currentTime, this.playerManager);
         } else {
              console.error(`Cannot apply damage to player ${this.id}: PlayerManager reference is missing.`);
+             // Fallback: Apply damage directly without death handling context
              applyDamage(this.state, amount, currentTime, null);
         }
     }
@@ -209,8 +240,7 @@ class Player {
     addScore(amount) {
         if (amount > 0 && this.state.lifecycleState === PlayerLifecycleState.ACTIVE) {
             this.state.score += amount;
-            if (this.state.isLocalPlayer) {
-            }
+            // Score sync happens via regular presence updates
         }
     }
 }
