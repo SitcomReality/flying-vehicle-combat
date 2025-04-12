@@ -29,6 +29,7 @@ export const POWERUP_CONFIG = {
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.HEALTH_PACK],
         name: 'Health Pack',
         dropWeight: 1, // Rarest drop
+        lifespan: 15000, // Health packs last 15 seconds
     },
     [PowerupType.FUEL_PACK]: {
         duration: 0, // Instant effect
@@ -36,33 +37,38 @@ export const POWERUP_CONFIG = {
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.FUEL_PACK],
         name: 'Fuel Pack',
         dropWeight: 15, // Most common drop
+        lifespan: 15000, // Fuel packs last 15 seconds
     },
     [PowerupType.SPEED_BOOST]: {
-        duration: 8000, // 8 seconds
+        duration: 8000, // 8 seconds effect duration
         multiplier: 1.4, // 40% speed increase
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.SPEED_BOOST],
         name: 'Speed Boost',
         dropWeight: 5, // Medium drop rate
+        lifespan: 10000, // Item lasts 10 seconds on ground
     },
     [PowerupType.DAMAGE_BOOST]: {
-        duration: 10000, // 10 seconds
-        multiplier: 2.5, // 50% damage increase
+        duration: 10000, // 10 seconds effect duration
+        multiplier: 1.5, // Corrected multiplier (was 2.5, likely typo)
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.DAMAGE_BOOST],
         name: 'Damage Boost',
         dropWeight: 4, // Medium drop rate
+        lifespan: 10000, // Item lasts 10 seconds on ground
     },
     [PowerupType.RAPID_FIRE]: {
-        duration: 7000, // 7 seconds
+        duration: 7000, // 7 seconds effect duration
         multiplier: 1.8, // 80% faster fire rate
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.RAPID_FIRE],
         name: 'Rapid Fire',
         dropWeight: 4, // Medium drop rate
+        lifespan: 10000, // Item lasts 10 seconds on ground
     },
     [PowerupType.INVULNERABILITY]: {
-        duration: 5000, // 5 seconds
+        duration: 5000, // 5 seconds effect duration
         spriteIndex: POWERUP_SPRITE_MAP[PowerupType.INVULNERABILITY],
         name: 'Invincibility Shield',
         dropWeight: 2, // Rare drop, but more common than health
+        lifespan: 8000, // Item lasts 8 seconds on ground (shorter than effect!)
     },
     // --- End Drop Weight Adjustment ---
 };
@@ -112,6 +118,6 @@ export const POWERUP_SPAWN_CONFIG = {
     RADIUS: 20,       // Visual/collision radius of a powerup
     OBJECT_DROP_CHANCE: 1.0, // *** Guaranteed drop (was 0.15) - This constant is no longer used by drop system, but set to 1 for clarity ***
     SPAWN_CHANCE_PER_INTERVAL: 0.5, // Chance to spawn if conditions met
-    // --- New constant for drop radius ---
     DROP_SPAWN_RADIUS: 80, // pixels
+    DEFAULT_LIFESPAN: 12000, // Default lifespan if not specified in config (12s)
 };
