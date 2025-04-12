@@ -7,9 +7,9 @@ This document tracks the completion status of the features outlined in `implemen
 ### 1.1 Vehicle System Refactoring
 
 *   **[X] Create `entities/vehicles/vehicle-types.js`**
-*   **[X] Create `entities/vehicles/vehicle-factory.js`**
+*   **[X] Create `entities/vehicles/vehicle-factory.js`** (Implicitly handled by PlayerState/setVehicle)
 *   **[X] Update `player-state.js`**
-*   **[X] Create `entities/vehicles/vehicle-stats.js`**
+*   **[X] Create `entities/vehicles/vehicle-stats.js`** (Implicitly handled by vehicle-types and getPowerupMultiplier)
 
 **Status:** COMPLETE
 
@@ -20,6 +20,7 @@ This document tracks the completion status of the features outlined in `implemen
 *   **[X] Update `player-manager.js`**
 *   **[X] Update `player.js`**
 *   **[X] Update `network-event-handler.js`**
+*   **[X] Create `entities/player-lifecycle-manager.js`**
 
 **Status:** COMPLETE
 
@@ -35,12 +36,19 @@ This document tracks the completion status of the features outlined in `implemen
 
 ### 2.2 Combat System Enhancement
 
-*   **[X] Create `entities/combat/collision-detector.js`**
+*   **[X] Create `entities/collisions/aabb-collision.js`**
 *   **[X] Create `entities/combat/damage-calculator.js`**
 *   **[X] Update `player-physics.js`**
 *   **[X] Update `player-manager.js`**
+*   **[X] Create `entities/collisions/player-player-collider.js`**
+*   **[X] Create `entities/collisions/player-projectile-collider.js`**
+*   **[X] Create `entities/collisions/player-powerup-collider.js`**
+*   **[X] Create `entities/collisions/player-collectible-collider.js`**
+*   **[X] Create `entities/collisions/player-space-object-collider.js`**
+*   **[X] Create `entities/collisions/projectile-space-object-collider.js`**
+*   **[X] Create `entities/combat/collision-manager.js`**
 
-**Status:** COMPLETE
+**Status:** COMPLETE (Refactoring done)
 
 ## Phase 3: Weapons and Powerups
 
@@ -60,7 +68,7 @@ This document tracks the completion status of the features outlined in `implemen
 *   **[X] Create `entities/powerups/powerup-types/`**
 *   **[X] Create `entities/powerups/powerup-effects.js`**
 *   **[X] Update `player-manager.js`**
-*   **[X] Update `collision-detector.js`**
+*   **[X] Update `collision-manager.js`**
 *   **[X] Update `Player` / `PlayerState`**
 
 **Status:** COMPLETE
@@ -73,7 +81,7 @@ This document tracks the completion status of the features outlined in `implemen
 *   **[X] Create `entities/space-objects/space-object-manager.js`**
 *   **[X] Create `entities/space-objects/space-object-types/asteroid.js`**
 *   **[X] Update `game.js`**
-*   **[X] Update `collision-detector.js`**
+*   **[X] Update `collision-manager.js`**
 *   **[X] Update `damage-calculator.js`**
 *   **[X] Update `player-manager.js`**
 *   **[ ] Create `entities/space-objects/space-object-types/lander.js`**: Not started.
@@ -89,6 +97,7 @@ This document tracks the completion status of the features outlined in `implemen
 *   **[X] Create `entities/collectibles/collectible-manager.js`**
 *   **[X] Create `entities/collectibles/drop-system.js`**
 *   **[X] Integrate drops into Space Object destruction**
+*   **[X] Update `player.js` to add score**
 
 **Status:** COMPLETE (Core system implemented)
 
