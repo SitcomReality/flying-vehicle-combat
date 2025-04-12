@@ -449,6 +449,8 @@ export {
     FULLY_CHARGED_PARTICLE_SIZE,
     FULLY_CHARGED_PARTICLE_EMIT_RATE,
     // Spark/Smoke Constants (if needed elsewhere)
+    SPARK_EMIT_RATE, 
+    SMOKE_EMIT_RATE, 
     SPARK_COLOR,
     SMOKE_COLOR_START,
     SMOKE_COLOR_END,
