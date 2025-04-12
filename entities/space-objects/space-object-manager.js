@@ -228,51 +228,67 @@ class SpaceObjectManager {
 
     destroyObject(id, playerDestroyerId = null) {
         const obj = this.getObject(id);
-        if (obj && !obj.isMarkedForRemoval) { // Check if not already being removed
-            // console.log(`[SpaceObjMgr] Destroying object ${id}.`); // Reduce log noise
+        // ADDED: Additional check to prevent multiple destruction calls for the same object
+        if (obj && !obj._destructionInProgress) {
+            obj._destructionInProgress = true; // Mark that destruction logic is running
 
-            // --- EXPLOSION HANDLING MOVED TO SEPARATE MODULE ---
-            // Call the explosion handler with the object and particle system
+            console.log(`[SpaceObjMgr] Destroying object ${id}. Player: ${playerDestroyerId || 'None'}`);
+
+            // --- EXPLOSION HANDLING ---
             if (this.particleSystem) {
+                // Use the dedicated handler function
                 createObjectExplosionEffect(obj, this.particleSystem);
             } else {
-                console.warn("[SpaceObjMgr] ParticleSystem is missing, cannot create explosion effect");
+                console.warn("[SpaceObjMgr] ParticleSystem is missing, cannot create explosion effect for object", id);
             }
             // --- END EXPLOSION HANDLING ---
 
+            // Score awarding only happens if destroyed by a player
             if (playerDestroyerId && obj.scoreValue > 0) {
                 const player = this.playerManager?.getPlayer(playerDestroyerId);
                 if (player && player.lifecycleState === 'ACTIVE') {
                     player.addScore(obj.scoreValue);
-                    // console.log(`Player ${playerDestroyerId} awarded ${obj.scoreValue} points for destroying ${id}`); // Reduce log noise
+                    console.log(`Player ${playerDestroyerId} awarded ${obj.scoreValue} points for destroying ${id}`);
                 }
             }
-            obj.isMarkedForRemoval = true; // Mark for removal first
+
+            // Drop handling only happens if destroyed by a player (or maybe always?)
+            // Decided: Always drop, even if hit environment/off-screen? Yes, let's be generous.
             handleObjectDestructionDrop(obj, playerDestroyerId, this.collectibleManager);
             handleObjectDestructionPowerupDrop(obj, playerDestroyerId, this.powerupManager);
 
+
+            // Network removal request (only by spawner ideally, but simpler to always send for now)
+            // Check if spawner before sending removal? Let's keep it simple: always send null.
             const removalPayload = {};
             removalPayload[id] = null; // Signal removal
             this.networkManager.updateRoomState({
                 spaceObjects: removalPayload
             });
 
-            delete this.activeObjects[id]; // Remove locally after marking and signalling
-        } else if (obj && obj.isMarkedForRemoval) {
-            // console.log(`[SpaceObjMgr] Object ${id} already marked for removal. Skipping destroy logic.`);
+            // Mark for removal locally *after* handling drops/explosions
+            // This flag is mainly for the update loop to ignore it
+            obj.isMarkedForRemoval = true;
+
+            // Remove locally immediately after signalling removal
+            delete this.activeObjects[id];
+
+        } else if (obj && obj._destructionInProgress) {
+            // console.log(`[SpaceObjMgr] Destruction for object ${id} already in progress. Skipping.`);
         } else {
-            console.log(`[SpaceObjMgr] Could not find object ${id} to destroy.`);
+            // console.log(`[SpaceObjMgr] Could not find object ${id} to destroy or already removed.`);
         }
     }
 
     handleDamageToObject(id, amount, playerDestroyerId = null) {
         const obj = this.getObject(id);
-        if (!obj || obj.isMarkedForRemoval) return false;
+        if (!obj || obj.isMarkedForRemoval || obj._destructionInProgress) return false; // Check destruction flag
 
-        const wasDestroyed = obj.takeDamage(amount); // Apply damage internally first
+        const wasDestroyed = obj.takeDamage(amount);
 
         if (wasDestroyed) {
-            this.destroyObject(id, playerDestroyerId); // Handles explosion, drops, sync
+            // Call destroyObject which handles explosion, drops, score, sync removal
+            this.destroyObject(id, playerDestroyerId);
             return true;
         } else {
             // Object took damage but wasn't destroyed. Sync its new state if we are the spawner.
@@ -308,7 +324,6 @@ class SpaceObjectManager {
     }
 
     update(deltaTime) {
-        // FIXED: Only send network updates for objects that actually changed position or state
         const updates = {};
         let needsNetworkUpdate = false;
 
@@ -316,32 +331,28 @@ class SpaceObjectManager {
         const peerIds = Object.keys(peers).sort();
         const isSpawner = peerIds.length > 0 && this.networkManager.getClientId() === peerIds[0];
 
-        // Count active objects before processing for debug purposes
-        // const activeCount = Object.values(this.activeObjects).filter(o => !o.isMarkedForRemoval).length;
-        // if (Math.random() < 0.01) { // Occasional log
-        //     console.log(`[SpaceObjMgr] Active objects before update: ${activeCount}`);
-        // }
+        // Create a copy of keys to iterate over, as `destroyObject` modifies the map
+        const objectIds = Object.keys(this.activeObjects);
 
-        for (const id in this.activeObjects) {
+        for (const id of objectIds) {
             const obj = this.activeObjects[id];
-            if (!obj) {
-                delete this.activeObjects[id];
-                continue;
+            // Skip if object was removed during iteration (e.g., by destroyObject)
+            if (!obj) continue;
+
+            // If object is marked for removal (e.g., off-screen, lifespan), destroy it properly
+            if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
+                console.log(`[SpaceObjMgr Update] Object ${id} found marked for removal. Triggering destroy...`);
+                this.destroyObject(id, null); // Trigger full destruction logic (explosion, network removal)
+                // No need to add to updates here, destroyObject handles network removal
+                continue; // Move to the next object
             }
 
-            if (obj.isMarkedForRemoval) {
-                // Only the spawner should notify about object removal
-                if (isSpawner) {
-                     if (updates[id] !== null) { // Avoid redundant null updates
-                        updates[id] = null;
-                        needsNetworkUpdate = true;
-                    }
-                }
-                delete this.activeObjects[id]; // Remove from local state
-                continue;
-            }
+            // Skip if destruction is already happening or object removed
+             if (obj.isMarkedForRemoval || obj._destructionInProgress) {
+                 continue;
+             }
 
-            // Only the spawner updates the physics and determines if network update needed
+            // --- Spawner-side Physics & State Update ---
             if (isSpawner) {
                 const oldX = obj.x;
                 const oldY = obj.y;
@@ -352,52 +363,55 @@ class SpaceObjectManager {
 
                 obj.update(deltaTime, this.gameBounds, this.groundLevelY);
 
-                // Only send updates for objects that actually changed
-                if (obj.isMarkedForRemoval) { // If update marked it for removal
-                     if (updates[id] !== null) {
-                         updates[id] = null;
-                         needsNetworkUpdate = true;
-                     }
-                     // Object will be deleted below
-                } else if ( // Check for significant changes
-                    obj.x !== oldX ||
-                    obj.y !== oldY ||
-                    obj.vx !== oldVx ||
-                    obj.vy !== oldVy ||
-                    obj.rotation !== oldRotation ||
-                    obj.health !== oldHealth
-                ) {
-                    updates[id] = obj.getSyncData(); // Get updated data
-                    needsNetworkUpdate = true;
+                // Check again if update marked it for removal (e.g., went off-screen)
+                if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
+                    console.log(`[SpaceObjMgr Update] Object ${id} marked for removal during spawner update. Triggering destroy...`);
+                    this.destroyObject(id, null); // Trigger destruction
+                    // No need to add to updates here
                 }
-            } else {
-                // Non-spawners still need to update locally for smooth visuals (e.g. rotation)
-                obj.update(deltaTime, this.gameBounds, this.groundLevelY);
+                // Check if object still exists after potential destruction
+                else if (this.activeObjects[id] && !obj.isMarkedForRemoval) { // Check for significant state changes *if* it wasn't destroyed
+                    if (
+                        obj.x !== oldX ||
+                        obj.y !== oldY ||
+                        obj.vx !== oldVx ||
+                        obj.vy !== oldVy ||
+                        obj.rotation !== oldRotation ||
+                        obj.health !== oldHealth
+                    ) {
+                        updates[id] = obj.getSyncData(); // Get updated data
+                        needsNetworkUpdate = true;
+                    }
+                }
             }
-
-            // Handle final removal after update (if it became marked during update)
-            if (obj.isMarkedForRemoval) {
-                 if (isSpawner && updates[id] !== null) {
-                     updates[id] = null; // Ensure removal update is sent
-                     needsNetworkUpdate = true;
+            // --- Non-Spawner Update ---
+            else {
+                // Non-spawners update locally for smooth visuals only if the object exists
+                // and is not marked (local prediction based on last known state)
+                 if (this.activeObjects[id] && !obj.isMarkedForRemoval && !obj._destructionInProgress) {
+                    obj.update(deltaTime, this.gameBounds, this.groundLevelY);
+                     // Check if the *local* update caused it to go off-screen (or other removal condition)
+                     if (obj.isMarkedForRemoval && !obj._destructionInProgress) {
+                         console.log(`[SpaceObjMgr Update] Non-spawner detected ${id} marked for removal locally.`);
+                         // Don't trigger destroy, let the spawner handle it via network state (null)
+                         // Just remove it locally to stop rendering/processing
+                         delete this.activeObjects[id];
+                     }
                  }
-                delete this.activeObjects[id]; // Remove from local state
             }
-        }
+        } // End loop over objectIds
 
         // Send network updates only if something changed and we are the spawner
         if (needsNetworkUpdate && isSpawner && Object.keys(updates).length > 0) {
-             // console.log(`[SpaceObjMgr ${this.networkManager.getClientId()}] Sending updates: ${JSON.stringify(updates)}`); // Reduce log noise
             this.networkManager.updateRoomState({ spaceObjects: updates });
         }
 
         // Attempt spawning new objects
         this.attemptSpawnObject(performance.now());
 
-        // Count active objects after processing for debug purposes
-        // const newActiveCount = Object.values(this.activeObjects).filter(o => !o.isMarkedForRemoval).length;
-        // if (Math.random() < 0.01) { // Occasional log
-        //     console.log(`[SpaceObjMgr] Active objects after update: ${newActiveCount}`);
+        // Optional debug log
+        // if (Math.random() < 0.01) {
+        //     console.log(`[SpaceObjMgr] Active objects after update: ${Object.keys(this.activeObjects).length}`);
         // }
     }
 

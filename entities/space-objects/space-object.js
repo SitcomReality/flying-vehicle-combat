@@ -22,6 +22,7 @@ export class SpaceObject {
         this.maxHealth = this.health; // Store initial health as max
         this.creationTime = performance.now();
         this.isMarkedForRemoval = false;
+        this._destructionInProgress = false; // Add flag to prevent duplicate destroy calls
         this.scoreValue = initialState.scoreValue ?? DEFAULT_SCORE_VALUE; // Points awarded
 
         // Get sprite frame based on type
@@ -54,7 +55,8 @@ export class SpaceObject {
 
     // Base update method (can be overridden by subtypes)
     update(deltaTime, gameBounds, groundLevelY) {
-        if (this.isMarkedForRemoval) return;
+        // Check removal flags at the start
+        if (this.isMarkedForRemoval || this._destructionInProgress) return;
 
         // Basic movement
         this.x += this.vx * deltaTime;
@@ -62,14 +64,21 @@ export class SpaceObject {
         this.rotation += this.rotationSpeed * deltaTime;
 
         // Remove if off-screen left
-        if (this.x + this.drawWidth < 0) {
+        // Use a buffer to ensure it's fully off screen
+        const removalBuffer = 50;
+        if (this.x + this.drawWidth + removalBuffer < 0) {
+            console.log(`Object ${this.id} marked for removal (off-screen left).`);
             this.isMarkedForRemoval = true;
         }
+        // Optional: Remove if off-screen right/top/bottom?
+        // if (this.x - this.drawWidth > gameBounds.width) this.isMarkedForRemoval = true;
+        // if (this.y + this.drawHeight < 0) this.isMarkedForRemoval = true;
+        // if (this.y - this.drawHeight > gameBounds.height) this.isMarkedForRemoval = true;
     }
 
     // Base draw method
     draw(ctx, assets, renderScale) { // renderScale might not be needed if using internal visualScale
-        if (this.isMarkedForRemoval || !this.spriteFrame || !assets.space_objects) return;
+        if (this.isMarkedForRemoval || !this.spriteFrame || !assets.space_objects || this._destructionInProgress) return;
 
         const spriteSheet = assets.space_objects;
         const frame = this.spriteFrame;
@@ -112,15 +121,14 @@ export class SpaceObject {
 
     // Base method for taking damage
     takeDamage(amount) {
-        if (this.isMarkedForRemoval) return false;
+        if (this.isMarkedForRemoval || this._destructionInProgress) return false;
 
         this.health -= amount;
-        // console.log(`Space object ${this.id} took ${amount} damage. Health: ${this.health}`); // Reduced logging noise
+        // console.log(`Space object ${this.id} took ${amount} damage. Health: ${this.health}`);
         if (this.health <= 0) {
-            this.isMarkedForRemoval = true;
-            console.log(`Space object ${this.id} destroyed.`);
-            // TODO: Trigger drop system? Create explosion effect?
-            return true; // Was destroyed
+            console.log(`Space object ${this.id} health <= 0. Marking for destruction.`);
+            this.isMarkedForRemoval = true; // Mark it, the manager will handle full destruction
+            return true; // Was destroyed (health depleted)
         }
         return false; // Took damage but survived
     }
@@ -134,19 +142,18 @@ export class SpaceObject {
         };
     }
 
-     // Data for roomState synchronization
-     getSyncData() {
-         return {
-             type: this.type,
-             x: this.x,
-             y: this.y,
-             vx: this.vx,
-             vy: this.vy,
-             rotation: this.rotation,
-             rotationSpeed: this.rotationSpeed,
-             health: this.health,
-             scoreValue: this.scoreValue, // Include score value in sync data
-             // Include any other state needed for subtypes
-         };
-     }
+    getSyncData() {
+        return {
+            type: this.type,
+            x: this.x,
+            y: this.y,
+            vx: this.vx,
+            vy: this.vy,
+            rotation: this.rotation,
+            rotationSpeed: this.rotationSpeed,
+            health: this.health,
+            scoreValue: this.scoreValue, // Include score value in sync data
+            // Include any other state needed for subtypes
+        };
+    }
 }
