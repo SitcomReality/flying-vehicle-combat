@@ -16,6 +16,7 @@ import PowerupManager from 'entities/powerups/powerup-manager.js';
 import CollisionManager from 'entities/combat/collision-manager.js';
 import PlayerLifecycleManager from 'entities/player-lifecycle-manager.js';
 import SpaceObjectManager from 'entities/space-objects/space-object-manager.js';
+import CollectibleManager from 'entities/collectibles/collectible-manager.js';
 import Scoreboard from 'ui/scoreboard.js';
 import ScorePersistence from 'networking/score-persistence.js';
 import Leaderboard from 'ui/leaderboard.js';
@@ -58,6 +59,7 @@ let groundLevelY = GAME_HEIGHT;
 let playerManager = null;
 let powerupManager = null;
 let spaceObjectManager = null;
+let collectibleManager = null;
 let networkEventHandler = null;
 let debugRenderer = null;
 let backgroundRenderer = null;
@@ -96,10 +98,13 @@ async function initializeGame() {
         // Pass particle system to managers that need it
         powerupManager = new PowerupManager(networkManager, assets, RENDER_SCALE, particleSystem);
 
+        collectibleManager = new CollectibleManager(networkManager, assets, RENDER_SCALE, particleSystem);
+        console.log("CollectibleManager initialized.");
+
         backgroundRenderer = new BackgroundRenderer(renderer.getContext(), GAME_WIDTH, GAME_HEIGHT);
         groundLevelY = backgroundRenderer.getGroundLevel();
 
-        // Pass necessary managers to SpaceObjectManager 
+        // Pass necessary managers to SpaceObjectManager
         spaceObjectManager = new SpaceObjectManager(
             networkManager,
             assets,
@@ -125,10 +130,11 @@ async function initializeGame() {
             projectileManager,
             powerupManager,
             spaceObjectManager,
-            null, 
+            collectibleManager,
             particleSystem,
             RENDER_SCALE
         );
+        console.log("CollisionManager initialized.");
 
         scoreboard = new Scoreboard(scoreboardEl, playerManager, networkManager);
         leaderboard = new Leaderboard(leaderboardEl, scorePersistence, networkManager, assets);
@@ -185,7 +191,7 @@ async function initializeGame() {
 
         networkEventHandler.setupNetworkHandlers();
 
-        window.gameDebug = window.gameDebug || {}; 
+        window.gameDebug = window.gameDebug || {};
         window.gameDebug.resetMyScores = () => {
             console.log("Calling resetMyScores...");
             scorePersistence.resetMyScores();
@@ -208,8 +214,12 @@ function update(deltaTime, currentTime) {
     backgroundRenderer.update(deltaTime);
     particleSystem.update(deltaTime);
     projectileManager.update(deltaTime, groundLevelY);
-    powerupManager.update(deltaTime, GAME_WIDTH, GAME_HEIGHT, groundLevelY); 
+    powerupManager.update(deltaTime, GAME_WIDTH, GAME_HEIGHT, groundLevelY);
     spaceObjectManager.update(deltaTime);
+
+    if (collectibleManager) {
+        collectibleManager.update(deltaTime);
+    }
 
     const localPlayer = playerManager.getLocalPlayer();
     const input = inputManager.getInputState();
@@ -221,7 +231,7 @@ function update(deltaTime, currentTime) {
         }
         if (inputManager.wasKeyJustPressed(DEBUG_SPAWN_ASTEROID_KEY)) {
             console.log("Debug key pressed: Spawn Asteroid Manually");
-            spaceObjectManager.attemptSpawnObject(currentTime - 2000); 
+            spaceObjectManager.attemptSpawnObject(currentTime);
         }
     }
 
@@ -233,8 +243,12 @@ function update(deltaTime, currentTime) {
         console.warn("CollisionManager not initialized, skipping collision checks.");
     }
 
+    if (scoreboard) {
+        scoreboard.update(currentTime);
+    }
+
     if (currentTime - lastPresenceUpdateTime > PRESENCE_UPDATE_THROTTLE) {
-        const localPlayer = playerManager.getLocalPlayer(); 
+        const localPlayer = playerManager.getLocalPlayer();
         if (localPlayer && localPlayer.lifecycleState !== PlayerLifecycleState.CONNECTING) {
             networkEventHandler.updateLocalPlayerPresence(currentTime);
         }
@@ -249,12 +263,17 @@ function draw() {
     backgroundRenderer.draw();
     spaceObjectManager.draw(renderer.getContext());
     powerupManager.draw(renderer.getContext());
+    if (collectibleManager) {
+        collectibleManager.draw(renderer.getContext());
+    }
     particleSystem.draw(renderer.getContext());
     projectileManager.draw(renderer.getContext());
     playerManager.drawPlayers(renderer);
-    statusBarRenderer.draw(); 
-    debugRenderer.drawPlayerInfo(renderer); 
-    debugRenderer.updateDebugInfo(); 
+    statusBarRenderer.draw();
+    if (debugRenderer) {
+        debugRenderer.drawPlayerInfo(renderer);
+        debugRenderer.updateDebugInfo();
+    }
 }
 
 function gameLoop(currentTime) {
@@ -262,7 +281,7 @@ function gameLoop(currentTime) {
     const deltaTime = Math.min(rawDeltaTime, MAX_DELTA_TIME);
     lastUpdateTime = currentTime;
 
-    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager || !spaceObjectManager || !scoreboard || !leaderboard || !playerLifecycleManager) {
+    if (!playerManager || !networkEventHandler || !debugRenderer || !backgroundRenderer || !particleSystem || !powerupManager || !collisionManager || !spaceObjectManager || !collectibleManager || !scoreboard || !leaderboard || !playerLifecycleManager) {
         console.warn("Game loop running before modules initialized. Skipping frame.");
         requestAnimationFrame(gameLoop);
         return;
