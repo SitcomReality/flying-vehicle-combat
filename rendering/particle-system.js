@@ -5,43 +5,30 @@ const DEFAULT_PARTICLE_LIFESPAN = 0.8; // Increased from 0.5
 const SPARK_COLOR = 'rgba(255, 230, 120, 0.9)'; // Brighter yellow/orange
 const SMOKE_COLOR_START = 'rgba(220, 220, 220, 0.7)'; // Lighter grey start
 const SMOKE_COLOR_END = 'rgba(60, 60, 60, 0)'; // Fades to transparent darker grey
-const SPARK_SPEED_BASE = 200; // Increased Base speed magnitude
-const SPARK_SPEED_DEVIATION = 150; // Increased variance
-const SMOKE_SPEED_BASE = 100;   // Increased Base speed magnitude
-const SMOKE_SPEED_DEVIATION = 50; // Increased variance
-const SMOKE_SIZE_START = 5; // Larger start
-const SMOKE_SIZE_END = 22; // Larger end
-const SPARK_EMIT_RATE = 25; // Increased sparks/second (probabilistic)
-const SMOKE_EMIT_RATE = 15; // Increased smoke/second (probabilistic)
+const SPARK_SPEED_BASE = 100; // Base speed magnitude
+const SPARK_SPEED_DEVIATION = 120; // Increased variance
+const SMOKE_SPEED_BASE = 40;   // Base speed magnitude
+const SMOKE_SPEED_DEVIATION = 30; // Increased variance
+const SMOKE_SIZE_START = 4; // Larger start
+const SMOKE_SIZE_END = 18; // Larger end
+const SPARK_EMIT_RATE = 15; // Increased sparks/second (probabilistic)
+const SMOKE_EMIT_RATE = 10; // Increased smoke/second (probabilistic)
 
-// --- Charging Effect Adjustment ---
-const CHARGE_PARTICLE_COLOR = 'rgba(120, 150, 255, 0.6)'; // Slightly less opaque
-const CHARGE_PARTICLE_SPEED = 180; // Slightly reduced speed
-const CHARGE_PARTICLE_MIN_SPAWN_RADIUS = 5; // Reduced start radius
-const CHARGE_PARTICLE_MAX_SPAWN_RADIUS = 50; // Reduced max radius
-const CHARGE_PARTICLE_LIFESPAN = 0.3; // Reduced lifespan
-const CHARGE_PARTICLE_EMIT_RATE = 3; // Reduced particles per frame
-const CHARGE_PARTICLE_SIZE_START = 1; // Smaller start size
-const CHARGE_PARTICLE_SIZE_END = 1; // Stay small
+const CHARGE_PARTICLE_COLOR = 'rgba(180, 200, 255, 0.8)'; // Slightly brighter blue/purple
+const CHARGE_PARTICLE_SPEED = 250; // Increased speed towards the target point
+const CHARGE_PARTICLE_MIN_SPAWN_RADIUS = 8; // Slightly larger start radius
+const CHARGE_PARTICLE_MAX_SPAWN_RADIUS = 80; // Larger max radius
+const CHARGE_PARTICLE_LIFESPAN = 0.4; // Slightly longer lifespan
+const CHARGE_PARTICLE_EMIT_RATE = 3; // Reduced particles per frame while charging
 
 // --- Fully Charged Effect Constants ---
 const FULLY_CHARGED_PARTICLE_COLOR = 'rgba(255, 120, 100, 0.8)'; // Brighter Red/Orange
-const FULLY_CHARGED_PARTICLE_COUNT = 2; // Reduced particles
-const FULLY_CHARGED_PARTICLE_SPEED_MIN = 15;
-const FULLY_CHARGED_PARTICLE_SPEED_MAX = 50; // Reduced range
-const FULLY_CHARGED_PARTICLE_LIFESPAN = 0.4; // Reduced lifespan
-const FULLY_CHARGED_PARTICLE_SIZE = 2.0; // Reduced size
+const FULLY_CHARGED_PARTICLE_COUNT = 3; // Slightly more particles
+const FULLY_CHARGED_PARTICLE_SPEED_MIN = 20;
+const FULLY_CHARGED_PARTICLE_SPEED_MAX = 60; // Increased range
+const FULLY_CHARGED_PARTICLE_LIFESPAN = 0.5; // Longer lifespan
+const FULLY_CHARGED_PARTICLE_SIZE = 2.5; // Larger size
 const FULLY_CHARGED_PARTICLE_EMIT_RATE = 2; // Reduced emit rate
-
-// --- Projectile Impact/Explosion ---
-const PROJECTILE_IMPACT_COUNT = 25; // More particles for projectile hits
-const PROJECTILE_IMPACT_SPEED_MIN = 30;
-const PROJECTILE_IMPACT_SPEED_MAX = 180; // More focused explosion
-const PROJECTILE_IMPACT_LIFESPAN_MIN = 0.3;
-const PROJECTILE_IMPACT_LIFESPAN_MAX = 0.7;
-const PROJECTILE_IMPACT_SIZE_START = 2;
-const PROJECTILE_IMPACT_SIZE_END = 0.5;
-const PROJECTILE_IMPACT_GRAVITY = 100; // Some gravity
 
 // --- Explosion Particle Constants ---
 const OBJ_EXPLOSION_PARTICLE_COUNT = 100; // Significantly Increased
@@ -67,6 +54,16 @@ const COLLECTIBLE_COLORS = {
     GEM_BLUE: 'rgba(50, 160, 255, 1.0)'  // Brighter Blue
 };
 const POWERUP_PICKUP_COLOR = 'rgba(180, 80, 255, 1.0)'; // Brighter Violet
+
+// --- Projectile Impact Constants ---
+const IMPACT_PARTICLE_COUNT = 25;
+const IMPACT_SPEED_MIN = 50;
+const IMPACT_SPEED_MAX = 180;
+const IMPACT_LIFESPAN = 0.4;
+const IMPACT_SIZE_START = 3;
+const IMPACT_SIZE_END = 0.5;
+const IMPACT_GRAVITY = 150; // Slight gravity on impact fragments
+const IMPACT_REFLECTION_FACTOR = 0.1; // How much to push away from source velocity
 
 class Particle {
     constructor(x, y, vx, vy, lifespan, colorStart, colorEnd = null, sizeStart = 2, sizeEnd = 2) {
@@ -203,9 +200,9 @@ class ParticleSystem {
             x, y, emitCount, // Use calculated emit count
             baseSpeedX, -SPARK_SPEED_BASE, // Base velocity (up and against player movement)
             SPARK_SPEED_DEVIATION, SPARK_SPEED_DEVIATION, // Variance
-            DEFAULT_PARTICLE_LIFESPAN, // Use default lifespan for sparks
+            DEFAULT_PARTICLE_LIFESPAN * 0.7, // Slightly shorter life for sparks?
             SPARK_COLOR, null, // Color (no fade)
-            2.5, 1.0, // Size (starts larger, shrinks fast)
+            1.5, 0.5, // Size (starts slightly larger, shrinks)
             EXPLOSION_GRAVITY * 0.5 // Add some gravity to sparks
         );
     }
@@ -218,10 +215,10 @@ class ParticleSystem {
             x, y, emitCount, // Use calculated emit count
             baseSpeedX, -SMOKE_SPEED_BASE, // Base velocity (slowly drift up and against player movement)
             SMOKE_SPEED_DEVIATION, SMOKE_SPEED_DEVIATION, // Variance
-            DEFAULT_PARTICLE_LIFESPAN * 2.5, // Longer life for smoke
+            DEFAULT_PARTICLE_LIFESPAN * 2.0, // Longer life for smoke
             SMOKE_COLOR_START, SMOKE_COLOR_END, // Color (fade)
             SMOKE_SIZE_START, SMOKE_SIZE_END, // Size (grows)
-            -50 // Slight upward lift for smoke
+            0 // No gravity for smoke
         );
     }
 
@@ -229,10 +226,8 @@ class ParticleSystem {
     emitChargeParticles(spawnCenterX, spawnCenterY, count, targetX, targetY, chargeRatio) {
          // Calculate current spawn radius based on charge ratio
          const currentSpawnRadius = CHARGE_PARTICLE_MIN_SPAWN_RADIUS + chargeRatio * (CHARGE_PARTICLE_MAX_SPAWN_RADIUS - CHARGE_PARTICLE_MIN_SPAWN_RADIUS);
-         const emitCount = Math.floor(CHARGE_PARTICLE_EMIT_RATE * (1/60) + Math.random()); // Use rate
-         if (emitCount <= 0) return;
 
-         for (let i = 0; i < emitCount; i++) { // Use emitCount
+         for (let i = 0; i < count; i++) {
             if (this.particles.length >= this.maxParticles) break;
 
              // Spawn at a random angle and distance around the spawn center using current radius
@@ -257,17 +252,14 @@ class ParticleSystem {
                  spawnX, spawnY, vx, vy,
                  CHARGE_PARTICLE_LIFESPAN,
                  CHARGE_PARTICLE_COLOR, null, // Color (no fade)
-                 CHARGE_PARTICLE_SIZE_START, CHARGE_PARTICLE_SIZE_END // Use size constants
+                 1.5, 1.5 // Size (slightly larger)
              ));
          }
     }
 
     // New emitter for fully charged sustain effect
-    emitFullyChargedSustain(emitX, emitY, count = 0) { // Count uses rate internally
-        const emitCount = Math.floor(FULLY_CHARGED_PARTICLE_EMIT_RATE * (1/60) + Math.random());
-        if (emitCount <= 0) return;
-
-        for (let i = 0; i < emitCount; i++) { // Use emitCount
+    emitFullyChargedSustain(emitX, emitY, count = FULLY_CHARGED_PARTICLE_EMIT_RATE) { // Count uses rate
+        for (let i = 0; i < count; i++) {
             if (this.particles.length >= this.maxParticles) break;
 
             const angle = Math.random() * Math.PI * 2;
@@ -318,61 +310,8 @@ class ParticleSystem {
         }
     }
 
-    /**
-     * Emits a projectile impact effect (smaller explosion).
-     * @param {number} x - Impact X coordinate.
-     * @param {number} y - Impact Y coordinate.
-     * @param {number} projVx - Projectile velocity X at impact.
-     * @param {number} projVy - Projectile velocity Y at impact.
-     * @param {string} color - Base color of the projectile.
-     */
-    emitProjectileImpact(x, y, projVx = 0, projVy = 0, color = 'rgba(255, 255, 0, 1.0)') {
-        const baseColor = this.parseColor(color);
-        const impactColors = [
-            `rgba(${Math.min(255, baseColor.r+50)}, ${Math.min(255, baseColor.g+50)}, ${Math.min(255, baseColor.b+50)}, 1.0)`, // Brighter version
-             color, // Original color
-             'rgba(230, 230, 230, 0.8)' // White/grey spark
-        ];
-
-        for (let i = 0; i < PROJECTILE_IMPACT_COUNT; i++) {
-             if (this.particles.length >= this.maxParticles) break;
-
-             const angle = Math.random() * Math.PI * 2;
-             const speed = Math.random() * (PROJECTILE_IMPACT_SPEED_MAX - PROJECTILE_IMPACT_SPEED_MIN) + PROJECTILE_IMPACT_SPEED_MIN;
-             // Bias emission slightly away from impact direction
-             const impactNormalX = -projVx;
-             const impactNormalY = -projVy;
-             const normLen = Math.sqrt(impactNormalX*impactNormalX + impactNormalY*impactNormalY);
-             const biasFactor = 0.3; // How much to bias towards the impact normal
-             let biasedVx = Math.cos(angle);
-             let biasedVy = Math.sin(angle);
-             if (normLen > 0) {
-                 biasedVx = biasedVx * (1-biasFactor) + (impactNormalX / normLen) * biasFactor;
-                 biasedVy = biasedVy * (1-biasFactor) + (impactNormalY / normLen) * biasFactor;
-             }
-
-             const vx = biasedVx * speed;
-             const vy = biasedVy * speed;
-
-             const lifespan = Math.random() * (PROJECTILE_IMPACT_LIFESPAN_MAX - PROJECTILE_IMPACT_LIFESPAN_MIN) + PROJECTILE_IMPACT_LIFESPAN_MIN;
-             const particleColor = impactColors[Math.floor(Math.random() * impactColors.length)];
-             const colorEnd = particleColor.replace(/[\d.]+\)$/g, '0)'); // Fade to transparent
-
-             const particle = new Particle(
-                 x, y, vx, vy,
-                 lifespan,
-                 particleColor, colorEnd,
-                 PROJECTILE_IMPACT_SIZE_START, PROJECTILE_IMPACT_SIZE_END
-             );
-             particle.gravity = PROJECTILE_IMPACT_GRAVITY;
-             this._addParticle(particle);
-         }
-    }
-
-
     _emitPickupEffect(x, y, color) {
         for (let i = 0; i < PICKUP_PARTICLE_COUNT; i++) {
-             if (this.particles.length >= this.maxParticles) break;
             const angle = Math.random() * Math.PI * 2;
             const vx = Math.cos(angle) * PICKUP_SPEED * (Math.random() * 0.5 + 0.75);
             const vy = Math.sin(angle) * PICKUP_SPEED * (Math.random() * 0.5 + 0.75);
@@ -449,8 +388,6 @@ export {
     FULLY_CHARGED_PARTICLE_SIZE,
     FULLY_CHARGED_PARTICLE_EMIT_RATE,
     // Spark/Smoke Constants (if needed elsewhere)
-    SPARK_EMIT_RATE, 
-    SMOKE_EMIT_RATE, 
     SPARK_COLOR,
     SMOKE_COLOR_START,
     SMOKE_COLOR_END,
@@ -459,5 +396,8 @@ export {
     SMOKE_SPEED_BASE,
     SMOKE_SPEED_DEVIATION,
     SMOKE_SIZE_START,
-    SMOKE_SIZE_END
-}
+    SMOKE_SIZE_END,
+    SPARK_EMIT_RATE,
+    SMOKE_EMIT_RATE,
+    DEFAULT_PARTICLE_LIFESPAN
+};

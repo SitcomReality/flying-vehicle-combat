@@ -74,18 +74,21 @@ class ProjectileManager {
             projectile.update(deltaTime, groundLevelY);
 
             if (projectile.isMarkedForRemoval) {
-                // --- Trigger explosion effect based on removal reason ---
-                // Only trigger effect if it hit something tangible (player, object, ground)
-                // NOT if it simply went out of bounds or timed out.
+                // Trigger explosion effect based on removal reason handled HERE
+                // (Collision handlers trigger their own effects immediately)
+                // Only trigger for GROUND or LIFESPAN expiry, not BOUNDS or collisions.
                 if (this.particleSystem &&
-                    (projectile.removalReason === ProjectileRemovalReason.HIT_PLAYER ||
-                     projectile.removalReason === ProjectileRemovalReason.HIT_OBJECT ||
-                     projectile.removalReason === ProjectileRemovalReason.GROUND))
+                    (projectile.removalReason === ProjectileRemovalReason.GROUND ||
+                     projectile.removalReason === ProjectileRemovalReason.LIFESPAN)) // Check for GROUND or LIFESPAN
                 {
-                    // Use emitProjectileImpact which creates a small burst effect
+                    console.log(`[ProjectileMgr] Triggering impact effect for projectile ${id}, reason: ${projectile.removalReason}`); // Add log
                     this.particleSystem.emitProjectileImpact(projectile.x, projectile.y, projectile.vx, projectile.vy, projectile.color);
+                } else if (this.particleSystem && projectile.removalReason !== ProjectileRemovalReason.BOUNDS &&
+                           projectile.removalReason !== ProjectileRemovalReason.HIT_OBJECT && projectile.removalReason !== ProjectileRemovalReason.HIT_PLAYER ) {
+                    // Log if effect *should* have happened but didn't match GROUND/LIFESPAN
+                    // This helps catch cases where collision handlers might not have triggered the effect
+                    // console.log(`[ProjectileMgr] Note: Projectile ${id} removed for reason ${projectile.removalReason}, effect assumed handled elsewhere or not needed (BOUNDS).`);
                 }
-                // --- End Trigger effect ---
 
                 // Log removal *before* deleting
                 // console.log(`[ProjectileMgr] Removing projectile ${id} (Owner: ${projectile.ownerId}, Local: ${projectile.isLocal}, Reason: ${projectile.removalReason})`);
