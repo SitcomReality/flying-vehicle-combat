@@ -20,6 +20,7 @@ import CollectibleManager from 'entities/collectibles/collectible-manager.js';
 import Scoreboard from 'ui/scoreboard.js';
 import ScorePersistence from 'networking/score-persistence.js';
 import Leaderboard from 'ui/leaderboard.js';
+import PauseMenu from 'ui/pause-menu.js';
 
 console.log("Game starting...");
 
@@ -70,6 +71,7 @@ let collisionManager = null;
 let playerLifecycleManager = null;
 let scoreboard = null;
 let leaderboard = null;
+let pauseMenu = null;
 
 // --- Initialization ---
 async function initializeGame() {
@@ -139,6 +141,22 @@ async function initializeGame() {
         scoreboard = new Scoreboard(scoreboardEl, playerManager, networkManager);
         leaderboard = new Leaderboard(leaderboardEl, scorePersistence, networkManager, assets);
 
+        // Create pause menu and wire surrender to killLocalPlayer
+        pauseMenu = new PauseMenu(document.body, () => {
+            // Defensive checks
+            try {
+                if (playerManager && playerManager.playerLifecycleManager) {
+                    playerManager.playerLifecycleManager.killLocalPlayer();
+                } else {
+                    // Fallback: try to directly damage local player
+                    const lp = playerManager?.getLocalPlayer();
+                    if (lp) lp.takeDamage(lp.state.maxHealth * 2, performance.now());
+                }
+            } catch (e) {
+                console.error("Error while handling surrender action:", e);
+            }
+        });
+
         playerLifecycleManager = new PlayerLifecycleManager(
             playerManager,
             networkManager,
@@ -190,6 +208,25 @@ async function initializeGame() {
         }
 
         networkEventHandler.setupNetworkHandlers();
+
+        // Add global ESC handler to toggle pause menu
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                // If vehicle selector is open, prefer hiding that first (leave behavior unchanged)
+                const vehicleVisible = vehicleSelectorEl && vehicleSelectorEl.style.display !== 'none';
+                if (vehicleVisible) {
+                    // If vehicle selector is open, close it and do not open pause menu.
+                    vehicleSelector.hide?.();
+                    return;
+                }
+                // Toggle our pause menu
+                if (pauseMenu) {
+                    pauseMenu.toggle();
+                    // Prevent default behavior when menu is opened
+                    if (pauseMenu.visible) e.preventDefault();
+                }
+            }
+        });
 
         window.gameDebug = window.gameDebug || {};
         window.gameDebug.resetMyScores = () => {
