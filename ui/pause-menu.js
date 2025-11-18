@@ -69,21 +69,58 @@ class PauseMenu {
         surrenderBtn.style.color = 'white';
         surrenderBtn.addEventListener('click', () => {
             this.hide();
-            // Prefer a global surrender handler if present (robust even if callback was bound early).
+
+            // First prefer the global handler injected by the game if available
             if (typeof window.gameSurrender === 'function') {
                 try {
                     window.gameSurrender();
+                    return;
                 } catch (e) {
                     console.error("Error calling global gameSurrender handler:", e);
                 }
-            } else if (typeof this.onSurrenderCb === 'function') {
+            }
+
+            // Next try the provided callback (backwards-compatible)
+            if (typeof this.onSurrenderCb === 'function') {
                 try {
                     this.onSurrenderCb();
+                    return;
                 } catch (e) {
                     console.error("Error calling onSurrenderCb:", e);
                 }
-            } else {
-                console.warn("No surrender callback available to execute.");
+            }
+
+            // Finally attempt a best-effort direct kill using any exposed global managers:
+            try {
+                // If a PlayerLifecycleManager was exposed, use its killLocalPlayer
+                if (window.playerLifecycleManager && typeof window.playerLifecycleManager.killLocalPlayer === 'function') {
+                    window.playerLifecycleManager.killLocalPlayer();
+                    return;
+                }
+
+                // If a PlayerManager was exposed, try to damage the local player directly
+                if (window.playerManager && typeof window.playerManager.getLocalPlayer === 'function') {
+                    const lp = window.playerManager.getLocalPlayer();
+                    if (lp && lp.state) {
+                        // Use takeDamage to ensure proper death handling; apply an overkill amount
+                        const overkill = (lp.state.maxHealth || 100) * 2;
+                        if (typeof lp.takeDamage === 'function') {
+                            lp.takeDamage(overkill, performance.now());
+                            return;
+                        } else if (lp.state) {
+                            // Fallback: directly set health then call lifecycle if available
+                            lp.state.health = 0;
+                            if (window.playerManager.playerLifecycleManager && typeof window.playerManager.playerLifecycleManager.handlePlayerDeath === 'function') {
+                                window.playerManager.playerLifecycleManager.handlePlayerDeath(lp.id);
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                console.warn("Surrender requested but no global handler or player manager available to execute it.");
+            } catch (e) {
+                console.error("Error executing fallback surrender logic:", e);
             }
         });
         box.appendChild(surrenderBtn);
