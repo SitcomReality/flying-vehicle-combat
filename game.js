@@ -169,6 +169,24 @@ async function initializeGame() {
         );
         playerManager.setPlayerLifecycleManager(playerLifecycleManager);
 
+        // Expose a robust global surrender handler that will always attempt to kill the local player.
+        window.gameSurrender = () => {
+            try {
+                if (playerManager && playerManager.playerLifecycleManager) {
+                    playerManager.playerLifecycleManager.killLocalPlayer();
+                } else {
+                    const lp = playerManager?.getLocalPlayer();
+                    if (lp) {
+                        lp.takeDamage(lp.state.maxHealth * 2, performance.now());
+                    } else {
+                        console.warn("Surrender requested but no local player available to kill.");
+                    }
+                }
+            } catch (e) {
+                console.error("Error executing gameSurrender:", e);
+            }
+        };
+
         playerManager.setManagers(
             projectileManager,
             networkManager,

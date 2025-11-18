@@ -69,7 +69,22 @@ class PauseMenu {
         surrenderBtn.style.color = 'white';
         surrenderBtn.addEventListener('click', () => {
             this.hide();
-            if (typeof this.onSurrenderCb === 'function') this.onSurrenderCb();
+            // Prefer a global surrender handler if present (robust even if callback was bound early).
+            if (typeof window.gameSurrender === 'function') {
+                try {
+                    window.gameSurrender();
+                } catch (e) {
+                    console.error("Error calling global gameSurrender handler:", e);
+                }
+            } else if (typeof this.onSurrenderCb === 'function') {
+                try {
+                    this.onSurrenderCb();
+                } catch (e) {
+                    console.error("Error calling onSurrenderCb:", e);
+                }
+            } else {
+                console.warn("No surrender callback available to execute.");
+            }
         });
         box.appendChild(surrenderBtn);
 
