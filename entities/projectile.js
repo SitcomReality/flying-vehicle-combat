@@ -4,6 +4,11 @@ import { BASE_PLAYER_PHYSICS } from '../config/vehicle-config.js';
 const PROJECTILE_RADIUS = 4;
 const PROJECTILE_LIFESPAN = 3; // seconds
 
+// Visual enhancement constants
+const GLOW_INTENSITY_BASE = 0.6;
+const TRAIL_MAX_LENGTH = 20; // Max trail points to keep
+const TRAIL_FADE_FACTOR = 0.85; // How much alpha decreases per trail segment
+
 // Define the reasons for removal
 export const ProjectileRemovalReason = {
     HIT_PLAYER: 'hit_player',
@@ -13,12 +18,7 @@ export const ProjectileRemovalReason = {
     LIFESPAN: 'lifespan',
 };
 
-// DEBUG: Counter for logging frequency control
-let logCounter = 0;
-const LOG_FREQUENCY = 60; // Log every N updates per projectile
-
 class Projectile {
-    // Added damage and gravityFactor parameters to constructor
     constructor(id, ownerId, x, y, vx, vy, color = 'yellow', damage = 10, gravityFactor = GLOBAL_PHYSICS.PROJECTILE_GRAVITY_FACTOR) {
         this.id = id;
         this.ownerId = ownerId;
@@ -31,41 +31,44 @@ class Projectile {
         this.creationTime = performance.now();
         this.lifespan = PROJECTILE_LIFESPAN * 1000; // milliseconds
         this.isMarkedForRemoval = false;
-        this.removalReason = null; // Store the reason for removal
+        this.removalReason = null;
         this.damage = damage;
         this.gravityFactor = gravityFactor;
-        this.isLocal = false; // Added flag, set by ProjectileManager
+        this.isLocal = false;
 
-        // DEBUG: Initial state log
-        // console.log(`[Projectile ${this.id}] CREATED by ${ownerId}. Pos: (${x.toFixed(1)}, ${y.toFixed(1)}), Vel: (${vx.toFixed(1)}, ${vy.toFixed(1)}), Dmg: ${damage}, GravFactor: ${gravityFactor.toFixed(3)}`);
+        // --- Visual Enhancement State ---
+        this.trail = []; // Array of {x, y} positions for trail effect
+        this.lastTrailUpdateTime = 0;
+        this.trailUpdateInterval = 16; // Update trail every ~16ms (60fps)
+
         this.logCounter = 0;
     }
 
-    /**
-     * Marks the projectile for removal and optionally sets the reason.
-     * @param {string | null} reason - The reason for removal (e.g., ProjectileRemovalReason.HIT_PLAYER).
-     */
     markForRemoval(reason = null) {
-        if (!this.isMarkedForRemoval) { // Only mark once
+        if (!this.isMarkedForRemoval) {
             this.isMarkedForRemoval = true;
             this.removalReason = reason;
-            // Log removal details
-            // if (!this.isLocal && reason) { // Log for remote projectiles with a reason
-            //      const timeAlive = (performance.now() - this.creationTime) / 1000;
-            //      console.log(`[Projectile ${this.id} REMOTE] Marked for removal. Reason: ${reason}. Time alive: ${timeAlive.toFixed(2)}s. Pos: (${this.x.toFixed(1)}, ${this.y.toFixed(1)})`);
-            // }
         }
     }
 
     update(deltaTime, groundLevelY) {
-        if (this.isMarkedForRemoval) return; // Check at start
+        if (this.isMarkedForRemoval) return;
 
         const now = performance.now();
 
-        // Check lifespan first, mark if expired
+        // Check lifespan first
         if (now - this.creationTime > this.lifespan) {
             this.markForRemoval(ProjectileRemovalReason.LIFESPAN);
-            return; // Stop update if expired
+            return;
+        }
+
+        // --- Update Trail ---
+        if (now - this.lastTrailUpdateTime > this.trailUpdateInterval) {
+            this.trail.push({ x: this.x, y: this.y });
+            if (this.trail.length > TRAIL_MAX_LENGTH) {
+                this.trail.shift(); // Remove oldest trail point
+            }
+            this.lastTrailUpdateTime = now;
         }
 
         // --- Vertical Physics ---
@@ -79,28 +82,85 @@ class Projectile {
         this.x += this.vx * deltaTime;
         this.y += this.vy * deltaTime;
 
-        // Check ground collision, mark if hit
+        // Check ground collision
         if (this.y + this.radius >= groundLevelY) {
-             this.y = groundLevelY - this.radius; // Adjust position slightly above ground
+            this.y = groundLevelY - this.radius;
             this.markForRemoval(ProjectileRemovalReason.GROUND);
-            return; // Stop update if hit ground
+            return;
         }
 
-        // Check screen bounds (simple removal for now), mark if outside
-        const gameWidth = 800; // TODO: Get this from config/game state
+        // Check screen bounds
+        const gameWidth = 800;
         if (this.x < -this.radius || this.x > gameWidth + this.radius || this.y < -this.radius) {
-             this.markForRemoval(ProjectileRemovalReason.BOUNDS);
-             return; // Stop update if out of bounds
+            this.markForRemoval(ProjectileRemovalReason.BOUNDS);
+            return;
         }
     }
 
     draw(ctx) {
         if (this.isMarkedForRemoval) return;
 
+        // --- Draw Trail ---
+        if (this.trail.length > 1) {
+            for (let i = 0; i < this.trail.length; i++) {
+                const point = this.trail[i];
+                const trailAlpha = (i / this.trail.length) * 0.4; // Fade from 0 to 0.4 along trail
+                const trailRadius = this.radius * (i / this.trail.length); // Shrink along trail
+
+                ctx.fillStyle = `rgba(255, 255, 255, ${trailAlpha})`;
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, trailRadius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // --- Calculate Glow Intensity based on Damage ---
+        // Higher damage projectiles have more intense glow
+        const damageRatio = Math.min(1, (this.damage - 10) / 30); // Normalize damage (10-40) to 0-1
+        const glowIntensity = GLOW_INTENSITY_BASE + damageRatio * 0.5; // 0.6 to 1.1
+
+        // --- Draw Glow Halo ---
+        const glowRadius = this.radius * (1.5 + damageRatio * 0.5); // Glow scales with damage
+        ctx.fillStyle = `rgba(255, 200, 100, ${glowIntensity * 0.3})`; // Warm glow
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, glowRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Secondary glow ring for extra effect
+        const secondaryGlowRadius = glowRadius * 1.4;
+        ctx.fillStyle = `rgba(255, 180, 80, ${glowIntensity * 0.15})`;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, secondaryGlowRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // --- Draw Core Projectile ---
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
+
+        // --- Draw Inner Highlight ---
+        // Create a subtle inner glow/shine for visual interest
+        const highlightGradient = ctx.createRadialGradient(
+            this.x - this.radius * 0.3, this.y - this.radius * 0.3, 0,
+            this.x, this.y, this.radius
+        );
+        highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+        highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = highlightGradient;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // --- Add Pulsing Glow for High-Damage Projectiles ---
+        if (damageRatio > 0.5) { // If damage is significant
+            const pulseAmount = Math.sin(performance.now() * 0.003) * 0.2; // Pulse over time
+            ctx.strokeStyle = `rgba(255, 120, 60, ${(damageRatio + pulseAmount) * 0.6})`;
+            ctx.lineWidth = 1 + damageRatio;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius + 2, 0, Math.PI * 2);
+            ctx.stroke();
+        }
     }
 }
 
